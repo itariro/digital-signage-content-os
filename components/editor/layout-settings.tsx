@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import type { EditorApi } from '@/hooks/use-editor'
 import { useGeocode } from '@/hooks/use-frame-store'
 import { downscaleImage } from '@/lib/frame-utils'
-import { Section, Segmented, SliderField, ToggleField } from './controls'
+import { Section, Segmented, SliderField, ThemeSwatches, ToggleField } from './controls'
 import { cn } from '@/lib/utils'
 
 const BACKGROUNDS = [
@@ -73,6 +73,15 @@ export function LayoutSettingsPanel({ editor }: { editor: EditorApi }) {
           />
         )}
       </Section>
+
+      {editor.state.widgets.length > 0 && (
+        <Section title="Theme">
+          <ThemeSwatches
+            label="Restyle every widget"
+            onApply={(style) => editor.updateStyle(editor.state.widgets.map((w) => w.id), style)}
+          />
+        </Section>
+      )}
 
       <Section title="Preview photo">
         <div className="grid grid-cols-3 gap-2">

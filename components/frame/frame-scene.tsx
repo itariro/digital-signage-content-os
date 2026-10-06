@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties, ReactNode } from 'react'
-import type { LayoutSettings, WeatherData, Widget } from '@/lib/types'
+import type { LayoutSettings, NightMode, WeatherData, Widget } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { fontStack } from '@/lib/fonts'
 import { hexToRgba } from '@/lib/frame-utils'
@@ -62,17 +62,33 @@ export function FrameBackground({ settings }: { settings: LayoutSettings }) {
   )
 }
 
+export function NightOverlay({ night }: { night: NightMode }) {
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0" style={{ background: `rgba(0,0,0,${(100 - night.brightness) / 100})` }} />
+      {night.warmth > 0 && (
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: `rgba(255,128,32,${(night.warmth / 100) * 0.4})`, mixBlendMode: 'multiply' }}
+        />
+      )}
+    </>
+  )
+}
+
 type FrameSceneProps = {
   widgets: Widget[]
   settings: LayoutSettings
   weather: WeatherData | null
   now: Date | null
   scale: number
+  night?: NightMode | null
   children?: ReactNode
   renderWidget?: (widget: Widget, body: ReactNode) => ReactNode
 }
 
-export function FrameScene({ widgets, settings, weather, now, scale, children, renderWidget }: FrameSceneProps) {
+export function FrameScene({ widgets, settings, weather, now, scale, night, children, renderWidget }: FrameSceneProps) {
+  const hideSeconds = Boolean(night?.hideSeconds)
   return (
     <div style={{ width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale }} className="relative overflow-hidden">
       <div
@@ -83,7 +99,7 @@ export function FrameScene({ widgets, settings, weather, now, scale, children, r
         {now &&
           widgets.map((widget) => {
             if (widget.hidden && !renderWidget) return null
-            const body = <WidgetBody widget={widget} ctx={{ now, weather, settings }} />
+            const body = <WidgetBody widget={widget} ctx={{ now, weather, settings, hideSeconds }} />
             if (renderWidget) return renderWidget(widget, body)
             return (
               <div key={widget.id} style={surfaceStyle(widget)}>
@@ -91,6 +107,7 @@ export function FrameScene({ widgets, settings, weather, now, scale, children, r
               </div>
             )
           })}
+        {night && <NightOverlay night={night} />}
         {children}
       </div>
     </div>

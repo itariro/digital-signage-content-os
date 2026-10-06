@@ -25,6 +25,18 @@ function sample(units: 'metric' | 'imperial'): WeatherData {
       d.setDate(d.getDate() + i)
       return { date: d.toISOString().slice(0, 10), code, max: f(21 - i), min: f(11 - (i % 2)) }
     }),
+    hourly: Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(today)
+      d.setHours(today.getHours() + i, 0, 0, 0)
+      const hour = d.getHours()
+      return {
+        time: d.toISOString().slice(0, 16),
+        code: [2, 2, 3, 61, 61, 3, 2, 1, 0, 0, 1, 2][i],
+        temp: f(Math.round(14 + 5 * Math.sin(((hour - 8) / 24) * Math.PI * 2))),
+        isDay: hour >= 7 && hour < 19,
+        precip: [5, 10, 30, 70, 60, 25, 10, 5, 0, 0, 5, 10][i],
+      }
+    }),
   }
 }
 
@@ -40,7 +52,9 @@ export async function GET(request: Request) {
   api.searchParams.set('current', 'temperature_2m,weather_code,is_day,uv_index')
   api.searchParams.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max')
   api.searchParams.set('timezone', 'auto')
+  api.searchParams.set('hourly', 'temperature_2m,weather_code,is_day,precipitation_probability')
   api.searchParams.set('forecast_days', '5')
+  api.searchParams.set('forecast_hours', '12')
   if (units === 'imperial') api.searchParams.set('temperature_unit', 'fahrenheit')
 
   try {
@@ -68,6 +82,13 @@ export async function GET(request: Request) {
         code: daily.weather_code[i],
         max: Math.round(daily.temperature_2m_max[i]),
         min: Math.round(daily.temperature_2m_min[i]),
+      })),
+      hourly: (json.hourly?.time ?? []).map((time: string, i: number) => ({
+        time,
+        code: json.hourly.weather_code[i],
+        temp: Math.round(json.hourly.temperature_2m[i]),
+        isDay: json.hourly.is_day[i] === 1,
+        precip: json.hourly.precipitation_probability?.[i] ?? 0,
       })),
     }
     return NextResponse.json(data)

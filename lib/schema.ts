@@ -62,6 +62,31 @@ export const presetInputSchema = z.object({
   widgets: z.array(widgetSchema).min(1).max(20),
 })
 
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM')
+
+export const scheduleSchema = z.object({
+  enabled: z.boolean(),
+  rules: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(40),
+        layoutId: z.string().min(1).max(40),
+        days: z.array(z.number().int().min(0).max(6)).max(7),
+        start: clock,
+        end: clock,
+      }),
+    )
+    .max(24),
+  night: z.object({
+    enabled: z.boolean(),
+    start: clock,
+    end: clock,
+    brightness: z.number().min(5).max(100),
+    warmth: z.number().min(0).max(100),
+    hideSeconds: z.boolean(),
+  }),
+})
+
 export const fontInputSchema = z.object({
   family: z
     .string()

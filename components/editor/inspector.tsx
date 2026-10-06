@@ -10,6 +10,8 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  AlignHorizontalDistributeCenter,
+  AlignVerticalDistributeCenter,
   ArrowDownToLine,
   ArrowUpToLine,
   BookmarkPlus,
@@ -27,7 +29,7 @@ import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { BUILTIN_FONTS, customFontId, fontStack } from '@/lib/fonts'
 import { getDefinition } from '@/lib/widgets'
 import type { EditorApi } from '@/hooks/use-editor'
-import { ColorField, IconButton, NumberField, Section, Segmented, SelectField, SliderField, ToggleField } from './controls'
+import { ColorField, IconButton, NumberField, Section, Segmented, SelectField, SliderField, ThemeSwatches, ToggleField } from './controls'
 import { LayoutSettingsPanel } from './layout-settings'
 import { WidgetPreview } from './widget-preview'
 import { cn } from '@/lib/utils'
@@ -156,6 +158,20 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
   return (
     <Section title="Content">
       {def.fields.map((field) => {
+        if (field.showWhen && String(widget.props[field.showWhen.key]) !== field.showWhen.value) return null
+        if (field.kind === 'date') {
+          return (
+            <label key={field.key} className="flex items-center justify-between gap-3 text-sm text-foreground">
+              {field.label}
+              <input
+                type="date"
+                value={String(widget.props[field.key] ?? '')}
+                onChange={(e) => e.target.value && setProp(field.key, e.target.value)}
+                className="h-8 rounded-md border border-border bg-secondary px-2 font-mono text-xs text-foreground outline-none [color-scheme:dark] focus-visible:border-primary"
+              />
+            </label>
+          )
+        }
         if (field.kind === 'toggle') {
           return <ToggleField key={field.key} label={field.label} checked={Boolean(widget.props[field.key])} onChange={(v) => setProp(field.key, v)} />
         }
@@ -198,6 +214,22 @@ function ArrangeSection({ editor, selection }: { editor: EditorApi; selection: W
 
   const align = (fn: (w: Widget) => Partial<Widget>) => editor.updateWidgets(ids, (w) => ({ ...w, ...fn(w) }))
 
+  function distribute(axis: 'x' | 'y') {
+    const size = axis === 'x' ? 'w' : 'h'
+    const sorted = [...selection].sort((a, b) => a[axis] - b[axis])
+    const start = sorted[0][axis]
+    const end = Math.max(...sorted.map((w) => w[axis] + w[size]))
+    const occupied = sorted.reduce((sum, w) => sum + w[size], 0)
+    const gap = (end - start - occupied) / (sorted.length - 1)
+    const positions = new Map<string, number>()
+    let cursor = start
+    sorted.forEach((w) => {
+      positions.set(w.id, Math.round(cursor))
+      cursor += w[size] + gap
+    })
+    editor.updateWidgets(ids, (w) => ({ ...w, [axis]: positions.get(w.id) ?? w[axis] }))
+  }
+
   return (
     <Section title="Arrange & combine">
       <div className="grid grid-cols-6 gap-1">
@@ -208,6 +240,18 @@ function ArrangeSection({ editor, selection }: { editor: EditorApi; selection: W
         <IconButton label="Align middle" onClick={() => align((w) => ({ y: Math.round((minY + maxY) / 2 - w.h / 2) }))}><AlignCenterHorizontal className="size-4" /></IconButton>
         <IconButton label="Align bottom" onClick={() => align((w) => ({ y: maxY - w.h }))}><AlignEndHorizontal className="size-4" /></IconButton>
       </div>
+      {selection.length > 2 && (
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => distribute('x')} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary text-xs font-medium text-foreground hover:bg-secondary/70">
+            <AlignHorizontalDistributeCenter className="size-3.5" aria-hidden />
+            Space horizontally
+          </button>
+          <button type="button" onClick={() => distribute('y')} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary text-xs font-medium text-foreground hover:bg-secondary/70">
+            <AlignVerticalDistributeCenter className="size-3.5" aria-hidden />
+            Space vertically
+          </button>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => (grouped ? editor.ungroup(ids) : editor.group(ids))}
@@ -278,6 +322,7 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
       </Section>
 
       <Section title="Color">
+        <ThemeSwatches onApply={(style) => set(style)} />
         <ColorField label="Text" value={s.color} onChange={(v) => set({ color: v })} />
         <ColorField label="Accent" value={s.accent} onChange={(v) => set({ accent: v })} />
         <SliderField label="Opacity" value={s.opacity} min={10} max={100} suffix="%" onCommit={commit} onChange={slide('opacity')} />

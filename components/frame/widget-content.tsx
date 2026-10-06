@@ -21,12 +21,26 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { LayoutSettings, WeatherData, Widget } from '@/lib/types'
-import { formatTime, parseLocalTime, shortTime, uvLevel, weatherInfo } from '@/lib/frame-utils'
+import {
+  daysBetween,
+  formatTime,
+  moonPath,
+  moonPhase,
+  parseDateOnly,
+  parseLocalTime,
+  shortTime,
+  uvLevel,
+  weatherInfo,
+  zonedTime,
+} from '@/lib/frame-utils'
+import { TIME_ZONES } from '@/lib/widgets'
+import { quoteForDate } from '@/lib/quotes'
 
 export type WidgetContext = {
   now: Date
   weather: WeatherData | null
   settings: LayoutSettings
+  hideSeconds?: boolean
 }
 
 const ICONS: Record<string, LucideIcon> = {
@@ -57,9 +71,19 @@ const muted: CSSProperties = { opacity: 0.72 }
 export function WidgetContent({ widget, ctx }: { widget: Widget; ctx: WidgetContext }) {
   switch (widget.type) {
     case 'clock-digital':
-      return <DigitalClock widget={widget} now={ctx.now} />
+      return <DigitalClock widget={widget} now={ctx.now} hideSeconds={ctx.hideSeconds} />
     case 'clock-analog':
-      return <AnalogClock widget={widget} now={ctx.now} />
+      return <AnalogClock widget={widget} now={ctx.now} hideSeconds={ctx.hideSeconds} />
+    case 'world-clock':
+      return <WorldClock widget={widget} now={ctx.now} />
+    case 'hourly':
+      return <HourlyWidget widget={widget} ctx={ctx} />
+    case 'moon':
+      return <MoonWidget widget={widget} now={ctx.now} />
+    case 'countdown':
+      return <CountdownWidget widget={widget} now={ctx.now} />
+    case 'quote':
+      return <QuoteWidget widget={widget} now={ctx.now} />
     case 'date':
       return <DateWidget widget={widget} now={ctx.now} />
     case 'weather':
@@ -77,8 +101,9 @@ export function WidgetContent({ widget, ctx }: { widget: Widget; ctx: WidgetCont
   }
 }
 
-function DigitalClock({ widget, now }: { widget: Widget; now: Date }) {
-  const { style, template, props } = widget
+function DigitalClock({ widget, now, hideSeconds }: { widget: Widget; now: Date; hideSeconds?: boolean }) {
+  const { style, props } = widget
+  const template = hideSeconds && widget.template === 'seconds' ? 'classic' : widget.template
   const hour12 = Boolean(props.hour12)
   const t = formatTime(now, hour12)
   const showMeridiem = hour12 && Boolean(props.meridiem)
@@ -129,7 +154,7 @@ function DigitalClock({ widget, now }: { widget: Widget; now: Date }) {
   )
 }
 
-function AnalogClock({ widget, now }: { widget: Widget; now: Date }) {
+function AnalogClock({ widget, now, hideSeconds }: { widget: Widget; now: Date; hideSeconds?: boolean }) {
   const { style, template, props } = widget
   const h = now.getHours() % 12
   const m = now.getMinutes()
@@ -181,7 +206,7 @@ function AnalogClock({ widget, now }: { widget: Widget; now: Date }) {
         })}
       <line x1="100" y1="108" x2="100" y2="52" stroke="currentColor" strokeWidth="7" strokeLinecap="round" transform={`rotate(${hourAngle} 100 100)`} />
       <line x1="100" y1="110" x2="100" y2="28" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" transform={`rotate(${minuteAngle} 100 100)`} />
-      {Boolean(props.seconds) && (
+      {Boolean(props.seconds) && !hideSeconds && (
         <line x1="100" y1="118" x2="100" y2="22" stroke={style.accent} strokeWidth="1.8" strokeLinecap="round" transform={`rotate(${secondAngle} 100 100)`} />
       )}
       <circle cx="100" cy="100" r="5" fill={style.accent} />
@@ -472,5 +497,254 @@ function IconWidget({ widget }: { widget: Widget }) {
     <div className="flex h-full w-full items-center justify-center">
       <Icon style={{ width: '100%', height: '100%' }} strokeWidth={1.4} aria-hidden />
     </div>
+  )
+}
+
+function zoneLabel(zone: string) {
+  return TIME_ZONES.find((z) => z.value === zone)?.label.replace('Frame local time', 'Home') ?? zone.split('/').pop()?.replace(/_/g, ' ') ?? zone
+}
+
+function dayOffsetLabel(offset: number) {
+  return offset === 0 ? 'Today' : offset > 0 ? 'Tomorrow' : 'Yesterday'
+}
+
+function WorldClock({ widget, now }: { widget: Widget; now: Date }) {
+  const { style, template, props } = widget
+  const hour12 = Boolean(props.hour12)
+  const zones = [props.zone1, props.zone2, props.zone3].map(String).filter((z) => z && z !== 'none')
+  const entries = zones.map((zone) => ({ zone, label: zoneLabel(zone), ...zonedTime(now, zone, hour12) }))
+
+  if (template === 'list') {
+    return (
+      <div className="flex h-full w-full flex-col justify-center gap-[4cqh]">
+        {entries.map((e) => (
+          <div key={e.zone} className="flex items-baseline justify-between gap-[3cqw]" style={{ fontSize: `min(${60 / Math.max(1, entries.length)}cqh, 7cqw)` }}>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate" style={{ lineHeight: 1.1 }}>{e.label}</span>
+              <span style={{ fontSize: '0.55em', ...muted }}>{dayOffsetLabel(e.dayOffset)}</span>
+            </span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: style.accent, fontSize: '1.3em', lineHeight: 1 }}>
+              {e.time}
+              {hour12 && <span style={{ fontSize: '0.45em', marginLeft: '0.2em', ...muted }}>{e.meridiem}</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid h-full w-full items-center gap-[3cqw]" style={{ gridTemplateColumns: `repeat(${Math.max(1, entries.length)}, minmax(0, 1fr))` }}>
+      {entries.map((e) => (
+        <div key={e.zone} className="flex min-w-0 flex-col items-center gap-[3cqh]">
+          <span className="w-full truncate" style={{ fontSize: 'min(13cqh, 4.6cqw)', letterSpacing: '0.08em', textTransform: 'uppercase', ...muted }}>
+            {e.label}
+          </span>
+          <span style={{ fontSize: `min(34cqh, ${30 / Math.max(1, entries.length)}cqw)`, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{e.time}</span>
+          <span style={{ fontSize: 'min(11cqh, 4cqw)', color: style.accent }}>
+            {hour12 ? `${e.meridiem} · ` : ''}
+            {dayOffsetLabel(e.dayOffset)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function HourlyWidget({ widget, ctx }: { widget: Widget; ctx: WidgetContext }) {
+  const { style, template, props } = widget
+  const count = Number(props.hours) || 6
+  const hours = (ctx.weather?.hourly ?? []).slice(0, count)
+  const showRain = Boolean(props.showRain)
+  const label = (time: string, i: number) => (i === 0 ? 'Now' : time.slice(11, 13))
+  const cols = { gridTemplateColumns: `repeat(${Math.max(1, hours.length)}, minmax(0, 1fr))` }
+  const iconSize = `min(22cqh, ${40 / Math.max(1, count)}cqw)`
+
+  if (template === 'chart') {
+    const temps = hours.map((h) => h.temp)
+    const max = Math.max(...temps, 1)
+    const min = Math.min(...temps, 0)
+    const range = max - min || 1
+    const points = hours.map((h, i) => {
+      const x = ((i + 0.5) / Math.max(1, hours.length)) * 100
+      const y = 88 - ((h.temp - min) / range) * 76
+      return { x, y }
+    })
+    return (
+      <div className="flex h-full w-full flex-col">
+        <div className="grid" style={{ ...cols, fontSize: 'min(13cqh, 4.6cqw)' }}>
+          {hours.map((h) => (
+            <span key={h.time} className="text-center">{temp(h.temp)}</span>
+          ))}
+        </div>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="min-h-0 w-full flex-1" aria-hidden>
+          <polyline
+            points={points.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke={style.accent}
+            strokeWidth="3"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          {showRain &&
+            hours.map((h, i) => (
+              <rect
+                key={h.time}
+                x={(i / Math.max(1, hours.length)) * 100 + 100 / hours.length / 2 - 1.5}
+                y={100 - h.precip / 4}
+                width="3"
+                height={h.precip / 4}
+                fill="currentColor"
+                opacity="0.35"
+              />
+            ))}
+        </svg>
+        <div className="grid" style={{ ...cols, fontSize: 'min(11cqh, 4cqw)', ...muted }}>
+          {hours.map((h, i) => (
+            <span key={h.time} className="text-center">{label(h.time, i)}</span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid h-full w-full items-center" style={cols}>
+      {hours.map((h, i) => {
+        const HourIcon = weatherInfo(h.code, h.isDay).icon
+        return (
+          <div key={h.time} className="flex flex-col items-center gap-[4cqh]">
+            <span style={{ fontSize: 'min(11cqh, 4cqw)', ...muted }}>{label(h.time, i)}</span>
+            <HourIcon style={{ width: iconSize, height: iconSize, color: style.accent }} strokeWidth={1.6} aria-hidden />
+            <span style={{ fontSize: 'min(15cqh, 5cqw)', fontVariantNumeric: 'tabular-nums' }}>{temp(h.temp)}</span>
+            {showRain && <span style={{ fontSize: 'min(10cqh, 3.6cqw)', ...muted }}>{h.precip}%</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function MoonDisc({ fraction, accent, label }: { fraction: number; accent: string; label: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label={label}>
+      <circle cx="50" cy="50" r="40" fill="currentColor" opacity="0.14" />
+      <path d={moonPath(fraction)} fill={accent} />
+      <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1" />
+    </svg>
+  )
+}
+
+function MoonWidget({ widget, now }: { widget: Widget; now: Date }) {
+  const { style, template, props } = widget
+  const phase = moonPhase(now)
+  const percent = Math.round(phase.illumination * 100)
+  const label = `${phase.name}, ${percent}% illuminated`
+
+  if (template === 'details') {
+    return (
+      <div className="flex h-full w-full items-center gap-[5cqw]">
+        <div className="aspect-square h-full shrink-0">
+          <MoonDisc fraction={phase.fraction} accent={style.accent} label={label} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-[2cqh] text-left">
+          {Boolean(props.showName) && <span className="truncate" style={{ fontSize: 'min(16cqh, 7cqw)', lineHeight: 1.1 }}>{phase.name}</span>}
+          <span style={{ fontSize: 'min(12cqh, 5.4cqw)', ...muted }}>{percent}% lit</span>
+          <span style={{ fontSize: 'min(11cqh, 5cqw)', color: style.accent }}>
+            {phase.illumination > 0.97 ? 'Full tonight' : `Full in ${phase.daysToFull} day${phase.daysToFull === 1 ? '' : 's'}`}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-[3cqh]">
+      <div className="aspect-square min-h-0 flex-1">
+        <MoonDisc fraction={phase.fraction} accent={style.accent} label={label} />
+      </div>
+      {Boolean(props.showName) && <span className="whitespace-nowrap" style={{ fontSize: 'min(11cqh, 8cqw)', ...muted }}>{phase.name}</span>}
+    </div>
+  )
+}
+
+function CountdownWidget({ widget, now }: { widget: Widget; now: Date }) {
+  const { style, template, props } = widget
+  const target = parseDateOnly(String(props.target))
+  const start = parseDateOnly(String(props.start))
+  const name = String(props.label || 'Event')
+  const days = target ? daysBetween(now, target) : 0
+  const caption = !target ? 'Pick a date' : days === 0 ? 'is today' : days > 0 ? `day${days === 1 ? '' : 's'} until ${name}` : `day${days === -1 ? '' : 's'} since ${name}`
+  const value = days === 0 && target ? name : String(Math.abs(days))
+  const justify = JUSTIFY[style.align]
+
+  if (template === 'ring') {
+    const total = target && start ? Math.max(1, daysBetween(start, target)) : 1
+    const progress = Math.min(1, Math.max(0, 1 - days / total))
+    const r = 42
+    const c = 2 * Math.PI * r
+    return (
+      <div className="flex h-full w-full items-center gap-[5cqw]" style={{ justifyContent: justify }}>
+        <svg viewBox="0 0 100 100" className="aspect-square h-full shrink-0" role="img" aria-label={`${Math.round(progress * 100)}% of the way to ${name}`}>
+          <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="8" />
+          <circle cx="50" cy="50" r={r} fill="none" stroke={style.accent} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${Math.max(1, c * progress)} ${c}`} transform="rotate(-90 50 50)" />
+          <text x="50" y="50" textAnchor="middle" dominantBaseline="central" fill="currentColor" fontSize={days === 0 ? 14 : 30}>
+            {days === 0 ? 'Today' : Math.abs(days)}
+          </text>
+        </svg>
+        <div className="flex min-w-0 flex-col text-left">
+          <span className="truncate" style={{ fontSize: 'min(20cqh, 8cqw)', lineHeight: 1.1 }}>{name}</span>
+          <span style={{ fontSize: 'min(12cqh, 5cqw)', ...muted }}>
+            {target?.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) ?? 'No date set'}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  if (template === 'inline') {
+    const text = `${value} ${caption}`
+    return (
+      <div className="flex h-full w-full items-center gap-[0.3em] whitespace-nowrap" style={{ justifyContent: justify, fontSize: fit(text, 60, 190) }}>
+        <span style={{ color: style.accent, fontWeight: 700 }}>{value}</span>
+        <span>{caption}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col justify-center" style={{ alignItems: justify }}>
+      <span style={{ fontSize: fit(value, 62, 120), lineHeight: 1, color: style.accent, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      <span className="max-w-full truncate" style={{ fontSize: fit(caption, 16, 160), ...muted }}>{caption}</span>
+    </div>
+  )
+}
+
+function QuoteWidget({ widget, now }: { widget: Widget; now: Date }) {
+  const { style, template, props } = widget
+  const daily = quoteForDate(now)
+  const custom = props.mode === 'custom'
+  const text = custom ? String(props.text || '') : daily.text
+  const author = custom ? String(props.author || '') : daily.author
+  const justify = JUSTIFY[style.align]
+  const size = `min(${Math.max(9, 34 - text.length / 6)}cqh, ${Math.max(3.2, 11 - text.length / 18)}cqw)`
+
+  return (
+    <figure className="flex h-full w-full flex-col justify-center gap-[5cqh]" style={{ alignItems: justify }}>
+      {template === 'marks' && (
+        <span aria-hidden style={{ fontSize: 'min(40cqh, 14cqw)', lineHeight: 0.6, color: style.accent, height: '0.45em' }}>
+          {'“'}
+        </span>
+      )}
+      <blockquote className="text-balance" style={{ fontSize: size, lineHeight: 1.25, fontStyle: template === 'serif' ? 'italic' : 'normal' }}>
+        {template === 'serif' ? `“${text}”` : text}
+      </blockquote>
+      {author && (
+        <figcaption style={{ fontSize: 'min(11cqh, 3.6cqw)', letterSpacing: '0.12em', textTransform: 'uppercase', color: style.accent }}>
+          {author}
+        </figcaption>
+      )}
+    </figure>
   )
 }

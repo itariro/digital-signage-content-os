@@ -9,15 +9,22 @@ import {
   SunMedium,
   Type,
   CalendarClock,
+  CloudSunRain,
+  Globe,
+  MoonStar,
+  Quote,
+  Timer,
   type LucideIcon,
 } from 'lucide-react'
 import type { Widget, WidgetStyle, WidgetType, WidgetProps } from './types'
 import { FRAME_WIDTH } from './types'
 
-export type PropField =
+export type PropField = (
   | { key: string; label: string; kind: 'toggle' }
   | { key: string; label: string; kind: 'text' }
+  | { key: string; label: string; kind: 'date' }
   | { key: string; label: string; kind: 'select'; options: { value: string; label: string }[] }
+) & { showWhen?: { key: string; value: string } }
 
 export type WidgetDefinition = {
   type: WidgetType
@@ -68,6 +75,29 @@ export const ICON_CHOICES = [
   'plane',
   'cake',
 ] as const
+
+export const TIME_ZONES = [
+  { value: 'local', label: 'Frame local time' },
+  { value: 'America/Los_Angeles', label: 'Los Angeles' },
+  { value: 'America/New_York', label: 'New York' },
+  { value: 'America/Sao_Paulo', label: 'São Paulo' },
+  { value: 'Europe/London', label: 'London' },
+  { value: 'Europe/Paris', label: 'Paris' },
+  { value: 'Africa/Johannesburg', label: 'Johannesburg' },
+  { value: 'Asia/Dubai', label: 'Dubai' },
+  { value: 'Asia/Kolkata', label: 'Mumbai' },
+  { value: 'Asia/Singapore', label: 'Singapore' },
+  { value: 'Asia/Tokyo', label: 'Tokyo' },
+  { value: 'Australia/Sydney', label: 'Sydney' },
+  { value: 'Pacific/Auckland', label: 'Auckland' },
+]
+
+function defaultCountdownTarget() {
+  const d = new Date()
+  d.setMonth(11, 25)
+  if (d.getTime() < Date.now()) d.setFullYear(d.getFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
 
 export const WIDGETS: WidgetDefinition[] = [
   {
@@ -249,6 +279,134 @@ export const WIDGETS: WidgetDefinition[] = [
       },
     ],
   },
+  {
+    type: 'world-clock',
+    label: 'World clock',
+    description: 'Time in other cities',
+    category: 'Time',
+    icon: Globe,
+    size: { w: 640, h: 260 },
+    minSize: { w: 200, h: 80 },
+    lockAspect: false,
+    templates: [
+      { id: 'cards', label: 'Cards' },
+      { id: 'list', label: 'List' },
+    ],
+    props: { zone1: 'Europe/London', zone2: 'America/New_York', zone3: 'Asia/Tokyo', hour12: false },
+    fields: [
+      { key: 'zone1', label: 'City 1', kind: 'select', options: TIME_ZONES },
+      { key: 'zone2', label: 'City 2', kind: 'select', options: [{ value: 'none', label: 'None' }, ...TIME_ZONES] },
+      { key: 'zone3', label: 'City 3', kind: 'select', options: [{ value: 'none', label: 'None' }, ...TIME_ZONES] },
+      { key: 'hour12', label: '12-hour time', kind: 'toggle' },
+    ],
+    style: { bgOpacity: 30, blur: 24 },
+  },
+  {
+    type: 'hourly',
+    label: 'Hourly forecast',
+    description: 'Next hours at a glance',
+    category: 'Weather',
+    icon: CloudSunRain,
+    size: { w: 800, h: 240 },
+    minSize: { w: 240, h: 80 },
+    lockAspect: false,
+    templates: [
+      { id: 'row', label: 'Row' },
+      { id: 'chart', label: 'Chart' },
+    ],
+    props: { hours: '6', showRain: true },
+    fields: [
+      {
+        key: 'hours',
+        label: 'Hours shown',
+        kind: 'select',
+        options: [
+          { value: '4', label: '4 hours' },
+          { value: '6', label: '6 hours' },
+          { value: '8', label: '8 hours' },
+          { value: '12', label: '12 hours' },
+        ],
+      },
+      { key: 'showRain', label: 'Chance of rain', kind: 'toggle' },
+    ],
+    style: { bgOpacity: 30, blur: 24 },
+  },
+  {
+    type: 'moon',
+    label: 'Moon phase',
+    description: 'Tonight’s moon',
+    category: 'Weather',
+    icon: MoonStar,
+    size: { w: 280, h: 280 },
+    minSize: { w: 80, h: 60 },
+    lockAspect: false,
+    templates: [
+      { id: 'disc', label: 'Disc' },
+      { id: 'details', label: 'Details' },
+    ],
+    props: { showName: true },
+    fields: [{ key: 'showName', label: 'Show phase name', kind: 'toggle' }],
+    style: { bgOpacity: 30, blur: 24, accent: '#f3ecd2' },
+  },
+  {
+    type: 'countdown',
+    label: 'Countdown',
+    description: 'Days until an event',
+    category: 'Planner',
+    icon: Timer,
+    size: { w: 480, h: 220 },
+    minSize: { w: 140, h: 60 },
+    lockAspect: false,
+    templates: [
+      { id: 'big', label: 'Big number' },
+      { id: 'ring', label: 'Ring' },
+      { id: 'inline', label: 'Inline' },
+    ],
+    props: { label: 'Christmas', target: defaultCountdownTarget(), start: new Date().toISOString().slice(0, 10) },
+    fields: [
+      { key: 'label', label: 'Event name', kind: 'text' },
+      { key: 'target', label: 'Event date', kind: 'date' },
+      { key: 'start', label: 'Counting from', kind: 'date' },
+    ],
+    style: { bgOpacity: 30, blur: 24, accent: '#ff8fa3' },
+  },
+  {
+    type: 'quote',
+    label: 'Daily quote',
+    description: 'A new line every day',
+    category: 'Decor',
+    icon: Quote,
+    size: { w: 840, h: 240 },
+    minSize: { w: 200, h: 60 },
+    lockAspect: false,
+    templates: [
+      { id: 'serif', label: 'Editorial' },
+      { id: 'marks', label: 'Quote marks' },
+    ],
+    props: { mode: 'daily', text: 'The best things in life are the people we love.', author: '' },
+    fields: [
+      {
+        key: 'mode',
+        label: 'Source',
+        kind: 'select',
+        options: [
+          { value: 'daily', label: 'Rotate daily' },
+          { value: 'custom', label: 'My own words' },
+        ],
+      },
+      { key: 'text', label: 'Custom quote', kind: 'text', showWhen: { key: 'mode', value: 'custom' } },
+      { key: 'author', label: 'Attribution', kind: 'text', showWhen: { key: 'mode', value: 'custom' } },
+    ],
+    style: { fontFamily: 'instrument', fontWeight: 400 },
+  },
+]
+
+export const STYLE_THEMES: { id: string; name: string; style: Partial<WidgetStyle> }[] = [
+  { id: 'frost', name: 'Frost', style: { color: '#ffffff', accent: '#7cc4ff', bg: '#0b0c10', stroke: '#ffffff' } },
+  { id: 'ember', name: 'Ember', style: { color: '#fff4e6', accent: '#ffb86b', bg: '#2a1508', stroke: '#ffd9b0' } },
+  { id: 'bloom', name: 'Bloom', style: { color: '#fff1f4', accent: '#ff8fa3', bg: '#2b0d17', stroke: '#ffc7d2' } },
+  { id: 'meadow', name: 'Meadow', style: { color: '#f1fff8', accent: '#9be7c4', bg: '#0a2018', stroke: '#c9f5e0' } },
+  { id: 'ink', name: 'Ink', style: { color: '#0b0c10', accent: '#3a5bd9', bg: '#ffffff', stroke: '#0b0c10' } },
 ]
 
 export function getDefinition(type: WidgetType) {
@@ -309,6 +467,35 @@ export const BUILTIN_COMBOS: BuiltinCombo[] = [
     build: () => [
       place('clock-analog', 0, 0, 300, 300, { template: 'ticks' }),
       place('calendar', 320, 0, 320, 300, { template: 'month' }),
+    ],
+  },
+  {
+    id: 'combo-forecast',
+    name: 'Forecast deck',
+    description: 'Now, next hours and the week',
+    build: () => [
+      place('weather', 0, 0, 800, 200, { template: 'detailed' }),
+      place('hourly', 0, 220, 800, 220, { template: 'row' }),
+      place('weather', 0, 460, 800, 240, { template: 'forecast', props: { showLocation: false } }),
+    ],
+  },
+  {
+    id: 'combo-night-sky',
+    name: 'Night sky',
+    description: 'Clock, moon and sunrise',
+    build: () => [
+      place('clock-digital', 0, 0, 640, 220, { template: 'classic', style: { fontWeight: 300 } as WidgetStyle }),
+      place('moon', 0, 240, 310, 220, { template: 'disc' }),
+      place('sun', 330, 240, 310, 220, { template: 'times' }),
+    ],
+  },
+  {
+    id: 'combo-family',
+    name: 'Family board',
+    description: 'Countdown with a daily quote',
+    build: () => [
+      place('countdown', 0, 0, 640, 220, { template: 'ring' }),
+      place('quote', 0, 240, 640, 220, { template: 'marks' }),
     ],
   },
 ]

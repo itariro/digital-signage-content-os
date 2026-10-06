@@ -2,6 +2,8 @@
 
 import { useId, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import type { WidgetStyle } from '@/lib/types'
+import { STYLE_THEMES } from '@/lib/widgets'
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
@@ -99,6 +101,49 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
   )
 }
 
+export function ThemeSwatches({ onApply, label = 'Quick themes' }: { onApply: (style: Partial<WidgetStyle>) => void; label?: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm text-foreground">{label}</span>
+      <div className="grid grid-cols-5 gap-1.5">
+        {STYLE_THEMES.map((theme) => (
+          <button
+            key={theme.id}
+            type="button"
+            onClick={() => onApply(theme.style)}
+            title={`Apply ${theme.name} theme`}
+            className="flex flex-col items-center gap-1 rounded-lg p-1.5 ring-1 ring-border transition hover:ring-primary"
+          >
+            <span className="relative flex size-7 items-center justify-center rounded-full" style={{ background: theme.style.bg }}>
+              <span className="size-3.5 rounded-full" style={{ background: theme.style.accent }} />
+              <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full ring-1 ring-card" style={{ background: theme.style.color }} />
+            </span>
+            <span className="text-[10px] text-muted-foreground">{theme.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const id = useId()
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <label htmlFor={id} className="text-sm text-foreground">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="time"
+        value={value}
+        onChange={(e) => e.target.value && onChange(e.target.value)}
+        className="h-8 rounded-md border border-border bg-secondary px-2 font-mono text-xs text-foreground outline-none [color-scheme:dark] focus-visible:border-primary"
+      />
+    </div>
+  )
+}
+
 export function ToggleField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <button
@@ -173,7 +218,7 @@ export function Segmented<T extends string>({
           title={o.title}
           onClick={() => onChange(o.value)}
           className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+            'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
             value === o.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >

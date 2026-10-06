@@ -62,6 +62,57 @@ export function shortTime(date: Date | null) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
+const SYNODIC_MONTH = 29.530588853
+const REFERENCE_NEW_MOON = Date.UTC(2000, 0, 6, 18, 14)
+
+export function moonPhase(date: Date) {
+  const days = (date.getTime() - REFERENCE_NEW_MOON) / 86_400_000
+  const age = ((days % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH
+  const fraction = age / SYNODIC_MONTH
+  const illumination = (1 - Math.cos(2 * Math.PI * fraction)) / 2
+  const names = ['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous', 'Last quarter', 'Waning crescent']
+  const name = names[Math.floor(fraction * 8 + 0.5) % 8]
+  const toFull = (((0.5 - fraction + 1) % 1) * SYNODIC_MONTH) || SYNODIC_MONTH
+  const toNew = ((1 - fraction) % 1) * SYNODIC_MONTH || SYNODIC_MONTH
+  return { fraction, illumination, name, age, daysToFull: Math.round(toFull), daysToNew: Math.round(toNew) }
+}
+
+export function moonPath(fraction: number, r = 40, cx = 50, cy = 50) {
+  const waxing = fraction < 0.5
+  const illumination = (1 - Math.cos(2 * Math.PI * fraction)) / 2
+  const rx = r * Math.abs(Math.cos(2 * Math.PI * fraction))
+  const crescent = illumination < 0.5
+  const outer = waxing ? 1 : 0
+  const inner = waxing ? (crescent ? 0 : 1) : crescent ? 1 : 0
+  return `M${cx} ${cy - r} A${r} ${r} 0 0 ${outer} ${cx} ${cy + r} A${rx.toFixed(2)} ${r} 0 0 ${inner} ${cx} ${cy - r} Z`
+}
+
+export function zonedTime(date: Date, timeZone: string, hour12: boolean) {
+  const options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', hour12 }
+  if (timeZone !== 'local') options.timeZone = timeZone
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(date)
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? ''
+  const hour = hour12 ? get('hour') : get('hour').padStart(2, '0')
+  const dayOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' }
+  if (timeZone !== 'local') dayOptions.timeZone = timeZone
+  const there = new Intl.DateTimeFormat('en-CA', dayOptions).format(date)
+  const here = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+  const dayOffset = there === here ? 0 : there > here ? 1 : -1
+  return { time: `${hour}:${get('minute')}`, meridiem: get('dayPeriod'), dayOffset }
+}
+
+export function daysBetween(from: Date, to: Date) {
+  const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())
+  const b = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate())
+  return Math.round((b - a) / 86_400_000)
+}
+
+export function parseDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
 export async function downscaleImage(file: File, maxW = 1080, maxH = 1920): Promise<string> {
   const url = URL.createObjectURL(file)
   try {

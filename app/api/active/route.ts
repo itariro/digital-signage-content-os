@@ -1,11 +1,27 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { mutateStore, readStore } from '@/lib/store'
+import { clockParts, resolveDisplay } from '@/lib/schedule'
 
-export async function GET() {
+function validZone(tz: string | null) {
+  if (!tz) return undefined
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return tz
+  } catch {
+    return undefined
+  }
+}
+
+export async function GET(request: Request) {
   const store = await readStore()
-  const layout = store.layouts.find((l) => l.id === store.activeId) ?? null
-  return NextResponse.json({ layout })
+  const timeZone = validZone(new URL(request.url).searchParams.get('tz'))
+  const { layout, rule, night } = resolveDisplay(store, clockParts(new Date(), timeZone))
+  return NextResponse.json({
+    layout,
+    scheduledBy: rule?.id ?? null,
+    night: night ? store.schedule.night : null,
+  })
 }
 
 export async function PUT(request: Request) {

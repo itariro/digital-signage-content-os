@@ -11,6 +11,11 @@ export const WIDGET_TYPES = [
   'calendar',
   'text',
   'icon',
+  'world-clock',
+  'hourly',
+  'moon',
+  'countdown',
+  'quote',
 ] as const
 
 export type WidgetType = (typeof WIDGET_TYPES)[number]
@@ -82,11 +87,35 @@ export type Preset = {
   createdAt: string
 }
 
+export type ScheduleRule = {
+  id: string
+  layoutId: string
+  days: number[]
+  start: string
+  end: string
+}
+
+export type NightMode = {
+  enabled: boolean
+  start: string
+  end: string
+  brightness: number
+  warmth: number
+  hideSeconds: boolean
+}
+
+export type FrameSchedule = {
+  enabled: boolean
+  rules: ScheduleRule[]
+  night: NightMode
+}
+
 export type FrameStore = {
   activeId: string | null
   layouts: Layout[]
   presets: Preset[]
   customFonts: string[]
+  schedule: FrameSchedule
 }
 
 export type WeatherData = {
@@ -105,4 +134,5 @@ export type WeatherData = {
     sunset: string
   }
   daily: { date: string; code: number; max: number; min: number }[]
+  hourly: { time: string; code: number; temp: number; isDay: boolean; precip: number }[]
 }

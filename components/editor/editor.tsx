@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
-import { Layers, LayoutTemplate, LayoutGrid, Type } from 'lucide-react'
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { CalendarClock, Layers, LayoutTemplate, LayoutGrid, Type } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
-import type { FrameStore, Layout, Widget } from '@/lib/types'
+import type { FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
+import { SchedulePanel } from './schedule-panel'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { googleFontHref } from '@/lib/fonts'
 import { BUILTIN_COMBOS, createWidget, getDefinition, instantiateGroup, normalizeGroup } from '@/lib/widgets'
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'layers', label: 'Layers', icon: Layers },
   { id: 'layouts', label: 'Layouts', icon: LayoutTemplate },
   { id: 'fonts', label: 'Fonts', icon: Type },
+  { id: 'schedule', label: 'Schedule', icon: CalendarClock },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -50,6 +52,16 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
   const [tab, setTab] = useState<TabId>('widgets')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [nightPreview, setNightPreview] = useState(false)
+  const clipboard = useRef<Widget[]>([])
+
+  async function saveSchedule(schedule: FrameSchedule) {
+    try {
+      await call('/api/schedule', 'PUT', schedule)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
 
   const selectedWidgets = state.widgets.filter((w) => state.selected.includes(w.id))
 
@@ -220,6 +232,16 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
     } else if (mod && e.key.toLowerCase() === 'a') {
       e.preventDefault()
       editor.select(state.widgets.map((w) => w.id))
+    } else if (mod && e.key.toLowerCase() === 'c' && ids.length) {
+      clipboard.current = structuredClone(selectedWidgets)
+      toast(`Copied ${ids.length} widget${ids.length === 1 ? '' : 's'}`, { description: 'Paste into any layout with ⌘V' })
+    } else if (mod && e.key.toLowerCase() === 'x' && ids.length) {
+      clipboard.current = structuredClone(selectedWidgets)
+      editor.removeWidgets(ids)
+    } else if (mod && e.key.toLowerCase() === 'v' && clipboard.current.length) {
+      e.preventDefault()
+      editor.duplicateWidgets(clipboard.current)
+      clipboard.current = clipboard.current.map((w) => ({ ...w, x: w.x + 40, y: w.y + 40 }))
     } else if (mod && e.key.toLowerCase() === 'd' && ids.length) {
       e.preventDefault()
       editor.duplicateWidgets(selectedWidgets)
@@ -273,7 +295,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
         />
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <aside className="order-2 flex min-h-0 flex-col border-t border-border bg-card lg:order-1 lg:w-80 lg:shrink-0 lg:border-r lg:border-t-0">
-            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-4 gap-1 border-b border-border p-2">
+            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-5 gap-1 border-b border-border p-2">
               {TABS.map((t) => (
                 <button
                   key={t.id}
@@ -310,12 +332,23 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
                 />
               )}
               {tab === 'fonts' && <FontsPanel customFonts={store.customFonts} onAdd={addFont} onRemove={removeFont} />}
+              {tab === 'schedule' && (
+                <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />
+              )}
             </div>
           </aside>
 
           <main className="canvas-surface order-1 h-[78dvh] min-w-0 lg:order-2 lg:h-auto lg:flex-1">
             <h1 className="sr-only">Lockscreen layout editor</h1>
-            <Canvas editor={editor} weather={weather} now={now} onDrop={addItem} />
+            <Canvas
+              editor={editor}
+              weather={weather}
+              now={now}
+              night={store.schedule.night}
+              nightPreview={nightPreview}
+              onToggleNight={() => setNightPreview((v) => !v)}
+              onDrop={addItem}
+            />
           </main>
 
           <aside aria-label="Inspector" className="order-3 border-t border-border bg-card lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
@@ -330,6 +363,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
           settings={state.settings}
           weather={weather}
           now={now}
+          night={nightPreview ? store.schedule.night : null}
           onClose={() => setPreviewOpen(false)}
         />
       )}

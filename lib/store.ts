@@ -3,6 +3,7 @@ import path from 'node:path'
 import { nanoid } from 'nanoid'
 import type { FrameStore, Layout, LayoutSettings, Widget } from './types'
 import { createWidget } from './widgets'
+import { DEFAULT_SCHEDULE } from './schedule'
 
 const DATA_DIR =
   process.env.FRAME_DATA_DIR ?? (process.env.VERCEL ? '/tmp/frame-studio' : path.join(process.cwd(), '.data'))
@@ -63,7 +64,32 @@ function seed(): FrameStore {
       w('calendar', 140, 1680, 800, 160, { template: 'week' }),
     ],
   }
-  return { activeId: morning.id, layouts: [morning, desk], presets: [], customFonts: [] }
+  return {
+    activeId: morning.id,
+    layouts: [morning, desk],
+    presets: [],
+    customFonts: [],
+    schedule: {
+      ...structuredClone(DEFAULT_SCHEDULE),
+      rules: [
+        { id: nanoid(8), layoutId: morning.id, days: [0, 1, 2, 3, 4, 5, 6], start: '06:00', end: '18:00' },
+        { id: nanoid(8), layoutId: desk.id, days: [0, 1, 2, 3, 4, 5, 6], start: '18:00', end: '06:00' },
+      ],
+    },
+  }
+}
+
+function normalize(store: FrameStore): FrameStore {
+  const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
+  return {
+    ...store,
+    schedule: {
+      ...DEFAULT_SCHEDULE,
+      ...schedule,
+      night: { ...DEFAULT_SCHEDULE.night, ...schedule.night },
+      rules: (schedule.rules ?? []).filter((r) => store.layouts.some((l) => l.id === r.layoutId)),
+    },
+  }
 }
 
 let cache: FrameStore | null = null
@@ -73,7 +99,7 @@ export async function readStore(): Promise<FrameStore> {
   if (cache) return cache
   try {
     const raw = await fs.readFile(DATA_FILE, 'utf8')
-    cache = JSON.parse(raw) as FrameStore
+    cache = normalize(JSON.parse(raw) as FrameStore)
   } catch {
     cache = seed()
     await persist(cache)
@@ -91,7 +117,7 @@ async function persist(store: FrameStore) {
 export function mutateStore(fn: (store: FrameStore) => FrameStore | void): Promise<FrameStore> {
   const run = queue.then(async () => {
     const current = structuredClone(await readStore())
-    const next = fn(current) ?? current
+    const next = normalize(fn(current) ?? current)
     await persist(next)
     cache = next
     return next

@@ -1,8 +1,9 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Lock } from 'lucide-react'
-import type { WeatherData, Widget } from '@/lib/types'
+import { Grid3x3, Lock, MoonStar, Scan } from 'lucide-react'
+import type { NightMode, WeatherData, Widget } from '@/lib/types'
+import { Segmented } from './controls'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { getDefinition } from '@/lib/widgets'
 import type { EditorApi } from '@/hooks/use-editor'
@@ -61,13 +62,20 @@ type CanvasProps = {
   editor: EditorApi
   weather: WeatherData | null
   now: Date | null
+  night: NightMode
+  nightPreview: boolean
+  onToggleNight: () => void
   onDrop: (payload: DropPayload, point: { x: number; y: number }) => void
 }
 
-export function Canvas({ editor, weather, now, onDrop }: CanvasProps) {
+type Overlay = 'none' | 'thirds' | 'safe'
+const SAFE_MARGIN = 72
+
+export function Canvas({ editor, weather, now, night, nightPreview, onToggleNight, onDrop }: CanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
-  const scale = useFitScale(wrapRef, 120)
+  const scale = useFitScale(wrapRef, 140)
+  const [overlay, setOverlay] = useState<Overlay>('none')
   const gesture = useRef<Gesture | null>(null)
   const [guides, setGuides] = useState<{ v: boolean; h: boolean }>({ v: false, h: false })
   const [dragging, setDragging] = useState(false)
@@ -256,6 +264,7 @@ export function Canvas({ editor, weather, now, onDrop }: CanvasProps) {
             weather={weather}
             now={now}
             scale={scale}
+            night={nightPreview ? night : null}
             renderWidget={(widget, body) => {
               const isSelected = selectedSet.has(widget.id)
               return (
@@ -341,13 +350,60 @@ export function Canvas({ editor, weather, now, onDrop }: CanvasProps) {
                 }}
               />
             )}
+            {overlay === 'thirds' && (
+              <div aria-hidden className="pointer-events-none absolute inset-0">
+                {[1, 2].map((i) => (
+                  <div key={`v${i}`} className="absolute top-0 h-full bg-foreground/50" style={{ left: (FRAME_WIDTH / 3) * i, width: line / 2 }} />
+                ))}
+                {[1, 2].map((i) => (
+                  <div key={`h${i}`} className="absolute left-0 w-full bg-foreground/50" style={{ top: (FRAME_HEIGHT / 3) * i, height: line / 2 }} />
+                ))}
+              </div>
+            )}
+            {overlay === 'safe' && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute"
+                style={{
+                  inset: SAFE_MARGIN,
+                  outline: `${line}px dashed color-mix(in srgb, var(--accent) 80%, transparent)`,
+                  boxShadow: `0 0 0 ${SAFE_MARGIN}px color-mix(in srgb, var(--accent) 12%, transparent)`,
+                }}
+              />
+            )}
             {guides.v && <div aria-hidden className="pointer-events-none absolute top-0 h-full bg-primary" style={{ left: FRAME_WIDTH / 2 - line / 2, width: line }} />}
             {guides.h && <div aria-hidden className="pointer-events-none absolute left-0 w-full bg-primary" style={{ top: FRAME_HEIGHT / 2 - line / 2, height: line }} />}
           </FrameScene>
         </div>
-        <p className="mt-6 text-center font-mono text-xs text-muted-foreground">
-          {resW} × {resH} portrait · {Math.round(scale * 100)}% · {widgets.length} widget{widgets.length === 1 ? '' : 's'}
-        </p>
+        <div className="mt-6 flex flex-col items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <Segmented
+              label="Composition guides"
+              value={overlay}
+              onChange={setOverlay}
+              options={[
+                { value: 'none', label: 'No guides' },
+                { value: 'thirds', label: <><Grid3x3 className="size-3.5" aria-hidden />Thirds</> },
+                { value: 'safe', label: <><Scan className="size-3.5" aria-hidden />Safe area</> },
+              ]}
+            />
+            <button
+              type="button"
+              aria-pressed={nightPreview}
+              onClick={onToggleNight}
+              className={cn(
+                'flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors',
+                nightPreview ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <MoonStar className="size-3.5" aria-hidden />
+              Night
+            </button>
+          </div>
+          <p className="text-center font-mono text-xs text-muted-foreground">
+            {resW} × {resH} portrait · {Math.round(scale * 100)}% · {widgets.length} widget{widgets.length === 1 ? '' : 's'}
+          </p>
+        </div>
       </div>
     </div>
   )
