@@ -1,0 +1,35 @@
+import { NextResponse } from 'next/server'
+import { layoutInputSchema } from '@/lib/schema'
+import { mutateStore } from '@/lib/store'
+
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const parsed = layoutInputSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid layout' }, { status: 400 })
+  }
+  let found = false
+  const store = await mutateStore((s) => {
+    const layout = s.layouts.find((l) => l.id === id)
+    if (!layout) return
+    found = true
+    Object.assign(layout, parsed.data, { updatedAt: new Date().toISOString() })
+  })
+  if (!found) return NextResponse.json({ error: 'Layout not found' }, { status: 404 })
+  return NextResponse.json({ store, id })
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  let blocked = false
+  const store = await mutateStore((s) => {
+    if (s.layouts.length <= 1) {
+      blocked = true
+      return
+    }
+    s.layouts = s.layouts.filter((l) => l.id !== id)
+    if (s.activeId === id) s.activeId = s.layouts[0]?.id ?? null
+  })
+  if (blocked) return NextResponse.json({ error: 'Keep at least one layout' }, { status: 400 })
+  return NextResponse.json({ store })
+}

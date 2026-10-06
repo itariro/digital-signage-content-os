@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root,
+.dark {
+  color-scheme: dark;
+  --background: #121316;
+  --foreground: #f2f3f5;
+  --card: #18191d;
+  --card-foreground: #f2f3f5;
+  --popover: #18191d;
+  --popover-foreground: #f2f3f5;
+  --primary: #3d9bff;
+  --primary-foreground: #f8fbff;
+  --secondary: #24262c;
+  --secondary-foreground: #f2f3f5;
+  --muted: #1e2025;
+  --muted-foreground: #8d919b;
+  --accent: #ffb547;
+  --accent-foreground: #121316;
+  --destructive: #ff5a5f;
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.12);
+  --ring: #3d9bff;
+  --radius: 0.75rem;
+  --bezel: #050506;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .canvas-surface {
+    background-color: var(--background);
+    background-image: radial-gradient(rgb(255 255 255 / 0.06) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .frame-range {
+    appearance: none;
+    height: 20px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .frame-range::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--secondary);
+  }
+  .frame-range::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--secondary);
+  }
+  .frame-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border-radius: 999px;
+    background: var(--foreground);
+    box-shadow: 0 0 0 4px rgb(61 155 255 / 0.35);
+  }
+  .frame-range::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--foreground);
+    box-shadow: 0 0 0 4px rgb(61 155 255 / 0.35);
+  }
+  .frame-range:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 999px;
+  }
+}

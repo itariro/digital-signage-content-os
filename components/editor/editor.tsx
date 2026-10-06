@@ -1,0 +1,339 @@
+'use client'
+
+import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { Layers, LayoutTemplate, LayoutGrid, Type } from 'lucide-react'
+import { toast, Toaster } from 'sonner'
+import type { FrameStore, Layout, Widget } from '@/lib/types'
+import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
+import { googleFontHref } from '@/lib/fonts'
+import { BUILTIN_COMBOS, createWidget, getDefinition, instantiateGroup, normalizeGroup } from '@/lib/widgets'
+import { useEditor } from '@/hooks/use-editor'
+import { useFrameStore, useWeather } from '@/hooks/use-frame-store'
+import { useNow } from '@/hooks/use-now'
+import { Canvas, type DropPayload } from './canvas'
+import { Inspector } from './inspector'
+import { LibraryPanel } from './library-panel'
+import { LayersPanel } from './layers-panel'
+import { LayoutsPanel } from './layouts-panel'
+import { FontsPanel } from './fonts-panel'
+import { TopBar } from './top-bar'
+import { PreviewOverlay } from './preview-overlay'
+import { LiveDataContext } from './widget-preview'
+import { cn } from '@/lib/utils'
+
+const TABS = [
+  { id: 'widgets', label: 'Widgets', icon: LayoutGrid },
+  { id: 'layers', label: 'Layers', icon: Layers },
+  { id: 'layouts', label: 'Layouts', icon: LayoutTemplate },
+  { id: 'fonts', label: 'Fonts', icon: Type },
+] as const
+
+type TabId = (typeof TABS)[number]['id']
+
+function errorMessage(e: unknown) {
+  return e instanceof Error ? e.message : 'Something went wrong'
+}
+
+function isTyping(target: EventTarget | null) {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+}
+
+export function Editor({ initialStore }: { initialStore: FrameStore }) {
+  const { store, call } = useFrameStore(initialStore)
+  const editor = useEditor(initialStore.layouts.find((l) => l.id === initialStore.activeId) ?? initialStore.layouts[0])
+  const { state, dirty } = editor
+  const now = useNow()
+  const weather = useWeather(state.settings)
+  const [tab, setTab] = useState<TabId>('widgets')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const selectedWidgets = state.widgets.filter((w) => state.selected.includes(w.id))
+
+  const liveLayouts = useMemo(
+    () =>
+      store.layouts.map((l) =>
+        l.id === state.layoutId ? { ...l, name: state.name, widgets: state.widgets, settings: state.settings } : l,
+      ),
+    [store.layouts, state.layoutId, state.name, state.widgets, state.settings],
+  )
+
+  function payloadFor() {
+    return { name: state.name.trim() || 'Untitled layout', widgets: state.widgets, settings: state.settings }
+  }
+
+  async function save() {
+    if (saving) return
+    setSaving(true)
+    try {
+      await call(`/api/layouts/${state.layoutId}`, 'PUT', payloadFor())
+      editor.markSaved()
+      toast.success('Layout saved')
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function confirmDiscard() {
+    return !dirty || window.confirm('You have unsaved changes. Discard them?')
+  }
+
+  function openLayout(id: string, source = store.layouts) {
+    const layout = source.find((l) => l.id === id)
+    if (layout) editor.load(layout)
+  }
+
+  async function createLayout(input: { name: string; widgets: Widget[]; settings: Layout['settings'] }, message: string) {
+    if (!confirmDiscard()) return
+    try {
+      const { store: next, id } = await call('/api/layouts', 'POST', input)
+      if (id) openLayout(id, next.layouts)
+      setTab('layouts')
+      toast.success(message)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function deleteLayout(layout: Layout) {
+    if (!window.confirm(`Delete "${layout.name}"? This cannot be undone.`)) return
+    try {
+      const { store: next } = await call(`/api/layouts/${layout.id}`, 'DELETE')
+      if (layout.id === state.layoutId && next.layouts[0]) editor.load(next.layouts[0])
+      toast.success('Layout deleted')
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function activate(id: string) {
+    try {
+      await call('/api/active', 'PUT', { id })
+      const name = liveLayouts.find((l) => l.id === id)?.name
+      toast.success(`${name} is now showing on the frame`, {
+        description: id === state.layoutId && dirty ? 'Save to push your latest edits to the frame.' : undefined,
+      })
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function importLayout(file: File) {
+    try {
+      const json = JSON.parse(await file.text())
+      await createLayout(
+        { name: String(json.name ?? file.name.replace(/\.json$/, '')), widgets: json.widgets, settings: json.settings },
+        'Layout imported',
+      )
+    } catch {
+      toast.error('That file is not a valid layout export')
+    }
+  }
+
+  function exportLayout() {
+    const blob = new Blob([JSON.stringify({ version: 1, ...payloadFor() }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(state.name || 'layout').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function savePreset(widgets: Widget[]) {
+    const fallback = widgets.length === 1 ? getDefinition(widgets[0].type).label : 'Widget group'
+    const name = window.prompt('Name this widget', `My ${fallback.toLowerCase()}`)
+    if (!name?.trim()) return
+    try {
+      await call('/api/presets', 'POST', { name: name.trim(), widgets: normalizeGroup(widgets) })
+      setTab('widgets')
+      toast.success(`Saved "${name.trim()}" to My widgets`)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function deletePreset(id: string) {
+    try {
+      await call('/api/presets', 'DELETE', { id })
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function addFont(family: string) {
+    try {
+      await call('/api/fonts', 'POST', { family })
+      toast.success(`${family} added to your typefaces`)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function removeFont(family: string) {
+    try {
+      await call('/api/fonts', 'DELETE', { family })
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  function addItem(payload: DropPayload, point = { x: FRAME_WIDTH / 2, y: FRAME_HEIGHT / 2 }) {
+    const clamp = { x: Math.min(FRAME_WIDTH, Math.max(0, point.x)), y: Math.min(FRAME_HEIGHT, Math.max(0, point.y)) }
+    if (payload.kind === 'widget') {
+      editor.addWidgets([createWidget(payload.type, clamp)])
+      return
+    }
+    const source =
+      payload.kind === 'combo'
+        ? BUILTIN_COMBOS.find((c) => c.id === payload.id)?.build()
+        : store.presets.find((p) => p.id === payload.id)?.widgets
+    if (source?.length) editor.addWidgets(instantiateGroup(source, clamp))
+  }
+
+  const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    const mod = e.metaKey || e.ctrlKey
+    if (mod && e.key.toLowerCase() === 's') {
+      e.preventDefault()
+      if (dirty) save()
+      return
+    }
+    if (e.key === 'Escape') {
+      if (previewOpen) setPreviewOpen(false)
+      else editor.select([])
+      return
+    }
+    if (previewOpen || isTyping(e.target)) return
+    const ids = state.selected
+    if (mod && e.key.toLowerCase() === 'z') {
+      e.preventDefault()
+      if (e.shiftKey) editor.redo()
+      else editor.undo()
+    } else if (mod && e.key.toLowerCase() === 'y') {
+      e.preventDefault()
+      editor.redo()
+    } else if (mod && e.key.toLowerCase() === 'a') {
+      e.preventDefault()
+      editor.select(state.widgets.map((w) => w.id))
+    } else if (mod && e.key.toLowerCase() === 'd' && ids.length) {
+      e.preventDefault()
+      editor.duplicateWidgets(selectedWidgets)
+    } else if (mod && e.key.toLowerCase() === 'g' && ids.length > 1) {
+      e.preventDefault()
+      if (e.shiftKey) editor.ungroup(ids)
+      else editor.group(ids)
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && ids.length) {
+      e.preventDefault()
+      editor.removeWidgets(ids)
+    } else if (e.key.startsWith('Arrow') && ids.length) {
+      e.preventDefault()
+      const step = e.shiftKey ? 10 : 1
+      const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+      const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+      editor.updateWidgets(
+        selectedWidgets.filter((w) => !w.locked).map((w) => w.id),
+        (w) => ({ ...w, x: w.x + dx, y: w.y + dy }),
+      )
+    }
+  })
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => onKeyDown(e)
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  const liveData = useMemo(() => ({ now, weather, settings: state.settings }), [now, weather, state.settings])
+
+  return (
+    <LiveDataContext value={liveData}>
+      {store.customFonts.map((family) => (
+        <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
+      ))}
+      <div className="flex min-h-dvh flex-col bg-background lg:h-dvh lg:overflow-hidden">
+        <TopBar
+          editor={editor}
+          isActive={store.activeId === state.layoutId}
+          saving={saving}
+          onSave={save}
+          onPreview={() => setPreviewOpen(true)}
+          onExport={exportLayout}
+        />
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <aside className="order-2 flex min-h-0 flex-col border-t border-border bg-card lg:order-1 lg:w-80 lg:shrink-0 lg:border-r lg:border-t-0">
+            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-4 gap-1 border-b border-border p-2">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  id={`tab-${t.id}`}
+                  aria-selected={tab === t.id}
+                  aria-controls={`panel-${t.id}`}
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    'flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors',
+                    tab === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <t.icon className={cn('size-4', tab === t.id && 'text-primary')} aria-hidden />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
+              {tab === 'widgets' && <LibraryPanel presets={store.presets} onAdd={(p) => addItem(p)} onDeletePreset={deletePreset} />}
+              {tab === 'layers' && <LayersPanel editor={editor} />}
+              {tab === 'layouts' && (
+                <LayoutsPanel
+                  layouts={liveLayouts}
+                  activeId={store.activeId}
+                  editingId={state.layoutId}
+                  onOpen={(id) => id !== state.layoutId && confirmDiscard() && openLayout(id)}
+                  onCreate={() => createLayout({ name: 'Untitled layout', widgets: [], settings: state.settings }, 'New layout created')}
+                  onDuplicate={(l) => createLayout({ name: `${l.name} copy`.slice(0, 80), widgets: l.widgets, settings: l.settings }, 'Layout duplicated')}
+                  onDelete={deleteLayout}
+                  onActivate={activate}
+                  onImport={importLayout}
+                />
+              )}
+              {tab === 'fonts' && <FontsPanel customFonts={store.customFonts} onAdd={addFont} onRemove={removeFont} />}
+            </div>
+          </aside>
+
+          <main className="canvas-surface order-1 h-[78dvh] min-w-0 lg:order-2 lg:h-auto lg:flex-1">
+            <h1 className="sr-only">Lockscreen layout editor</h1>
+            <Canvas editor={editor} weather={weather} now={now} onDrop={addItem} />
+          </main>
+
+          <aside aria-label="Inspector" className="order-3 border-t border-border bg-card lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
+            <Inspector editor={editor} customFonts={store.customFonts} onSavePreset={savePreset} />
+          </aside>
+        </div>
+      </div>
+      {previewOpen && (
+        <PreviewOverlay
+          name={state.name}
+          widgets={state.widgets}
+          settings={state.settings}
+          weather={weather}
+          now={now}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+      <Toaster theme="dark" position="bottom-center" toastOptions={{ className: 'font-sans' }} />
+    </LiveDataContext>
+  )
+}
