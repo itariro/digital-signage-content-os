@@ -1,11 +1,17 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import type { LayoutSettings, WeatherData, Widget } from '@/lib/types'
+import type { ActiveSlide, LayoutSettings, WeatherData, Widget } from '@/lib/types'
 import { surfaceStyle, WidgetBody } from '@/components/frame/frame-scene'
 import { cn } from '@/lib/utils'
 
-type LiveData = { now: Date | null; weather: WeatherData | null; settings: LayoutSettings }
+type LiveData = { now: Date | null; weather: WeatherData | null; settings: LayoutSettings; slide: ActiveSlide | null }
+
+const SAMPLE_SLIDE: ActiveSlide = {
+  theme: 'movies',
+  albumName: 'Sample',
+  item: { id: 'sample', image: '', sourceUrl: '', title: 'Spirited Away', subtitle: 'Hayao Miyazaki', year: '2001' },
+}
 
 export const LiveDataContext = createContext<LiveData | null>(null)
 
@@ -26,7 +32,7 @@ export function WidgetPreview({
   height: number
   className?: string
 }) {
-  const { now, weather, settings } = useLiveData()
+  const { now, weather, settings, slide } = useLiveData()
   const minX = Math.min(...widgets.map((w) => w.x))
   const minY = Math.min(...widgets.map((w) => w.y))
   const bw = Math.max(...widgets.map((w) => w.x + w.w)) - minX
@@ -59,7 +65,7 @@ export function WidgetPreview({
         {now &&
           widgets.map((w) => (
             <div key={w.id} style={surfaceStyle({ ...w, x: w.x - minX, y: w.y - minY })}>
-              <WidgetBody widget={w} ctx={{ now, weather, settings }} />
+              <WidgetBody widget={w} ctx={{ now, weather, settings, slide: slide ?? SAMPLE_SLIDE }} />
             </div>
           ))}
       </div>

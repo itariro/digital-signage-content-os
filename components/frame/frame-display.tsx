@@ -53,6 +53,7 @@ export function FrameDisplay({ initialStore }: { initialStore: FrameStore }) {
           settings={layout.settings}
           weather={weather}
           now={now}
+          album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
           scale={scale}
           night={night ? store.schedule.night : null}
         />

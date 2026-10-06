@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { WIDGET_TYPES } from './types'
+import { ALBUM_THEMES, PRESENTATIONS, WIDGET_TYPES } from './types'
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/)
 
@@ -49,6 +49,45 @@ export const layoutSettingsSchema = z.object({
   units: z.enum(['metric', 'imperial']),
   snap: z.boolean(),
   gridSize: z.number().int().min(4).max(200),
+  albumId: z.string().max(40).nullable().default(null),
+})
+
+const imageRef = z
+  .string()
+  .max(600)
+  .refine((v) => v.startsWith('/') || v.startsWith('https://'), 'Invalid image')
+
+export const albumItemSchema = z.object({
+  id: z.string().min(1).max(40),
+  image: imageRef,
+  sourceUrl: z.string().max(600),
+  title: z.string().max(200),
+  subtitle: z.string().max(200),
+  year: z.string().max(12),
+})
+
+export const slideshowSchema = z.object({
+  presentation: z.enum(PRESENTATIONS),
+  transition: z.enum(['fade', 'slide', 'zoom', 'none']),
+  kenBurns: z.boolean(),
+  interval: z.number().int().min(3).max(3600),
+  order: z.enum(['sequence', 'shuffle']),
+  artSize: z.number().min(30).max(100),
+  artPosition: z.enum(['top', 'center', 'bottom']),
+  backdrop: z.enum(['blur', 'solid']),
+  backdropColor: hex,
+})
+
+export const albumCreateSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  theme: z.enum(ALBUM_THEMES),
+})
+
+export const albumUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  theme: z.enum(ALBUM_THEMES),
+  items: z.array(albumItemSchema).max(200),
+  slideshow: slideshowSchema,
 })
 
 export const layoutInputSchema = z.object({

@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import type { EditorApi } from '@/hooks/use-editor'
 import { useGeocode } from '@/hooks/use-frame-store'
 import { downscaleImage } from '@/lib/frame-utils'
-import { Section, Segmented, SliderField, ThemeSwatches, ToggleField } from './controls'
+import type { Album } from '@/lib/types'
+import { THEME_META } from '@/lib/albums'
+import { Section, Segmented, SelectField, SliderField, ThemeSwatches, ToggleField } from './controls'
 import { cn } from '@/lib/utils'
 
 const BACKGROUNDS = [
@@ -16,8 +18,17 @@ const BACKGROUNDS = [
   { src: '/backgrounds/desert-dunes.png', label: 'Desert dunes' },
 ]
 
-export function LayoutSettingsPanel({ editor }: { editor: EditorApi }) {
+export function LayoutSettingsPanel({
+  editor,
+  albums,
+  onOpenAlbums,
+}: {
+  editor: EditorApi
+  albums: Album[]
+  onOpenAlbums: () => void
+}) {
   const { settings } = editor.state
+  const activeAlbum = albums.find((a) => a.id === settings.albumId) ?? null
   const fileRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const { results, isLoading } = useGeocode(query)
@@ -83,7 +94,44 @@ export function LayoutSettingsPanel({ editor }: { editor: EditorApi }) {
         </Section>
       )}
 
-      <Section title="Preview photo">
+      <Section
+        title="Slideshow"
+        action={
+          <button type="button" onClick={onOpenAlbums} className="text-xs font-medium text-primary hover:underline">
+            Manage albums
+          </button>
+        }
+      >
+        <SelectField
+          label="Album"
+          value={activeAlbum?.id ?? ''}
+          onChange={(id) => editor.updateSettings({ albumId: id || null })}
+          options={[{ value: '', label: 'None — use photo library' }, ...albums.map((a) => ({ value: a.id, label: a.name }))]}
+        />
+        {activeAlbum ? (
+          <>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {activeAlbum.items.length} {THEME_META[activeAlbum.theme].label.toLowerCase()} · new slide every {activeAlbum.slideshow.interval}s.
+              Add a Now showing widget to caption each slide.
+            </p>
+            <SliderField
+              label="Dim slideshow"
+              value={settings.dim}
+              min={0}
+              max={80}
+              suffix="%"
+              onCommit={() => editor.checkpoint()}
+              onChange={(dim) => editor.updateSettings({ dim }, false)}
+            />
+          </>
+        ) : (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Pick an album to cycle movie posters, book covers, album art or photos behind this layout.
+          </p>
+        )}
+      </Section>
+
+      {!activeAlbum && <Section title="Preview photo">
         <div className="grid grid-cols-3 gap-2">
           {BACKGROUNDS.map((bg) => (
             <button
@@ -143,7 +191,7 @@ export function LayoutSettingsPanel({ editor }: { editor: EditorApi }) {
         <p className="text-xs leading-relaxed text-muted-foreground">
           The frame rotates through your photo library — this photo is only used to preview contrast.
         </p>
-      </Section>
+      </Section>}
 
       <Section title="Weather location">
         <div className="flex items-center gap-2 rounded-md bg-secondary px-3 py-2 text-sm text-foreground">

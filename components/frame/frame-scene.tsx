@@ -1,11 +1,13 @@
 'use client'
 
 import type { CSSProperties, ReactNode } from 'react'
-import type { LayoutSettings, NightMode, WeatherData, Widget } from '@/lib/types'
+import type { ActiveSlide, Album, LayoutSettings, NightMode, WeatherData, Widget } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { fontStack } from '@/lib/fonts'
 import { hexToRgba } from '@/lib/frame-utils'
+import { slideAt } from '@/lib/albums'
 import { WidgetContent, type WidgetContext } from './widget-content'
+import { AlbumSlideshow } from './album-slideshow'
 
 export function surfaceStyle(widget: Widget): CSSProperties {
   const s = widget.style
@@ -76,30 +78,48 @@ export function NightOverlay({ night }: { night: NightMode }) {
   )
 }
 
+export function SceneBackground({ settings, album, now }: { settings: LayoutSettings; album?: Album | null; now: Date | null }) {
+  if (!album || album.items.length === 0) return <FrameBackground settings={settings} />
+  return (
+    <>
+      {now ? <AlbumSlideshow album={album} time={now.getTime()} /> : <div className="absolute inset-0 bg-muted" />}
+      <div className="pointer-events-none absolute inset-0" style={{ background: `rgba(0,0,0,${settings.dim / 100})` }} />
+    </>
+  )
+}
+
+export function activeSlide(album: Album | null | undefined, now: Date | null): ActiveSlide | null {
+  if (!album || !now) return null
+  const slide = slideAt(album, now.getTime())
+  return slide ? { item: slide.current, theme: album.theme, albumName: album.name } : null
+}
+
 type FrameSceneProps = {
   widgets: Widget[]
   settings: LayoutSettings
   weather: WeatherData | null
   now: Date | null
   scale: number
+  album?: Album | null
   night?: NightMode | null
   children?: ReactNode
   renderWidget?: (widget: Widget, body: ReactNode) => ReactNode
 }
 
-export function FrameScene({ widgets, settings, weather, now, scale, night, children, renderWidget }: FrameSceneProps) {
+export function FrameScene({ widgets, settings, weather, now, scale, album, night, children, renderWidget }: FrameSceneProps) {
   const hideSeconds = Boolean(night?.hideSeconds)
+  const slide = activeSlide(album, now)
   return (
     <div style={{ width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale }} className="relative overflow-hidden">
       <div
         className="absolute left-0 top-0 origin-top-left"
         style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT, transform: `scale(${scale})` }}
       >
-        <FrameBackground settings={settings} />
+        <SceneBackground settings={settings} album={album} now={now} />
         {now &&
           widgets.map((widget) => {
             if (widget.hidden && !renderWidget) return null
-            const body = <WidgetBody widget={widget} ctx={{ now, weather, settings, hideSeconds }} />
+            const body = <WidgetBody widget={widget} ctx={{ now, weather, settings, hideSeconds, slide }} />
             if (renderWidget) return renderWidget(widget, body)
             return (
               <div key={widget.id} style={surfaceStyle(widget)}>

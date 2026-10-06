@@ -24,7 +24,7 @@ import {
   Ungroup,
   Unlock,
 } from 'lucide-react'
-import type { Widget, WidgetStyle } from '@/lib/types'
+import type { Album, Widget, WidgetStyle } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { BUILTIN_FONTS, customFontId, fontStack } from '@/lib/fonts'
 import { getDefinition } from '@/lib/widgets'
@@ -37,14 +37,16 @@ import { cn } from '@/lib/utils'
 type InspectorProps = {
   editor: EditorApi
   customFonts: string[]
+  albums: Album[]
+  onOpenAlbums: () => void
   onSavePreset: (widgets: Widget[]) => void
 }
 
-export function Inspector({ editor, customFonts, onSavePreset }: InspectorProps) {
+export function Inspector({ editor, customFonts, albums, onOpenAlbums, onSavePreset }: InspectorProps) {
   const { widgets, selected } = editor.state
   const selection = widgets.filter((w) => selected.includes(w.id))
 
-  if (selection.length === 0) return <LayoutSettingsPanel editor={editor} />
+  if (selection.length === 0) return <LayoutSettingsPanel editor={editor} albums={albums} onOpenAlbums={onOpenAlbums} />
 
   return (
     <div className="flex flex-col">

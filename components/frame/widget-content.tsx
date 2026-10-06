@@ -20,7 +20,8 @@ import {
   Sunset,
   type LucideIcon,
 } from 'lucide-react'
-import type { LayoutSettings, WeatherData, Widget } from '@/lib/types'
+import type { ActiveSlide, LayoutSettings, WeatherData, Widget } from '@/lib/types'
+import { THEME_META } from '@/lib/albums'
 import {
   daysBetween,
   formatTime,
@@ -41,6 +42,7 @@ export type WidgetContext = {
   weather: WeatherData | null
   settings: LayoutSettings
   hideSeconds?: boolean
+  slide?: ActiveSlide | null
 }
 
 const ICONS: Record<string, LucideIcon> = {
@@ -84,6 +86,8 @@ export function WidgetContent({ widget, ctx }: { widget: Widget; ctx: WidgetCont
       return <CountdownWidget widget={widget} now={ctx.now} />
     case 'quote':
       return <QuoteWidget widget={widget} now={ctx.now} />
+    case 'now-showing':
+      return <NowShowingWidget widget={widget} slide={ctx.slide ?? null} />
     case 'date':
       return <DateWidget widget={widget} now={ctx.now} />
     case 'weather':
@@ -717,6 +721,65 @@ function CountdownWidget({ widget, now }: { widget: Widget; now: Date }) {
     <div className="flex h-full w-full flex-col justify-center" style={{ alignItems: justify }}>
       <span style={{ fontSize: fit(value, 62, 120), lineHeight: 1, color: style.accent, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
       <span className="max-w-full truncate" style={{ fontSize: fit(caption, 16, 160), ...muted }}>{caption}</span>
+    </div>
+  )
+}
+
+function NowShowingWidget({ widget, slide }: { widget: Widget; slide: ActiveSlide | null }) {
+  const { style, template, props } = widget
+  const justify = JUSTIFY[style.align]
+  if (!slide) {
+    return (
+      <div className="flex h-full w-full items-center" style={{ justifyContent: justify, fontSize: 'min(16cqh, 4.4cqw)', opacity: 0.6 }}>
+        Show an album on this layout
+      </div>
+    )
+  }
+  const { item, theme } = slide
+  const label = String(props.label || '').trim() || THEME_META[theme].nowLabel
+  const meta = [item.subtitle, props.showYear ? item.year : ''].filter(Boolean).join(' · ')
+  const labelStyle: CSSProperties = {
+    fontSize: 'min(11cqh, 3.4cqw)',
+    letterSpacing: '0.22em',
+    textTransform: 'uppercase',
+    color: style.accent,
+    fontWeight: 600,
+  }
+
+  if (template === 'marquee') {
+    return (
+      <div className="flex h-full w-full items-center gap-[3cqw] whitespace-nowrap" style={{ justifyContent: justify }}>
+        {props.showLabel && <span style={labelStyle}>{label}</span>}
+        <span className="truncate" style={{ fontSize: 'min(30cqh, 5.4cqw)', lineHeight: 1.1 }}>
+          {item.title}
+          {meta && <span style={muted}>{`  —  ${meta}`}</span>}
+        </span>
+      </div>
+    )
+  }
+
+  if (template === 'title') {
+    return (
+      <div className="flex h-full w-full items-center" style={{ justifyContent: justify }}>
+        <p className="text-balance" style={{ fontSize: fit(item.title, 62, 165), lineHeight: 1.02 }}>
+          {item.title}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col justify-center gap-[4cqh]" style={{ alignItems: justify }}>
+      {props.showLabel && (
+        <span className="flex items-center gap-[1.6cqw]" style={labelStyle}>
+          <span aria-hidden className="inline-block rounded-full" style={{ width: '0.6em', height: '0.6em', background: style.accent }} />
+          {label}
+        </span>
+      )}
+      <p className="text-balance" style={{ fontSize: `min(${Math.max(16, 30 - item.title.length / 2.4)}cqh, ${Math.max(4.4, 9 - item.title.length / 9)}cqw)`, lineHeight: 1.08 }}>
+        {item.title}
+      </p>
+      {meta && <p style={{ ...muted, fontSize: 'min(12cqh, 3.8cqw)' }}>{meta}</p>}
     </div>
   )
 }

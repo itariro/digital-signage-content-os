@@ -1,11 +1,12 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { nanoid } from 'nanoid'
-import type { FrameStore, Layout, LayoutSettings, Widget } from './types'
+import type { Album, FrameStore, Layout, LayoutSettings, Widget } from './types'
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
+import { defaultSlideshow } from './albums'
 
-const DATA_DIR =
+export const DATA_DIR =
   process.env.FRAME_DATA_DIR ?? (process.env.VERCEL ? '/tmp/frame-studio' : path.join(process.cwd(), '.data'))
 const DATA_FILE = path.join(DATA_DIR, 'frame-store.json')
 
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS: LayoutSettings = {
   units: 'metric',
   snap: true,
   gridSize: 20,
+  albumId: null,
 }
 
 function w(type: Widget['type'], x: number, y: number, width: number, height: number, extra: Partial<Widget> = {}): Widget {
@@ -32,6 +34,31 @@ function w(type: Widget['type'], x: number, y: number, width: number, height: nu
     ...extra,
     style: { ...base.style, ...extra.style },
     props: { ...base.props, ...extra.props },
+  }
+}
+
+function seedPhotoAlbum(): Album {
+  const now = new Date().toISOString()
+  return {
+    id: nanoid(10),
+    name: 'Favourite places',
+    theme: 'photos',
+    createdAt: now,
+    updatedAt: now,
+    slideshow: defaultSlideshow('photos'),
+    items: [
+      ['alpine-lake', 'Alpine lake'],
+      ['coastal-cliffs', 'Coastal cliffs'],
+      ['city-night', 'City at dusk'],
+      ['desert-dunes', 'Desert dunes'],
+    ].map(([file, title]) => ({
+      id: nanoid(8),
+      image: `/backgrounds/${file}.png`,
+      sourceUrl: '',
+      title,
+      subtitle: '',
+      year: '',
+    })),
   }
 }
 
@@ -67,6 +94,7 @@ function seed(): FrameStore {
   return {
     activeId: morning.id,
     layouts: [morning, desk],
+    albums: [seedPhotoAlbum()],
     presets: [],
     customFonts: [],
     schedule: {
@@ -81,8 +109,18 @@ function seed(): FrameStore {
 
 function normalize(store: FrameStore): FrameStore {
   const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
+  const albums = store.albums ?? [seedPhotoAlbum()]
   return {
     ...store,
+    albums,
+    layouts: store.layouts.map((l) => ({
+      ...l,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...l.settings,
+        albumId: albums.some((a) => a.id === l.settings.albumId) ? l.settings.albumId : null,
+      },
+    })),
     schedule: {
       ...DEFAULT_SCHEDULE,
       ...schedule,

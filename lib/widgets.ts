@@ -14,6 +14,7 @@ import {
   MoonStar,
   Quote,
   Timer,
+  GalleryHorizontalEnd,
   type LucideIcon,
 } from 'lucide-react'
 import type { Widget, WidgetStyle, WidgetType, WidgetProps } from './types'
@@ -398,6 +399,27 @@ export const WIDGETS: WidgetDefinition[] = [
       { key: 'author', label: 'Attribution', kind: 'text', showWhen: { key: 'mode', value: 'custom' } },
     ],
     style: { fontFamily: 'instrument', fontWeight: 400 },
+  },
+  {
+    type: 'now-showing',
+    label: 'Now showing',
+    description: 'Caption for the current album slide',
+    category: 'Decor',
+    icon: GalleryHorizontalEnd,
+    size: { w: 840, h: 220 },
+    minSize: { w: 200, h: 50 },
+    lockAspect: false,
+    templates: [
+      { id: 'card', label: 'Title card' },
+      { id: 'marquee', label: 'Marquee' },
+      { id: 'title', label: 'Title only' },
+    ],
+    props: { showLabel: true, label: '', showYear: true },
+    fields: [
+      { key: 'showLabel', label: 'Show label', kind: 'toggle' },
+      { key: 'label', label: 'Label (blank uses theme)', kind: 'text' },
+      { key: 'showYear', label: 'Show year', kind: 'toggle' },
+    ],
   },
 ]
 

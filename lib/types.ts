@@ -16,6 +16,7 @@ export const WIDGET_TYPES = [
   'moon',
   'countdown',
   'quote',
+  'now-showing',
 ] as const
 
 export type WidgetType = (typeof WIDGET_TYPES)[number]
@@ -69,6 +70,50 @@ export type LayoutSettings = {
   units: 'metric' | 'imperial'
   snap: boolean
   gridSize: number
+  albumId: string | null
+}
+
+export const ALBUM_THEMES = ['movies', 'tv', 'books', 'music', 'photos'] as const
+export type AlbumTheme = (typeof ALBUM_THEMES)[number]
+
+export const PRESENTATIONS = ['fill', 'poster', 'book', 'vinyl', 'gallery'] as const
+export type Presentation = (typeof PRESENTATIONS)[number]
+
+export type AlbumItem = {
+  id: string
+  image: string
+  sourceUrl: string
+  title: string
+  subtitle: string
+  year: string
+}
+
+export type Slideshow = {
+  presentation: Presentation
+  transition: 'fade' | 'slide' | 'zoom' | 'none'
+  kenBurns: boolean
+  interval: number
+  order: 'sequence' | 'shuffle'
+  artSize: number
+  artPosition: 'top' | 'center' | 'bottom'
+  backdrop: 'blur' | 'solid'
+  backdropColor: string
+}
+
+export type Album = {
+  id: string
+  name: string
+  theme: AlbumTheme
+  items: AlbumItem[]
+  slideshow: Slideshow
+  createdAt: string
+  updatedAt: string
+}
+
+export type ActiveSlide = {
+  item: AlbumItem
+  theme: AlbumTheme
+  albumName: string
 }
 
 export type Layout = {
@@ -116,6 +161,7 @@ export type FrameStore = {
   presets: Preset[]
   customFonts: string[]
   schedule: FrameSchedule
+  albums: Album[]
 }
 
 export type WeatherData = {

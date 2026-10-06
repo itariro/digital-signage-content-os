@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Grid3x3, Lock, MoonStar, Scan } from 'lucide-react'
-import type { NightMode, WeatherData, Widget } from '@/lib/types'
+import type { Album, NightMode, WeatherData, Widget } from '@/lib/types'
 import { Segmented } from './controls'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { getDefinition } from '@/lib/widgets'
@@ -62,6 +62,7 @@ type CanvasProps = {
   editor: EditorApi
   weather: WeatherData | null
   now: Date | null
+  album: Album | null
   night: NightMode
   nightPreview: boolean
   onToggleNight: () => void
@@ -71,7 +72,7 @@ type CanvasProps = {
 type Overlay = 'none' | 'thirds' | 'safe'
 const SAFE_MARGIN = 72
 
-export function Canvas({ editor, weather, now, night, nightPreview, onToggleNight, onDrop }: CanvasProps) {
+export function Canvas({ editor, weather, now, album, night, nightPreview, onToggleNight, onDrop }: CanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const scale = useFitScale(wrapRef, 140)
@@ -263,6 +264,7 @@ export function Canvas({ editor, weather, now, night, nightPreview, onToggleNigh
             settings={settings}
             weather={weather}
             now={now}
+            album={album}
             scale={scale}
             night={nightPreview ? night : null}
             renderWidget={(widget, body) => {

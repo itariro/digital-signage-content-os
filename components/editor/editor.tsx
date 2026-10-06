@@ -1,9 +1,12 @@
 'use client'
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { CalendarClock, Layers, LayoutTemplate, LayoutGrid, Type } from 'lucide-react'
+import { CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Type } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
-import type { FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
+import type { Album, AlbumTheme, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
+import { THEME_META } from '@/lib/albums'
+import { activeSlide } from '@/components/frame/frame-scene'
+import { AlbumsPanel } from './albums-panel'
 import { SchedulePanel } from './schedule-panel'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { googleFontHref } from '@/lib/fonts'
@@ -26,6 +29,7 @@ const TABS = [
   { id: 'widgets', label: 'Widgets', icon: LayoutGrid },
   { id: 'layers', label: 'Layers', icon: Layers },
   { id: 'layouts', label: 'Layouts', icon: LayoutTemplate },
+  { id: 'albums', label: 'Albums', icon: GalleryVerticalEnd },
   { id: 'fonts', label: 'Fonts', icon: Type },
   { id: 'schedule', label: 'Schedule', icon: CalendarClock },
 ] as const
@@ -53,7 +57,57 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [nightPreview, setNightPreview] = useState(false)
+  const [openAlbumId, setOpenAlbumId] = useState<string | null>(null)
+  const [albumDraft, setAlbumDraft] = useState<Album | null>(null)
+  const albumDraftRef = useRef<Album | null>(null)
+  const albumQueue = useRef<Promise<unknown>>(Promise.resolve())
   const clipboard = useRef<Widget[]>([])
+
+  const liveAlbums = useMemo(
+    () => store.albums.map((a) => (albumDraft?.id === a.id ? albumDraft : a)),
+    [store.albums, albumDraft],
+  )
+  const layoutAlbum = liveAlbums.find((a) => a.id === state.settings.albumId) ?? null
+
+  function updateAlbum(id: string, fn: (album: Album) => Album, persist = true) {
+    const base = albumDraftRef.current?.id === id ? albumDraftRef.current : store.albums.find((a) => a.id === id)
+    if (!base) return
+    const next = fn(base)
+    albumDraftRef.current = next
+    setAlbumDraft(next)
+    if (!persist) return
+    const { name, theme, items, slideshow } = next
+    albumQueue.current = albumQueue.current
+      .then(() => call(`/api/albums/${id}`, 'PUT', { name, theme, items, slideshow }))
+      .catch((e) => toast.error(errorMessage(e)))
+  }
+
+  async function createAlbum(theme: AlbumTheme) {
+    try {
+      const { id } = await call('/api/albums', 'POST', { name: THEME_META[theme].label, theme })
+      if (id) setOpenAlbumId(id)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function deleteAlbum(album: Album) {
+    if (!window.confirm(`Delete "${album.name}"? Layouts using it will fall back to the photo library.`)) return
+    try {
+      await albumQueue.current
+      await call(`/api/albums/${album.id}`, 'DELETE')
+      setOpenAlbumId(null)
+      if (state.settings.albumId === album.id) editor.updateSettings({ albumId: null })
+      toast.success('Album deleted')
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  function attachAlbum(id: string | null) {
+    editor.updateSettings({ albumId: id })
+    if (id) toast.success('Album added to this layout', { description: 'Save the layout to publish it to the frame.' })
+  }
 
   async function saveSchedule(schedule: FrameSchedule) {
     try {
@@ -277,7 +331,10 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
 
-  const liveData = useMemo(() => ({ now, weather, settings: state.settings }), [now, weather, state.settings])
+  const liveData = useMemo(
+    () => ({ now, weather, settings: state.settings, slide: activeSlide(layoutAlbum, now) }),
+    [now, weather, state.settings, layoutAlbum],
+  )
 
   return (
     <LiveDataContext value={liveData}>
@@ -295,7 +352,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
         />
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <aside className="order-2 flex min-h-0 flex-col border-t border-border bg-card lg:order-1 lg:w-80 lg:shrink-0 lg:border-r lg:border-t-0">
-            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-5 gap-1 border-b border-border p-2">
+            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-6 gap-1 border-b border-border p-2">
               {TABS.map((t) => (
                 <button
                   key={t.id}
@@ -306,7 +363,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
                   aria-controls={`panel-${t.id}`}
                   onClick={() => setTab(t.id)}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors',
+                    'flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition-colors',
                     tab === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
@@ -331,6 +388,18 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
                   onImport={importLayout}
                 />
               )}
+              {tab === 'albums' && (
+                <AlbumsPanel
+                  albums={liveAlbums}
+                  openId={openAlbumId}
+                  layoutAlbumId={state.settings.albumId}
+                  onOpen={setOpenAlbumId}
+                  onCreate={createAlbum}
+                  onUpdate={updateAlbum}
+                  onDelete={deleteAlbum}
+                  onUseOnLayout={attachAlbum}
+                />
+              )}
               {tab === 'fonts' && <FontsPanel customFonts={store.customFonts} onAdd={addFont} onRemove={removeFont} />}
               {tab === 'schedule' && (
                 <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />
@@ -344,6 +413,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
               editor={editor}
               weather={weather}
               now={now}
+              album={layoutAlbum}
               night={store.schedule.night}
               nightPreview={nightPreview}
               onToggleNight={() => setNightPreview((v) => !v)}
@@ -352,7 +422,16 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
           </main>
 
           <aside aria-label="Inspector" className="order-3 border-t border-border bg-card lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
-            <Inspector editor={editor} customFonts={store.customFonts} onSavePreset={savePreset} />
+            <Inspector
+              editor={editor}
+              customFonts={store.customFonts}
+              albums={liveAlbums}
+              onOpenAlbums={() => {
+                setOpenAlbumId(state.settings.albumId)
+                setTab('albums')
+              }}
+              onSavePreset={savePreset}
+            />
           </aside>
         </div>
       </div>
@@ -363,6 +442,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
           settings={state.settings}
           weather={weather}
           now={now}
+          album={layoutAlbum}
           night={nightPreview ? store.schedule.night : null}
           onClose={() => setPreviewOpen(false)}
         />
