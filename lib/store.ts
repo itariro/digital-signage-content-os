@@ -1,14 +1,15 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { nanoid } from 'nanoid'
+import { eq } from 'drizzle-orm'
 import type { Album, FrameStore, Layout, LayoutSettings, Widget } from './types'
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
+import { getDb } from './db'
+import { frameDocuments } from './db/schema'
 
-export const DATA_DIR =
-  process.env.FRAME_DATA_DIR ?? (process.env.VERCEL ? '/tmp/frame-studio' : path.join(process.cwd(), '.data'))
-const DATA_FILE = path.join(DATA_DIR, 'frame-store.json')
+export const DEFAULT_FRAME_ID = 'home'
+export const DATA_DIR = process.env.FRAME_DATA_DIR ?? path.join(process.cwd(), '.data')
 
 export const DEFAULT_SETTINGS: LayoutSettings = {
   resolution: '1080x1920',
@@ -130,36 +131,45 @@ function normalize(store: FrameStore): FrameStore {
   }
 }
 
-let cache: FrameStore | null = null
-let queue: Promise<unknown> = Promise.resolve()
+const storeCache = new Map<string, FrameStore>()
+const queues = new Map<string, Promise<unknown>>()
 
-export async function readStore(): Promise<FrameStore> {
-  if (cache) return cache
-  try {
-    const raw = await fs.readFile(DATA_FILE, 'utf8')
-    cache = normalize(JSON.parse(raw) as FrameStore)
-  } catch {
-    cache = seed()
-    await persist(cache)
+export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
+  const cached = storeCache.get(frameId)
+  if (cached) return cached
+
+  const db = getDb()
+  const [document] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, frameId)).limit(1)
+  if (document) {
+    const store = normalize(document.data as FrameStore)
+    storeCache.set(frameId, store)
+    return store
   }
-  return cache
+
+  const store = seed()
+  const now = new Date()
+  await db.insert(frameDocuments).values({
+    id: nanoid(12), identifier: frameId, name: frameId === DEFAULT_FRAME_ID ? 'Home frame' : frameId,
+    data: store, createdAt: now, updatedAt: now,
+  })
+  storeCache.set(frameId, store)
+  return store
 }
 
-async function persist(store: FrameStore) {
-  await fs.mkdir(DATA_DIR, { recursive: true })
-  const tmp = `${DATA_FILE}.${process.pid}.tmp`
-  await fs.writeFile(tmp, JSON.stringify(store))
-  await fs.rename(tmp, DATA_FILE)
+async function persist(frameId: string, store: FrameStore) {
+  const db = getDb()
+  await db.update(frameDocuments).set({ data: store, updatedAt: new Date() }).where(eq(frameDocuments.identifier, frameId))
 }
 
-export function mutateStore(fn: (store: FrameStore) => FrameStore | void): Promise<FrameStore> {
+export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
+  const queue = queues.get(frameId) ?? Promise.resolve()
   const run = queue.then(async () => {
-    const current = structuredClone(await readStore())
+    const current = structuredClone(await readStore(frameId))
     const next = normalize(fn(current) ?? current)
-    await persist(next)
-    cache = next
+    await persist(frameId, next)
+    storeCache.set(frameId, next)
     return next
   })
-  queue = run.catch(() => undefined)
+  queues.set(frameId, run.catch(() => undefined))
   return run
 }

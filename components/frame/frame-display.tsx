@@ -29,8 +29,8 @@ function useViewportScale() {
   )
 }
 
-export function FrameDisplay({ initialStore }: { initialStore: FrameStore }) {
-  const { data } = useSWR<FrameStore>('/api/store', fetcher, {
+export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore: FrameStore; frameId?: string }) {
+  const { data } = useSWR<FrameStore>(`/api/store?frame=${encodeURIComponent(frameId)}`, fetcher, {
     fallbackData: initialStore,
     refreshInterval: 30_000,
     revalidateOnFocus: true,
