@@ -10,5 +10,9 @@ export async function GET(request: Request) {
   }
   const store = await readStore(frameId)
   if (!store) return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
-  return NextResponse.json(store)
+  return NextResponse.json(store, {
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+    },
+  })
 }

@@ -3,8 +3,8 @@
 import useSWR from 'swr'
 import type { FrameStore, LayoutSettings, WeatherData } from '@/lib/types'
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url)
+const fetcher = async (url: string, { signal }: { signal?: AbortSignal } = {}) => {
+  const res = await fetch(url, { signal })
   if (!res.ok) throw new Error('Request failed')
   return res.json()
 }
@@ -42,16 +42,27 @@ export function useWeather(settings: Pick<LayoutSettings, 'lat' | 'lon' | 'units
   return data ?? null
 }
 
-export type ArtworkResult = { id: string; title: string; subtitle: string; year: string; thumb: string; image: string }
+export type ArtworkResult = { id: string; title: string; subtitle: string; year: string; thumb: string; image: string; genre?: string; description?: string; director?: string; rating?: string }
+
+function canonicalQuery(query: string) {
+  const trimmed = query.trim()
+  if (!trimmed.startsWith('[')) return trimmed
+  try {
+    const parsed = JSON.parse(trimmed)
+    return JSON.stringify(parsed)
+  } catch {
+    return trimmed
+  }
+}
 
 export function useArtworkSearch(theme: string, query: string, page: number) {
-  const trimmed = query.trim()
-  const { data, error, isLoading } = useSWR<{ results: ArtworkResult[]; hasMore: boolean }>(
-    trimmed.length >= 2 ? `/api/artwork?theme=${theme}&q=${encodeURIComponent(trimmed)}&page=${page}` : null,
+  const canonical = canonicalQuery(query)
+  const { data, error, isLoading, isValidating } = useSWR<{ results: ArtworkResult[]; hasMore: boolean; partialFailures?: string[]; queryId: string }>(
+    canonical.length >= 2 ? `/api/artwork?theme=${theme}&q=${encodeURIComponent(canonical)}&page=${page}` : null,
     fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 5 * 60_000, keepPreviousData: true },
+    { revalidateOnFocus: false, dedupingInterval: 60_000, keepPreviousData: false },
   )
-  return { results: data?.results ?? [], hasMore: data?.hasMore ?? false, error: Boolean(error), isLoading }
+  return { results: data?.results ?? [], hasMore: data?.hasMore ?? false, partialFailures: data?.partialFailures ?? [], error: Boolean(error), isLoading: isLoading || isValidating }
 }
 
 export function useGeocode(query: string) {

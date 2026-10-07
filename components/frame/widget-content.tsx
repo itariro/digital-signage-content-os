@@ -737,7 +737,14 @@ function NowShowingWidget({ widget, slide }: { widget: Widget; slide: ActiveSlid
   }
   const { item, theme } = slide
   const label = String(props.label || '').trim() || THEME_META[theme].nowLabel
-  const meta = [item.subtitle, props.showYear ? item.year : ''].filter(Boolean).join(' · ')
+  const details = [
+    item.subtitle,
+    props.showYear ? item.year : '',
+    props.showGenre ? item.genre : '',
+    props.showDirector ? item.director : '',
+    props.showRating ? (item.rating ? `Rating ${item.rating}` : '') : '',
+  ].filter(Boolean).join(' · ')
+  const description = props.showDescription ? item.description : ''
   const labelStyle: CSSProperties = {
     fontSize: 'min(11cqh, 3.4cqw)',
     letterSpacing: '0.22em',
@@ -752,7 +759,7 @@ function NowShowingWidget({ widget, slide }: { widget: Widget; slide: ActiveSlid
         {props.showLabel && <span style={labelStyle}>{label}</span>}
         <span className="truncate" style={{ fontSize: 'min(30cqh, 5.4cqw)', lineHeight: 1.1 }}>
           {item.title}
-          {meta && <span style={muted}>{`  —  ${meta}`}</span>}
+          {details && <span style={muted}>{`  —  ${details}`}</span>}
         </span>
       </div>
     )
@@ -779,7 +786,8 @@ function NowShowingWidget({ widget, slide }: { widget: Widget; slide: ActiveSlid
       <p className="text-balance" style={{ fontSize: `min(${Math.max(16, 30 - item.title.length / 2.4)}cqh, ${Math.max(4.4, 9 - item.title.length / 9)}cqw)`, lineHeight: 1.08 }}>
         {item.title}
       </p>
-      {meta && <p style={{ ...muted, fontSize: 'min(12cqh, 3.8cqw)' }}>{meta}</p>}
+      {details && <p style={{ ...muted, fontSize: 'min(12cqh, 3.8cqw)' }}>{details}</p>}
+      {description && <p className="line-clamp-2 max-w-[80%]" style={{ ...muted, fontSize: 'min(10cqh, 3.2cqw)' }}>{description}</p>}
     </div>
   )
 }

@@ -86,6 +86,10 @@ export type AlbumItem = {
   title: string
   subtitle: string
   year: string
+  genre?: string
+  description?: string
+  director?: string
+  rating?: string
 }
 
 export type Slideshow = {

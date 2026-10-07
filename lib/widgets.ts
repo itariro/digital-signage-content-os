@@ -414,11 +414,15 @@ export const WIDGETS: WidgetDefinition[] = [
       { id: 'marquee', label: 'Marquee' },
       { id: 'title', label: 'Title only' },
     ],
-    props: { showLabel: true, label: '', showYear: true },
+    props: { showLabel: true, label: '', showYear: true, showGenre: false, showDescription: false, showDirector: false, showRating: false },
     fields: [
       { key: 'showLabel', label: 'Show label', kind: 'toggle' },
       { key: 'label', label: 'Label (blank uses theme)', kind: 'text' },
       { key: 'showYear', label: 'Show year', kind: 'toggle' },
+      { key: 'showGenre', label: 'Show genre', kind: 'toggle' },
+      { key: 'showDescription', label: 'Show synopsis / summary', kind: 'toggle' },
+      { key: 'showDirector', label: 'Show director', kind: 'toggle' },
+      { key: 'showRating', label: 'Show rating', kind: 'toggle' },
     ],
   },
 ]
