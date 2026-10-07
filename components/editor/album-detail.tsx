@@ -258,8 +258,9 @@ function PreviewStage({ album }: { album: Album }) {
 function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: Album) => Album) => void }) {
   const meta = THEME_META[album.theme]
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [pending, setPending] = useState<Set<string>>(new Set())
-  const { results, isLoading, error } = useArtworkSearch(album.theme, query)
+  const { results, hasMore, isLoading, error } = useArtworkSearch(album.theme, query, page)
   const bySource = new Map(album.items.map((i) => [i.sourceUrl, i]))
 
   async function toggle(result: ArtworkResult) {
@@ -299,7 +300,10 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setPage(1)
+          }}
           placeholder={meta.placeholder}
           aria-label={meta.placeholder}
           className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-9 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary"
@@ -311,7 +315,10 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
           <button
             key={s}
             type="button"
-            onClick={() => setQuery(s)}
+            onClick={() => {
+              setQuery(s)
+              setPage(1)
+            }}
             aria-pressed={query === s}
             className={cn(
               'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
@@ -361,6 +368,27 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
             )
           })}
         </ul>
+      )}
+      {results.length > 0 && query.trim().length >= 2 && !error && (
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            disabled={page === 1 || isLoading}
+            className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-xs tabular-nums text-muted-foreground">Page {page}</span>
+          <button
+            type="button"
+            onClick={() => setPage((current) => current + 1)}
+            disabled={!hasMore || isLoading}
+            className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       )}
       <p className="text-[11px] text-muted-foreground">Artwork via {meta.source}. Tap to add, tap again to remove.</p>
     </Section>

@@ -18,7 +18,7 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function searchMovies(q: string): Promise<ArtworkResult[]> {
+async function searchMovies(q: string, page: number): Promise<ArtworkResult[]> {
   const params = new URLSearchParams({
     action: 'query',
     format: 'json',
@@ -26,6 +26,7 @@ async function searchMovies(q: string): Promise<ArtworkResult[]> {
     generator: 'search',
     gsrsearch: `${q} hastemplate:"Infobox film"`,
     gsrlimit: '24',
+    gsrstart: String((page - 1) * 24),
     prop: 'pageimages|description',
     piprop: 'thumbnail',
     pithumbsize: '2000',
@@ -50,7 +51,7 @@ async function searchMovies(q: string): Promise<ArtworkResult[]> {
     })
 }
 
-async function searchTv(q: string): Promise<ArtworkResult[]> {
+async function searchTv(q: string, _page: number): Promise<ArtworkResult[]> {
   type Show = {
     show: {
       id: number
@@ -75,9 +76,9 @@ async function searchTv(q: string): Promise<ArtworkResult[]> {
     }))
 }
 
-async function searchBooks(q: string): Promise<ArtworkResult[]> {
+async function searchBooks(q: string, page: number): Promise<ArtworkResult[]> {
   type Doc = { key: string; title: string; author_name?: string[]; first_publish_year?: number; cover_i?: number }
-  const params = new URLSearchParams({ q, limit: '30', fields: 'key,title,author_name,first_publish_year,cover_i' })
+  const params = new URLSearchParams({ q, limit: '30', offset: String((page - 1) * 30), fields: 'key,title,author_name,first_publish_year,cover_i' })
   const data = await getJson<{ docs: Doc[] }>(`https://openlibrary.org/search.json?${params}`)
   return data.docs
     .filter((d) => d.cover_i)
@@ -92,9 +93,9 @@ async function searchBooks(q: string): Promise<ArtworkResult[]> {
     }))
 }
 
-async function searchMusic(q: string): Promise<ArtworkResult[]> {
+async function searchMusic(q: string, page: number): Promise<ArtworkResult[]> {
   type Album = { collectionId: number; collectionName: string; artistName: string; releaseDate?: string; artworkUrl100?: string }
-  const params = new URLSearchParams({ term: q, media: 'music', entity: 'album', limit: '24' })
+  const params = new URLSearchParams({ term: q, media: 'music', entity: 'album', limit: '24', offset: String((page - 1) * 24) })
   const data = await getJson<{ results: Album[] }>(`https://itunes.apple.com/search?${params}`)
   return data.results
     .filter((a) => a.artworkUrl100)
@@ -108,7 +109,7 @@ async function searchMusic(q: string): Promise<ArtworkResult[]> {
     }))
 }
 
-const SEARCHERS: Record<string, (q: string) => Promise<ArtworkResult[]>> = {
+const SEARCHERS: Record<string, (q: string, page: number) => Promise<ArtworkResult[]>> = {
   movies: searchMovies,
   tv: searchTv,
   books: searchBooks,
@@ -119,11 +120,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const theme = searchParams.get('theme') ?? ''
   const q = (searchParams.get('q') ?? '').trim().slice(0, 100)
+  const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
   const search = SEARCHERS[theme]
   if (!search) return NextResponse.json({ error: 'Unknown theme' }, { status: 400 })
   if (q.length < 2) return NextResponse.json({ results: [] })
   try {
-    return NextResponse.json({ results: await search(q) })
+    const results = await search(q, page)
+    return NextResponse.json({ results, hasMore: results.length === 24 || (theme === 'books' && results.length === 24) })
   } catch {
     return NextResponse.json({ error: 'Artwork search is unavailable right now' }, { status: 502 })
   }
