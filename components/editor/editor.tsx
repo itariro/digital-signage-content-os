@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { mutate as mutateCache } from 'swr'
 import { CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Type } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
@@ -158,6 +159,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
     if (!confirmDiscard()) return
     try {
       const { store: next, id } = await call('/api/layouts', 'POST', input)
+      await mutateCache('/api/frames')
       if (id) openLayout(id, next.layouts)
       setTab('layouts')
       toast.success(message)
@@ -170,6 +172,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
     if (!window.confirm(`Delete "${layout.name}"? This cannot be undone.`)) return
     try {
       const { store: next } = await call(`/api/layouts/${layout.id}`, 'DELETE')
+      await mutateCache('/api/frames')
       if (layout.id === state.layoutId && next.layouts[0]) editor.load(next.layouts[0])
       toast.success('Layout deleted')
     } catch (e) {

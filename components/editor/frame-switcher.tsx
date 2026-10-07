@@ -10,7 +10,7 @@ type FormState = { id: string; name: string; resolutionWidth: string; resolution
 const blank: FormState = { id: '', name: '', resolutionWidth: '1920', resolutionHeight: '1080', screenWidthMm: '', screenHeightMm: '' }
 
 export function FrameSwitcher() {
-  const { data: frames = [], mutate } = useSWR<Frame[]>('/api/frames', fetcher)
+  const { data: frames = [], mutate } = useSWR<Frame[]>('/api/frames', fetcher, { revalidateOnFocus: true })
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<FormState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -37,7 +37,15 @@ export function FrameSwitcher() {
     await mutate()
   }
 
-  return <details className="relative shrink-0" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+  return <details
+    className="relative shrink-0"
+    open={open}
+    onToggle={(event) => {
+      const nextOpen = event.currentTarget.open
+      setOpen(nextOpen)
+      if (nextOpen) void mutate()
+    }}
+  >
     <summary className="flex h-8 cursor-pointer list-none items-center gap-2 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
       <Monitor className="size-3.5 text-primary" aria-hidden /><span className="hidden sm:inline">Frames</span><span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{frames.length}</span>
     </summary>

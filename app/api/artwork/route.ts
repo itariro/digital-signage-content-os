@@ -28,7 +28,7 @@ async function searchMovies(q: string): Promise<ArtworkResult[]> {
     gsrlimit: '24',
     prop: 'pageimages|description',
     piprop: 'thumbnail',
-    pithumbsize: '1000',
+    pithumbsize: '2000',
     pilicense: 'any',
   })
   type Page = { pageid: number; index: number; title: string; description?: string; thumbnail?: { source: string } }
@@ -88,7 +88,7 @@ async function searchBooks(q: string): Promise<ArtworkResult[]> {
       subtitle: d.author_name?.[0] ?? '',
       year: d.first_publish_year ? String(d.first_publish_year) : '',
       thumb: `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`,
-      image: `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`,
+      image: `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg?default=false`,
     }))
 }
 
