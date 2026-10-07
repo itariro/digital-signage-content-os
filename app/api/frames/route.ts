@@ -43,8 +43,13 @@ export async function POST(request: Request) {
   const identifier = body.id.trim()
   const [existing] = await db.select({ id: frameDocuments.id }).from(frameDocuments).where(eq(frameDocuments.identifier, identifier)).limit(1)
   if (existing) return NextResponse.json({ error: 'Frame ID already exists' }, { status: 409 })
+  const homeStore = await readStore()
+  if (!homeStore) return NextResponse.json({ error: 'Home frame is not available' }, { status: 503 })
+  const data = structuredClone(homeStore)
+  data.activeId = null
+  data.schedule = { ...data.schedule, enabled: false, rules: [] }
   await db.insert(frameDocuments).values({
-    id: nanoid(12), identifier, name: body.name.trim(), data: { activeId: null, layouts: [], presets: [], customFonts: [], schedule: { enabled: false, rules: [], night: { enabled: false, start: '22:00', end: '07:00', brightness: 35, warmth: 20, hideSeconds: false } }, albums: [] },
+    id: nanoid(12), identifier, name: body.name.trim(), data,
     createdAt: now, updatedAt: now, resolutionWidth: Number(body.resolutionWidth) || 1920, resolutionHeight: Number(body.resolutionHeight) || 1080,
     screenWidthMm: Number(body.screenWidthMm) || null, screenHeightMm: Number(body.screenHeightMm) || null,
   })

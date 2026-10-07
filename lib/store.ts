@@ -134,7 +134,7 @@ function normalize(store: FrameStore): FrameStore {
 const storeCache = new Map<string, FrameStore>()
 const queues = new Map<string, Promise<unknown>>()
 
-export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
+export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore | null> {
   const cached = storeCache.get(frameId)
   if (cached) return cached
 
@@ -145,6 +145,8 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore>
     storeCache.set(frameId, store)
     return store
   }
+
+  if (frameId !== DEFAULT_FRAME_ID) return null
 
   const store = seed()
   const now = new Date()
