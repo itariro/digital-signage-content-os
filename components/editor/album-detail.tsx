@@ -261,7 +261,7 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
   const [advanced, setAdvanced] = useState(false)
   const [page, setPage] = useState(1)
   const [pending, setPending] = useState<Set<string>>(new Set())
-  const { results, hasMore, isLoading, error } = useArtworkSearch(album.theme, query, page)
+  const { results, hasMore, partialFailures, isLoading, error } = useArtworkSearch(album.theme, query, page)
   const queryIsJson = advanced && query.trim().startsWith('[')
   const bySource = new Map(album.items.map((i) => [i.sourceUrl, i]))
 
@@ -337,6 +337,7 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
         ))}
       </div>
       {error && <p className="text-xs text-destructive">Search is unavailable right now. Try again in a moment.</p>}
+      {partialFailures.length > 0 && !error && <p className="text-xs text-amber-600">{partialFailures.length} search item{partialFailures.length === 1 ? '' : 's'} could not be loaded. Showing the available results.</p>}
       {query.trim().length >= 2 && !isLoading && !error && results.length === 0 && (
         <p className="text-xs text-muted-foreground">No artwork found for that search.</p>
       )}
