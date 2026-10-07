@@ -4,6 +4,7 @@ import { Download, Frame, Loader2, Play, Redo2, Undo2 } from 'lucide-react'
 import type { EditorApi } from '@/hooks/use-editor'
 import { IconButton } from './controls'
 import { cn } from '@/lib/utils'
+import { FrameSwitcher } from './frame-switcher'
 
 type TopBarProps = {
   editor: EditorApi
@@ -41,6 +42,8 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
           <span className="hidden shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary md:inline">On frame</span>
         )}
       </div>
+
+      <FrameSwitcher />
 
       <div className="flex items-center gap-0.5">
         <IconButton label="Undo (⌘Z)" onClick={editor.undo} disabled={state.past.length === 0}>
