@@ -44,14 +44,14 @@ export function useWeather(settings: Pick<LayoutSettings, 'lat' | 'lon' | 'units
 
 export type ArtworkResult = { id: string; title: string; subtitle: string; year: string; thumb: string; image: string }
 
-export function useArtworkSearch(theme: string, query: string) {
+export function useArtworkSearch(theme: string, query: string, page: number) {
   const trimmed = query.trim()
-  const { data, error, isLoading } = useSWR<{ results: ArtworkResult[] }>(
-    trimmed.length >= 2 ? `/api/artwork?theme=${theme}&q=${encodeURIComponent(trimmed)}` : null,
+  const { data, error, isLoading } = useSWR<{ results: ArtworkResult[]; hasMore: boolean }>(
+    trimmed.length >= 2 ? `/api/artwork?theme=${theme}&q=${encodeURIComponent(trimmed)}&page=${page}` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 5 * 60_000, keepPreviousData: true },
   )
-  return { results: data?.results ?? [], error: Boolean(error), isLoading }
+  return { results: data?.results ?? [], hasMore: data?.hasMore ?? false, error: Boolean(error), isLoading }
 }
 
 export function useGeocode(query: string) {

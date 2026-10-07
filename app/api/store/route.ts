@@ -8,5 +8,7 @@ export async function GET(request: Request) {
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(frameId)) {
     return NextResponse.json({ error: 'Invalid frame id' }, { status: 400 })
   }
-  return NextResponse.json(await readStore(frameId))
+  const store = await readStore(frameId)
+  if (!store) return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
+  return NextResponse.json(store)
 }
