@@ -151,6 +151,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore>
   await db.insert(frameDocuments).values({
     id: nanoid(12), identifier: frameId, name: frameId === DEFAULT_FRAME_ID ? 'Home frame' : frameId,
     data: store, createdAt: now, updatedAt: now,
+    resolutionWidth: 1920, resolutionHeight: 1080,
   })
   storeCache.set(frameId, store)
   return store

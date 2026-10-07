@@ -1,4 +1,4 @@
-import { jsonb, text, timestamp, pgTable } from 'drizzle-orm/pg-core'
+import { integer, jsonb, text, timestamp, pgTable } from 'drizzle-orm/pg-core'
 
 export const frameDocuments = pgTable('frame_documents', {
   id: text('id').primaryKey(),
@@ -7,6 +7,10 @@ export const frameDocuments = pgTable('frame_documents', {
   data: jsonb('data').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  resolutionWidth: integer('resolution_width').notNull().default(1920),
+  resolutionHeight: integer('resolution_height').notNull().default(1080),
+  screenWidthMm: integer('screen_width_mm'),
+  screenHeightMm: integer('screen_height_mm'),
 })
 
 export const frameTemplates = pgTable('frame_templates', {
