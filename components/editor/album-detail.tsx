@@ -258,9 +258,11 @@ function PreviewStage({ album }: { album: Album }) {
 function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: Album) => Album) => void }) {
   const meta = THEME_META[album.theme]
   const [query, setQuery] = useState('')
+  const [advanced, setAdvanced] = useState(false)
   const [page, setPage] = useState(1)
   const [pending, setPending] = useState<Set<string>>(new Set())
   const { results, hasMore, isLoading, error } = useArtworkSearch(album.theme, query, page)
+  const queryIsJson = advanced && query.trim().startsWith('[')
   const bySource = new Map(album.items.map((i) => [i.sourceUrl, i]))
 
   async function toggle(result: ArtworkResult) {
@@ -287,6 +289,10 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
       title: result.title.slice(0, 200),
       subtitle: result.subtitle.slice(0, 200),
       year: result.year.slice(0, 12),
+      genre: result.genre?.slice(0, 120),
+      description: result.description?.slice(0, 500),
+      director: result.director?.slice(0, 160),
+      rating: result.rating?.slice(0, 20),
     }
     onUpdate((a) => (a.items.some((i) => i.sourceUrl === item.sourceUrl) ? a : { ...a, items: [...a.items, item] }))
   }
@@ -295,21 +301,22 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
 
   return (
     <Section title={`Add ${meta.noun}s`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-muted-foreground">Search one item or build a batch</span>
+        <button type="button" onClick={() => { setAdvanced((value) => !value); setQuery(''); setPage(1) }} aria-pressed={advanced} className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground aria-pressed:border-primary aria-pressed:text-foreground">
+          Advanced search
+        </button>
+      </div>
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setPage(1)
-          }}
-          placeholder={meta.placeholder}
-          aria-label={meta.placeholder}
-          className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-9 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary"
-        />
+        {!advanced && <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />}
+        {advanced ? (
+          <textarea value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder='[{"artist":"50 Cent","album":"Get Rich or Die Trying"}]' aria-label="Advanced search JSON" rows={4} className="w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary" />
+        ) : (
+          <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder={meta.placeholder} aria-label={meta.placeholder} className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-9 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary" />
+        )}
         {isLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
       </div>
+      {advanced && <p className="text-[11px] leading-relaxed text-muted-foreground">Use an array of strings or objects. Objects can contain title, artist, album, actor, director, or author.</p>}
       <div className="flex flex-wrap gap-1.5">
         {meta.suggestions.map((s) => (
           <button

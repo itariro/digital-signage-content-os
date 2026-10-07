@@ -42,7 +42,7 @@ export function useWeather(settings: Pick<LayoutSettings, 'lat' | 'lon' | 'units
   return data ?? null
 }
 
-export type ArtworkResult = { id: string; title: string; subtitle: string; year: string; thumb: string; image: string }
+export type ArtworkResult = { id: string; title: string; subtitle: string; year: string; thumb: string; image: string; genre?: string; description?: string; director?: string; rating?: string }
 
 export function useArtworkSearch(theme: string, query: string, page: number) {
   const trimmed = query.trim()

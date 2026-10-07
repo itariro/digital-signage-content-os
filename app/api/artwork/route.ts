@@ -7,6 +7,10 @@ export type ArtworkResult = {
   year: string
   thumb: string
   image: string
+  genre?: string
+  description?: string
+  director?: string
+  rating?: string
 }
 
 const UA = { 'User-Agent': 'FrameStudio/1.0 (digital photo frame)' }
@@ -119,15 +123,35 @@ const SEARCHERS: Record<string, (q: string, page: number) => Promise<ArtworkResu
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const theme = searchParams.get('theme') ?? ''
-  const q = (searchParams.get('q') ?? '').trim().slice(0, 100)
+  const rawQuery = (searchParams.get('q') ?? '').trim()
+  const q = rawQuery.slice(0, 200)
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
   const search = SEARCHERS[theme]
   if (!search) return NextResponse.json({ error: 'Unknown theme' }, { status: 400 })
   if (q.length < 2) return NextResponse.json({ results: [] })
   try {
-    const results = await search(q, page)
-    return NextResponse.json({ results, hasMore: results.length === 24 || (theme === 'books' && results.length === 24) })
-  } catch {
+    let results: ArtworkResult[]
+    if (rawQuery.startsWith('[')) {
+      const entries: unknown = JSON.parse(rawQuery)
+      if (!Array.isArray(entries) || entries.length === 0 || entries.length > 20) return NextResponse.json({ error: 'Advanced search accepts 1–20 items' }, { status: 400 })
+      const queries = entries.map((entry) => {
+        if (typeof entry === 'string') return entry.trim().slice(0, 120)
+        if (!entry || typeof entry !== 'object') return ''
+        return Object.entries(entry as Record<string, unknown>)
+          .filter(([, value]) => typeof value === 'string' && value.trim())
+          .map(([key, value]) => `${key}: ${String(value).trim()}`)
+          .join(' ')
+          .slice(0, 160)
+      }).filter((value) => value.length >= 2)
+      const pages = await Promise.all(queries.map((value) => search(value, page)))
+      const seen = new Set<string>()
+      results = pages.flat().filter((result) => !seen.has(result.id) && seen.add(result.id))
+    } else {
+      results = await search(q, page)
+    }
+    return NextResponse.json({ results, hasMore: results.length >= 24 })
+  } catch (error) {
+    if (error instanceof SyntaxError) return NextResponse.json({ error: 'Advanced search must be valid JSON' }, { status: 400 })
     return NextResponse.json({ error: 'Artwork search is unavailable right now' }, { status: 502 })
   }
 }
