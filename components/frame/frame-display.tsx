@@ -11,7 +11,10 @@ import { useWeather } from '@/hooks/use-frame-store'
 import { FrameScene } from './frame-scene'
 
 const fetcher = async (url: string) => {
-  const res = await fetch(url)
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache' },
+  })
   if (!res.ok) throw new Error('Request failed')
   return res.json()
 }
@@ -33,7 +36,9 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
   const { data } = useSWR<FrameStore>(`/api/store?frame=${encodeURIComponent(frameId)}`, fetcher, {
     fallbackData: initialStore,
     refreshInterval: 30_000,
-    revalidateOnFocus: true,
+    dedupingInterval: 1_000,
+    revalidateOnFocus: false,
+    refreshWhenHidden: false,
   })
   const store = data ?? initialStore
   const now = useNow()
