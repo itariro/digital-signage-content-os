@@ -166,6 +166,83 @@ export type FrameStore = {
   customFonts: string[]
   schedule: FrameSchedule
   albums: Album[]
+  experiences: Experiences
+}
+
+// Bob Engine types
+export type Weekday = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN'
+
+export type DisplayState =
+  | 'ambient' | 'information' | 'action' | 'celebration'
+  | 'activity' | 'gallery' | 'weather' | 'family'
+
+export type BobExpression =
+  | 'thinking' | 'action' | 'celebrate' | 'idea' | 'reminder' | 'success'
+  | 'exercise' | 'talking' | 'planning' | 'building' | 'reading' | 'happy'
+
+export type Condition =
+  | { all: Condition[] }
+  | { any: Condition[] }
+  | { not: Condition }
+  | { days: Weekday[] }
+  | { time: { from: string; to: string } }
+  | { schoolDay: boolean }
+  | { weather: {
+      rainProbabilityAbove?: number
+      temperatureAbove?: number
+      temperatureBelow?: number
+      uvAbove?: number
+    } }
+  | { specialTag: string }
+
+export interface ExperienceRule {
+  id: string
+  name: string
+  enabled: boolean
+  priority: number
+  when: Condition
+  then: {
+    layoutId: string
+    state: DisplayState
+    bob?: { expression: BobExpression; speech?: string }
+    score: number
+    durationMs: number
+    reason?: string
+  }
+}
+
+export interface ExperienceSettings {
+  schoolHolidays: string[]
+  timezone?: string
+}
+
+export interface Experiences {
+  enabled: boolean
+  rules: ExperienceRule[]
+  settings: ExperienceSettings
+}
+
+export interface DisplayDecision {
+  id: string
+  state: DisplayState
+  layoutId: string
+  bob?: { expression: BobExpression; speech?: string }
+  priority: number
+  score: number
+  reason: string
+  ruleId: string | null
+  durationMs: number
+  generatedAt: string
+}
+
+export interface ExperienceContext {
+  now: string
+  date: { iso: string; day: string; dayNumber: number; month: string; year: number }
+  weekday: Weekday
+  period: 'night' | 'morning' | 'day' | 'welcome-home' | 'evening' | 'wind-down'
+  schoolDay: boolean
+  weather?: import('./types').WeatherData
+  specialTags: string[]
 }
 
 export type WeatherData = {

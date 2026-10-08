@@ -134,3 +134,63 @@ export const fontInputSchema = z.object({
     .max(60)
     .regex(/^[A-Za-z0-9 ]+$/, 'Use letters, numbers and spaces only'),
 })
+
+const weekdaySchema = z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'])
+
+const displayStateSchema = z.enum([
+  'ambient', 'information', 'action', 'celebration',
+  'activity', 'gallery', 'weather', 'family',
+])
+
+const bobExpressionSchema = z.enum([
+  'thinking', 'action', 'celebrate', 'idea', 'reminder', 'success',
+  'exercise', 'talking', 'planning', 'building', 'reading', 'happy',
+])
+
+const conditionSchema: z.ZodType<any> = z.lazy(() =>
+  z.union([
+    z.object({ all: z.array(conditionSchema) }),
+    z.object({ any: z.array(conditionSchema) }),
+    z.object({ not: conditionSchema }),
+    z.object({ days: z.array(weekdaySchema) }),
+    z.object({ time: z.object({ from: z.string(), to: z.string() }) }),
+    z.object({ schoolDay: z.boolean() }),
+    z.object({
+      weather: z.object({
+        rainProbabilityAbove: z.number().optional(),
+        temperatureAbove: z.number().optional(),
+        temperatureBelow: z.number().optional(),
+        uvAbove: z.number().optional(),
+      }),
+    }),
+    z.object({ specialTag: z.string() }),
+  ])
+)
+
+const experienceRuleSchema = z.object({
+  id: z.string().min(1).max(40),
+  name: z.string().min(1).max(100),
+  enabled: z.boolean(),
+  priority: z.number().int().min(0).max(1000),
+  when: conditionSchema,
+  then: z.object({
+    layoutId: z.string().min(1).max(40),
+    state: displayStateSchema,
+    bob: z.object({
+      expression: bobExpressionSchema,
+      speech: z.string().max(500).optional(),
+    }).optional(),
+    score: z.number(),
+    durationMs: z.number().int().min(0),
+    reason: z.string().max(200).optional(),
+  }),
+})
+
+export const experiencesSchema = z.object({
+  enabled: z.boolean(),
+  rules: z.array(experienceRuleSchema).max(100),
+  settings: z.object({
+    schoolHolidays: z.array(z.string()).max(100),
+    timezone: z.string().max(100).optional(),
+  }),
+})
