@@ -226,7 +226,7 @@ export interface DisplayDecision {
   id: string
   state: DisplayState
   layoutId: string
-  bob?: { expression: BobExpression; speech?: string }
+  bob?: { expression: BobExpression; speech?: string } | null
   priority: number
   score: number
   reason: string
