@@ -2,12 +2,13 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Type } from 'lucide-react'
+import { CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Sparkles, Type } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
-import type { Album, AlbumTheme, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
+import type { Album, AlbumTheme, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
 import { activeSlide } from '@/components/frame/frame-scene'
 import { AlbumsPanel } from './albums-panel'
+import { ExperiencesPanel } from './experiences-panel'
 import { SchedulePanel } from './schedule-panel'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { googleFontHref } from '@/lib/fonts'
@@ -33,6 +34,7 @@ const TABS = [
   { id: 'albums', label: 'Albums', icon: GalleryVerticalEnd },
   { id: 'fonts', label: 'Fonts', icon: Type },
   { id: 'schedule', label: 'Schedule', icon: CalendarClock },
+  { id: 'experiences', label: 'Experiences', icon: Sparkles },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -113,6 +115,14 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
   async function saveSchedule(schedule: FrameSchedule) {
     try {
       await call('/api/schedule', 'PUT', schedule)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    }
+  }
+
+  async function saveExperiences(experiences: Experiences) {
+    try {
+      await call('/api/experiences', 'PUT', experiences)
     } catch (e) {
       toast.error(errorMessage(e))
     }
@@ -407,6 +417,9 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
               {tab === 'fonts' && <FontsPanel customFonts={store.customFonts} onAdd={addFont} onRemove={removeFont} />}
               {tab === 'schedule' && (
                 <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />
+              )}
+              {tab === 'experiences' && (
+                <ExperiencesPanel experiences={store.experiences} layouts={liveLayouts} onSave={saveExperiences} />
               )}
             </div>
           </aside>
