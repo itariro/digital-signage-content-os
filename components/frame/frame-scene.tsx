@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties, ReactNode } from 'react'
-import type { ActiveSlide, Album, LayoutSettings, NightMode, WeatherData, Widget } from '@/lib/types'
+import type { ActiveSlide, Album, DisplayDecision, LayoutSettings, NightMode, WeatherData, Widget } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { fontStack } from '@/lib/fonts'
 import { hexToRgba } from '@/lib/frame-utils'
@@ -104,9 +104,10 @@ type FrameSceneProps = {
   night?: NightMode | null
   children?: ReactNode
   renderWidget?: (widget: Widget, body: ReactNode) => ReactNode
+  decision?: DisplayDecision | null
 }
 
-export function FrameScene({ widgets, settings, weather, now, scale, album, night, children, renderWidget }: FrameSceneProps) {
+export function FrameScene({ widgets, settings, weather, now, scale, album, night, children, renderWidget, decision }: FrameSceneProps) {
   const hideSeconds = Boolean(night?.hideSeconds)
   const slide = activeSlide(album, now)
   return (
@@ -119,7 +120,7 @@ export function FrameScene({ widgets, settings, weather, now, scale, album, nigh
         {now &&
           widgets.map((widget) => {
             if (widget.hidden && !renderWidget) return null
-            const body = <WidgetBody widget={widget} ctx={{ now, weather, settings, hideSeconds, slide }} />
+            const body = <WidgetBody widget={widget} ctx={{ now, weather, settings, hideSeconds, slide, decision }} />
             if (renderWidget) return renderWidget(widget, body)
             return (
               <div key={widget.id} style={surfaceStyle(widget)}>

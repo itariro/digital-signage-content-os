@@ -20,7 +20,7 @@ import {
   Sunset,
   type LucideIcon,
 } from 'lucide-react'
-import type { ActiveSlide, LayoutSettings, WeatherData, Widget } from '@/lib/types'
+import type { ActiveSlide, DisplayDecision, LayoutSettings, WeatherData, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
 import {
   daysBetween,
@@ -43,6 +43,7 @@ export type WidgetContext = {
   settings: LayoutSettings
   hideSeconds?: boolean
   slide?: ActiveSlide | null
+  decision?: DisplayDecision | null
 }
 
 const ICONS: Record<string, LucideIcon> = {
