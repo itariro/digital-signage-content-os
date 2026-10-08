@@ -15,6 +15,7 @@ import {
   Quote,
   Timer,
   GalleryHorizontalEnd,
+  Smile,
   type LucideIcon,
 } from 'lucide-react'
 import type { Widget, WidgetStyle, WidgetType, WidgetProps } from './types'
@@ -31,7 +32,7 @@ export type WidgetDefinition = {
   type: WidgetType
   label: string
   description: string
-  category: 'Time' | 'Weather' | 'Planner' | 'Decor'
+  category: 'Time' | 'Weather' | 'Planner' | 'Decor' | 'Family'
   icon: LucideIcon
   size: { w: number; h: number }
   minSize: { w: number; h: number }
@@ -423,6 +424,60 @@ export const WIDGETS: WidgetDefinition[] = [
       { key: 'showDescription', label: 'Show synopsis / summary', kind: 'toggle' },
       { key: 'showDirector', label: 'Show director', kind: 'toggle' },
       { key: 'showRating', label: 'Show rating', kind: 'toggle' },
+    ],
+  },
+  {
+    type: 'bob',
+    label: 'Bob',
+    description: 'FamilyOS Bob character',
+    category: 'Family',
+    icon: Smile,
+    size: { w: 360, h: 480 },
+    minSize: { w: 120, h: 160 },
+    lockAspect: true,
+    templates: [
+      { id: 'plain', label: 'Plain' },
+      { id: 'speech', label: 'Speech' },
+      { id: 'badge', label: 'Badge' },
+    ],
+    props: {
+      source: 'fixed',
+      expression: 'happy',
+      speech: '',
+      animate: false,
+    },
+    fields: [
+      {
+        key: 'source',
+        label: 'Source',
+        kind: 'select',
+        options: [
+          { value: 'fixed', label: 'Fixed' },
+          { value: 'decision', label: 'Follow Decision' },
+        ],
+      },
+      {
+        key: 'expression',
+        label: 'Expression',
+        kind: 'select',
+        options: [
+          { value: 'thinking', label: 'Thinking' },
+          { value: 'action', label: 'Action' },
+          { value: 'celebrate', label: 'Celebrate' },
+          { value: 'idea', label: 'Idea' },
+          { value: 'reminder', label: 'Reminder' },
+          { value: 'success', label: 'Success' },
+          { value: 'exercise', label: 'Exercise' },
+          { value: 'talking', label: 'Talking' },
+          { value: 'planning', label: 'Planning' },
+          { value: 'building', label: 'Building' },
+          { value: 'reading', label: 'Reading' },
+          { value: 'happy', label: 'Happy' },
+        ],
+        showWhen: { key: 'source', value: 'fixed' },
+      },
+      { key: 'speech', label: 'Speech', kind: 'text' },
+      { key: 'animate', label: 'Animate', kind: 'toggle' },
     ],
   },
 ]

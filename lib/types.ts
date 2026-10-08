@@ -17,6 +17,7 @@ export const WIDGET_TYPES = [
   'countdown',
   'quote',
   'now-showing',
+  'bob',
 ] as const
 
 export type WidgetType = (typeof WIDGET_TYPES)[number]
