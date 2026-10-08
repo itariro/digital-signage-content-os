@@ -425,17 +425,19 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
             />
           </main>
 
-          <aside aria-label="Inspector" className="order-3 flex min-h-0 flex-col overflow-y-auto border-t border-border bg-card lg:h-full lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
-            <Inspector
-              editor={editor}
-              customFonts={store.customFonts}
-              albums={liveAlbums}
-              onOpenAlbums={() => {
-                setOpenAlbumId(state.settings.albumId)
-                setTab('albums')
-              }}
-              onSavePreset={savePreset}
-            />
+          <aside aria-label="Inspector" className="order-3 flex min-h-0 flex-col overflow-hidden border-t border-border bg-card lg:h-full lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <Inspector
+                editor={editor}
+                customFonts={store.customFonts}
+                albums={liveAlbums}
+                onOpenAlbums={() => {
+                  setOpenAlbumId(state.settings.albumId)
+                  setTab('albums')
+                }}
+                onSavePreset={savePreset}
+              />
+            </div>
           </aside>
         </div>
       </div>
