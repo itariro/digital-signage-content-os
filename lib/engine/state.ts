@@ -41,6 +41,8 @@ function fallbackDecision(layoutId: string, time: Date): DisplayDecision {
 
 export interface GetDecisionOptions {
   simulatedTime?: Date
+  /** When false, skip appending to display_history. Defaults to true. */
+  recordHistory?: boolean
 }
 
 export interface GetDecisionResult {
@@ -105,11 +107,13 @@ export async function getDecision(
     generatedAt: time.toISOString(),
   }
 
-  try {
-    // Prune and append run in one transaction (spec §5.2).
-    await recordDecision(frameId, decision, new Date())
-  } catch (error) {
-    console.error('[state] Failed to record decision:', error)
+  if (options?.recordHistory !== false) {
+    try {
+      // Prune and append run in one transaction (spec §5.2).
+      await recordDecision(frameId, decision, new Date())
+    } catch (error) {
+      console.error('[state] Failed to record decision:', error)
+    }
   }
 
   return { decision, context, store }

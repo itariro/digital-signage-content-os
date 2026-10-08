@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { decision, context } = await getDecision(frameId, new Date(), { simulatedTime })
+    const { decision, context } = await getDecision(frameId, new Date(), { simulatedTime, recordHistory: false })
     return NextResponse.json(
       {
         decision,
