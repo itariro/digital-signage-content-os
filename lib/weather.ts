@@ -40,6 +40,7 @@ export async function fetchWeather(lat: number, lon: number, units: string): Pro
         code: json.daily.weather_code?.[i] ?? 0,
         max: json.daily.temperature_2m_max[i],
         min: json.daily.temperature_2m_min[i],
+        rainProbability: json.daily.precipitation_probability_max?.[i] ?? 0,
       })),
       hourly: (json.hourly?.time ?? []).slice(0, 12).map((time: string, i: number) => ({
         time,

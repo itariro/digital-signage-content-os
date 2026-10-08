@@ -260,6 +260,6 @@ export type WeatherData = {
     sunrise: string
     sunset: string
   }
-  daily: { date: string; code: number; max: number; min: number }[]
+  daily: { date: string; code: number; max: number; min: number; rainProbability?: number }[]
   hourly: { time: string; code: number; temp: number; isDay: boolean; precip: number }[]
 }
