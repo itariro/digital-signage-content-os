@@ -28,29 +28,54 @@ export async function queryHistory(frameId: string): Promise<HistoryEntry[]> {
   return rows.map(r => ({ layoutId: r.layoutId, shownAt: r.shownAt }))
 }
 
-/**
- * Appends a decision to the frame's history. `shownAt` is truncated to the
- * nearest minute so the `UNIQUE (frame_id, decision_id, shown_at)` constraint
- * makes retries within the same minute idempotent.
- */
-export async function appendHistory(
-  frameId: string,
-  decisionId: string,
-  layoutId: string,
-  shownAt: Date,
+export interface DecisionRecord {
+  id: string
+  layoutId: string
   score: number
+}
+
+/**
+ * Persists a decision, pruning the frame's expired history in the same
+ * transaction.
+ *
+ * Spec §5.2 requires the retention `DELETE` and the idempotent `INSERT` to be
+ * atomic: a crash between them must not leave pruning applied without the new
+ * row (or vice versa). `shownAt` is truncated to the nearest minute so the
+ * `UNIQUE (frame_id, decision_id, shown_at)` constraint makes retries within
+ * the same minute idempotent.
+ */
+export async function recordDecision(
+  frameId: string,
+  decision: DecisionRecord,
+  shownAt: Date
 ): Promise<void> {
   const db = getDb()
   const shownAtMinute = new Date(Math.floor(shownAt.getTime() / 60000) * 60000)
-  await db
-    .insert(displayHistory)
-    .values({ frameId, decisionId, layoutId, shownAt: shownAtMinute, score })
-    .onConflictDoNothing({
-      target: [displayHistory.frameId, displayHistory.decisionId, displayHistory.shownAt],
-    })
+  const cutoff = new Date(Date.now() - RETENTION_MS)
+  await db.transaction(async tx => {
+    await tx
+      .delete(displayHistory)
+      .where(and(eq(displayHistory.frameId, frameId), lt(displayHistory.shownAt, cutoff)))
+    await tx
+      .insert(displayHistory)
+      .values({
+        frameId,
+        decisionId: decision.id,
+        layoutId: decision.layoutId,
+        shownAt: shownAtMinute,
+        score: decision.score,
+      })
+      .onConflictDoNothing({
+        target: [displayHistory.frameId, displayHistory.decisionId, displayHistory.shownAt],
+      })
+  })
 }
 
-/** Deletes history rows older than the 7-day retention window. */
+/**
+ * Deletes history rows older than the 7-day retention window. Used on decision
+ * requests that do not append a row (fallback / experiences disabled); requests
+ * that do append prune inside `recordDecision` instead.
+ */
 export async function pruneHistory(frameId: string): Promise<void> {
   const db = getDb()
   const cutoff = new Date(Date.now() - RETENTION_MS)

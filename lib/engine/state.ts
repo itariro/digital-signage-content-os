@@ -7,7 +7,8 @@ import { scoreCandidates } from './scoring'
 import { selectWinner } from './selector'
 import { readStore } from '../store'
 import { fetchWeather } from '../weather'
-import { queryHistory, appendHistory, pruneHistory } from '../db'
+import { queryHistory, recordDecision, pruneHistory } from '../db'
+import { clockParts, resolveDisplay } from '../schedule'
 
 function decisionId(
   ruleId: string | null,
@@ -57,6 +58,7 @@ export async function getDecision(
   if (!store) throw new Error(`Frame "${frameId}" not found`)
 
   const time = options?.simulatedTime || now
+  const timezone = store.experiences.settings.timezone
 
   const layout = store.layouts.find(l => l.id === store.activeId) || store.layouts[0]
   const weather = layout
@@ -65,15 +67,9 @@ export async function getDecision(
 
   const context = buildContext(store, time, weather)
 
-  // Retention pruning runs on every decision request so the table stays bounded.
-  try {
-    await pruneHistory(frameId)
-  } catch (error) {
-    console.error('[state] Failed to prune history:', error)
-  }
-
   if (!store.experiences.enabled) {
-    return { decision: fallbackDecision(resolveFallbackLayout(store), time), context, store }
+    await pruneHistorySafely(frameId)
+    return { decision: fallbackDecision(resolveFallbackLayout(store, time, timezone), time), context, store }
   }
 
   const layoutIds = new Set(store.layouts.map(l => l.id))
@@ -91,7 +87,8 @@ export async function getDecision(
   const winner = selectWinner(scored)
 
   if (!winner) {
-    return { decision: fallbackDecision(resolveFallbackLayout(store), time), context, store }
+    await pruneHistorySafely(frameId)
+    return { decision: fallbackDecision(resolveFallbackLayout(store, time, timezone), time), context, store }
   }
 
   const rule = winner.rule
@@ -109,29 +106,30 @@ export async function getDecision(
   }
 
   try {
-    await appendHistory(frameId, decision.id, decision.layoutId, new Date(), decision.score)
+    // Prune and append run in one transaction (spec §5.2).
+    await recordDecision(frameId, decision, new Date())
   } catch (error) {
-    console.error('[state] Failed to append history:', error)
+    console.error('[state] Failed to record decision:', error)
   }
 
   return { decision, context, store }
 }
 
-function resolveFallbackLayout(store: FrameStore): string {
-  if (store.schedule.enabled && store.schedule.rules.length > 0) {
-    const now = new Date()
-    const day = now.getDay()
-    const minutes = now.getHours() * 60 + now.getMinutes()
-    for (const rule of store.schedule.rules) {
-      if (!rule.days.includes(day)) continue
-      const [startH, startM] = rule.start.split(':').map(Number)
-      const [endH, endM] = rule.end.split(':').map(Number)
-      const start = startH * 60 + startM
-      const end = endH * 60 + endM
-      if (start <= end ? minutes >= start && minutes < end : minutes >= start || minutes < end) {
-        return rule.layoutId
-      }
-    }
+/** Prunes expired history without letting a DB failure break the decision. */
+async function pruneHistorySafely(frameId: string): Promise<void> {
+  try {
+    await pruneHistory(frameId)
+  } catch (error) {
+    console.error('[state] Failed to prune history:', error)
   }
-  return store.activeId || store.layouts[0]?.id || ''
+}
+
+/**
+ * Resolves the ambient layout from the schedule, delegating to the same
+ * resolution used by the display renderer (`resolveDisplay`) so overnight
+ * windows, deleted layouts, and timezones behave consistently.
+ */
+function resolveFallbackLayout(store: FrameStore, time: Date, timezone?: string): string {
+  const resolved = resolveDisplay(store, clockParts(time, timezone))
+  return resolved.layout?.id ?? store.activeId ?? ''
 }
