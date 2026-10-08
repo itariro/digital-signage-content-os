@@ -36,6 +36,7 @@ import {
 } from '@/lib/frame-utils'
 import { TIME_ZONES } from '@/lib/widgets'
 import { quoteForDate } from '@/lib/quotes'
+import { cn } from '@/lib/utils'
 
 export type WidgetContext = {
   now: Date
@@ -71,6 +72,37 @@ function fit(text: string, maxCqh: number, widthFactor = 190) {
 
 const muted: CSSProperties = { opacity: 0.72 }
 
+function BobWidget({ widget, ctx }: { widget: Widget; ctx: WidgetContext }) {
+  const source = (widget.props.source as string) || 'fixed'
+  const expression = source === 'decision'
+    ? (ctx.decision?.bob?.expression ?? (widget.props.expression as string) ?? 'happy')
+    : ((widget.props.expression as string) ?? 'happy')
+  const speech = source === 'decision'
+    ? (ctx.decision?.bob?.speech ?? (widget.props.speech as string) ?? '')
+    : ((widget.props.speech as string) ?? '')
+
+  const imageSrc = `/bob/${expression}.webp`
+  const animate = widget.props.animate as boolean
+
+  return (
+    <div className={cn('flex h-full w-full flex-col items-center justify-center', animate && 'animate-in fade-in')}>
+      <img
+        src={imageSrc}
+        alt={expression}
+        className="h-full w-full object-contain"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = '/bob/happy.webp'
+        }}
+      />
+      {speech && widget.template === 'speech' && (
+        <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full rounded-xl bg-white px-3 py-1 text-sm font-medium text-gray-900 shadow-lg">
+          {speech}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function WidgetContent({ widget, ctx }: { widget: Widget; ctx: WidgetContext }) {
   switch (widget.type) {
     case 'clock-digital':
@@ -103,6 +135,8 @@ export function WidgetContent({ widget, ctx }: { widget: Widget; ctx: WidgetCont
       return <TextWidget widget={widget} />
     case 'icon':
       return <IconWidget widget={widget} />
+    case 'bob':
+      return <BobWidget widget={widget} ctx={ctx} />
   }
 }
 
