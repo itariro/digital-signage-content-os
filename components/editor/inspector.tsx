@@ -174,6 +174,25 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
             </label>
           )
         }
+        if (field.kind === 'file') {
+          return (
+            <label key={field.key} className="flex items-center justify-between gap-3 text-sm text-foreground">
+              <span className="min-w-0 truncate">{field.label}</span>
+              <input
+                type="file"
+                accept={field.accept}
+                className="max-w-[150px] text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs file:text-foreground"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = () => setProp('icsContent', String(reader.result ?? ''))
+                  reader.readAsText(file)
+                }}
+              />
+            </label>
+          )
+        }
         if (field.kind === 'toggle') {
           return <ToggleField key={field.key} label={field.label} checked={Boolean(widget.props[field.key])} onChange={(v) => setProp(field.key, v)} />
         }

@@ -25,6 +25,7 @@ export type PropField = (
   | { key: string; label: string; kind: 'text' }
   | { key: string; label: string; kind: 'date' }
   | { key: string; label: string; kind: 'select'; options: { value: string; label: string }[] }
+  | { key: string; label: string; kind: 'file'; accept: string }
 ) & { showWhen?: { key: string; value: string } }
 
 export type WidgetDefinition = {
@@ -116,6 +117,8 @@ export const WIDGETS: WidgetDefinition[] = [
       { id: 'split', label: 'Split weight' },
       { id: 'outline', label: 'Outline' },
       { id: 'seconds', label: 'With seconds' },
+      { id: 'lockscreen', label: 'Lock screen' },
+      { id: 'editorial', label: 'Editorial' },
     ],
     props: { hour12: false, meridiem: true },
     fields: [
@@ -156,6 +159,8 @@ export const WIDGETS: WidgetDefinition[] = [
       { id: 'long', label: 'Long' },
       { id: 'compact', label: 'Compact' },
       { id: 'stacked', label: 'Stacked' },
+      { id: 'hero', label: 'Hero day' },
+      { id: 'editorial', label: 'Editorial' },
     ],
     props: { uppercase: false },
     fields: [{ key: 'uppercase', label: 'Uppercase', kind: 'toggle' }],
@@ -225,9 +230,13 @@ export const WIDGETS: WidgetDefinition[] = [
     templates: [
       { id: 'month', label: 'Month' },
       { id: 'week', label: 'Week' },
+      { id: 'agenda', label: 'Agenda' },
+      { id: 'editorial', label: 'Editorial' },
     ],
-    props: { weekStart: 'mon' },
+    props: { weekStart: 'mon', calendarUrl: '', icsContent: '' },
     fields: [
+      { key: 'calendarUrl', label: 'Shared calendar URL', kind: 'text' },
+      { key: 'icsFile', label: 'Upload .ics calendar', kind: 'file', accept: '.ics,text/calendar' },
       {
         key: 'weekStart',
         label: 'Week starts on',

@@ -114,11 +114,11 @@ function DigitalClock({ widget, now, hideSeconds }: { widget: Widget; now: Date;
   const justify = JUSTIFY[style.align]
   const numeric: CSSProperties = { fontVariantNumeric: 'tabular-nums', lineHeight: 0.92 }
 
-  if (template === 'stacked') {
+  if (template === 'stacked' || template === 'lockscreen') {
     return (
       <div className="flex h-full w-full flex-col justify-center" style={{ alignItems: justify }}>
-        <span style={{ ...numeric, fontSize: 'min(48cqh, 62cqw)' }}>{t.hours}</span>
-        <span style={{ ...numeric, fontSize: 'min(48cqh, 62cqw)', color: style.accent }}>{t.minutes}</span>
+        <span style={{ ...numeric, fontSize: template === 'lockscreen' ? 'min(56cqh, 68cqw)' : 'min(48cqh, 62cqw)', letterSpacing: '-0.08em' }}>{t.hours}</span>
+        <span style={{ ...numeric, fontSize: template === 'lockscreen' ? 'min(56cqh, 68cqw)' : 'min(48cqh, 62cqw)', color: style.accent, letterSpacing: '-0.08em' }}>{t.minutes}</span>
       </div>
     )
   }
@@ -234,6 +234,19 @@ function DateWidget({ widget, now }: { widget: Widget; now: Date }) {
         <span style={{ fontSize: fit(dayMonth, 58, 190), lineHeight: 1.05 }}>{dayMonth}</span>
       </div>
     )
+  }
+
+  if (template === 'hero') {
+    return (
+      <div className="flex h-full w-full items-center gap-[3cqw]" style={{ justifyContent: justify, ...upper }}>
+        <span style={{ fontSize: 'min(76cqh, 34cqw)', lineHeight: 0.8, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{now.getDate()}</span>
+        <span className="flex flex-col" style={{ fontSize: 'min(18cqh, 8cqw)', lineHeight: 1.15 }}><span style={{ color: style.accent }}>{weekday}</span><span style={muted}>{now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span></span>
+      </div>
+    )
+  }
+
+  if (template === 'editorial') {
+    return <div className="flex h-full w-full items-end gap-[2cqw] border-b" style={{ justifyContent: justify, ...upper }}><span style={{ fontSize: 'min(72cqh, 28cqw)', lineHeight: 0.82, fontWeight: 800 }}>{String(now.getDate()).padStart(2, '0')}</span><span style={{ fontSize: 'min(24cqh, 10cqw)', color: style.accent, paddingBottom: '1cqh' }}>{now.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span></div>
   }
 
   if (template === 'compact') {
@@ -415,12 +428,27 @@ function SunWidget({ widget, ctx }: { widget: Widget; ctx: WidgetContext }) {
   )
 }
 
+function parseIcsEvents(source: string, now: Date) {
+  return source.split('BEGIN:VEVENT').slice(1).map((block) => {
+    const value = (key: string) => block.match(new RegExp(`${key}[^:]*:(.+)`))?.[1]?.split('\\n')[0]?.trim() ?? ''
+    const raw = value('DTSTART')
+    const date = raw.match(/(\\d{4})(\\d{2})(\\d{2})/)
+    return { title: value('SUMMARY') || 'Untitled event', date: date ? new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3])) : now }
+  }).filter((event) => event.date.toDateString() === now.toDateString()).slice(0, 4)
+}
+
 function CalendarWidget({ widget, now }: { widget: Widget; now: Date }) {
   const { style, template, props } = widget
+  const events = parseIcsEvents(String(props.icsContent ?? ''), now)
   const mondayFirst = props.weekStart !== 'sun'
   const labels = mondayFirst ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S']
   const todayStyle: CSSProperties = { background: style.accent, color: style.bg, fontWeight: 700 }
   const shift = (d: number) => (mondayFirst ? (d + 6) % 7 : d)
+
+  if (template === 'agenda' || template === 'editorial') {
+    const month = now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    return <div className="flex h-full w-full flex-col gap-[2cqh]" style={{ fontSize: 'min(7cqh, 5.4cqw)' }}><div className="flex items-baseline justify-between border-b pb-[1cqh]"><span style={{ fontSize: '1.35em', fontWeight: 700 }}>{now.getDate()}</span><span style={{ color: style.accent }}>{month}</span></div><div className="flex min-h-0 flex-1 flex-col gap-[1.5cqh] pt-[1cqh]">{events.length ? events.map((event, i) => <div key={`${event.title}-${i}`} className="flex items-start gap-[2cqw] border-l-2 pl-[2cqw]" style={{ borderColor: i % 2 ? style.accent : style.color }}><span className="min-w-0 flex-1" style={{ fontSize: '1.1em', fontWeight: 600 }}>{event.title}</span></div>) : <span style={muted}>No events today</span>}</div></div>
+  }
 
   if (template === 'week') {
     const start = new Date(now)
