@@ -257,6 +257,62 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
           />
         </label>
       </Section>
+
+      <Section title="Preview">
+        <PreviewSection />
+      </Section>
+    </div>
+  )
+}
+
+function PreviewSection() {
+  const [preview, setPreview] = useState<{ decision?: { layoutId?: string; bob?: { expression?: string } | null; reason?: string }; warning?: string } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function runPreview() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/display/preview?frame=home', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dateTime: new Date().toISOString().slice(0, 16) }),
+      })
+      const data = await res.json()
+      setPreview(data)
+    } catch (error) {
+      console.error('Preview failed:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={runPreview}
+        disabled={loading}
+        className="flex h-8 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+      >
+        {loading ? 'Loading...' : 'Preview decision'}
+      </button>
+      {preview && (
+        <div className="flex flex-col gap-1 rounded-lg bg-secondary p-3 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Layout:</span>
+            <span className="font-mono text-foreground">{preview.decision?.layoutId ?? 'none'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Bob:</span>
+            <span className="font-mono text-foreground">{preview.decision?.bob?.expression ?? 'none'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Reason:</span>
+            <span className="font-mono text-foreground">{preview.decision?.reason ?? 'none'}</span>
+          </div>
+          {preview.warning && <p className="text-pretty text-amber-600">{preview.warning}</p>}
+        </div>
+      )}
     </div>
   )
 }
