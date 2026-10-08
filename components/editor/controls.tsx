@@ -7,7 +7,7 @@ import { STYLE_THEMES } from '@/lib/widgets'
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 border-b border-border px-4 py-4 last:border-b-0">
+    <section className="flex flex-col gap-2 border-b border-border px-3 py-3 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
         {action}

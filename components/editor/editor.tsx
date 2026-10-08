@@ -344,7 +344,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
       {store.customFonts.map((family) => (
         <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
       ))}
-      <div className="flex min-h-dvh flex-col bg-background lg:h-dvh lg:overflow-hidden">
+      <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
         <TopBar
           editor={editor}
           isActive={store.activeId === state.layoutId}
@@ -353,9 +353,9 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
           onPreview={() => setPreviewOpen(true)}
           onExport={exportLayout}
         />
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <aside className="order-2 flex min-h-0 flex-col border-t border-border bg-card lg:order-1 lg:w-80 lg:shrink-0 lg:border-r lg:border-t-0">
-            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-6 gap-1 border-b border-border p-2">
+            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-6 gap-0.5 border-b border-border p-1.5">
               {TABS.map((t) => (
                 <button
                   key={t.id}
@@ -364,14 +364,15 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
                   id={`tab-${t.id}`}
                   aria-selected={tab === t.id}
                   aria-controls={`panel-${t.id}`}
+                  title={t.label}
                   onClick={() => setTab(t.id)}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition-colors',
+                    'flex items-center justify-center rounded-md p-2 text-[10px] font-medium transition-colors',
                     tab === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   <t.icon className={cn('size-4', tab === t.id && 'text-primary')} aria-hidden />
-                  {t.label}
+                  <span className="sr-only">{t.label}</span>
                 </button>
               ))}
             </div>
@@ -410,7 +411,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
             </div>
           </aside>
 
-          <main className="canvas-surface order-1 h-[78dvh] min-w-0 lg:order-2 lg:h-auto lg:flex-1">
+          <main className="canvas-surface order-1 min-h-0 min-w-0 overflow-hidden lg:order-2 lg:flex-1">
             <h1 className="sr-only">Lockscreen layout editor</h1>
             <Canvas
               editor={editor}
@@ -424,7 +425,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
             />
           </main>
 
-          <aside aria-label="Inspector" className="order-3 border-t border-border bg-card lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
+          <aside aria-label="Inspector" className="order-3 min-h-0 overflow-y-auto border-t border-border bg-card lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
             <Inspector
               editor={editor}
               customFonts={store.customFonts}
