@@ -105,12 +105,27 @@ function seed(): FrameStore {
         { id: nanoid(8), layoutId: desk.id, days: [0, 1, 2, 3, 4, 5, 6], start: '18:00', end: '06:00' },
       ],
     },
+    experiences: { enabled: false, rules: [], settings: { schoolHolidays: [] } },
   }
 }
 
 function normalize(store: FrameStore): FrameStore {
+  // Add default experiences if missing
+  if (!store.experiences) {
+    store.experiences = { enabled: false, rules: [], settings: { schoolHolidays: [] } }
+  }
+
   const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
   const albums = store.albums ?? [seedPhotoAlbum()]
+
+  // Prune experience rules referencing deleted layouts
+  const layoutIds = new Set(store.layouts.map(l => l.id))
+  const rulesBefore = store.experiences.rules.length
+  store.experiences.rules = store.experiences.rules.filter(r => layoutIds.has(r.then.layoutId))
+  if (store.experiences.rules.length < rulesBefore) {
+    console.log(`[normalize] Pruned ${rulesBefore - store.experiences.rules.length} experience rules referencing deleted layouts`)
+  }
+
   return {
     ...store,
     albums,
