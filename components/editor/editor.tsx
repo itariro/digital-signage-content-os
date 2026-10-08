@@ -365,7 +365,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
         />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <aside className="order-2 flex min-h-0 flex-col overflow-hidden border-t border-border bg-card lg:order-1 lg:h-full lg:w-80 lg:shrink-0 lg:border-r lg:border-t-0">
-            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-6 gap-0.5 border-b border-border p-1.5">
+            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-7 gap-0.5 border-b border-border p-1.5">
               {TABS.map((t) => (
                 <button
                   key={t.id}
