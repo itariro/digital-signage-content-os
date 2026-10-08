@@ -1,4 +1,4 @@
-import { integer, jsonb, text, timestamp, pgTable } from 'drizzle-orm/pg-core'
+import { pgTable, text, bigserial, timestamp, doublePrecision, index, uniqueIndex, integer, jsonb } from 'drizzle-orm/pg-core'
 
 export const frameDocuments = pgTable('frame_documents', {
   id: text('id').primaryKey(),
@@ -38,4 +38,24 @@ export type NewContentSource = typeof contentSources.$inferInsert
 export type FrameTemplate = typeof frameTemplates.$inferSelect
 export type NewFrameTemplate = typeof frameTemplates.$inferInsert
 
-export const databaseSchema = { frameDocuments, frameTemplates, contentSources }
+export const displayHistory = pgTable('display_history', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  frameId: text('frame_id').notNull(),
+  decisionId: text('decision_id').notNull(),
+  layoutId: text('layout_id').notNull(),
+  shownAt: timestamp('shown_at', { withTimezone: true }).notNull(),
+  score: doublePrecision('score').notNull(),
+}, (table) => ({
+  uniqueConstraint: uniqueIndex('display_history_unique').on(table.frameId, table.decisionId, table.shownAt),
+  frameTimeIndex: index('display_history_frame_time').on(table.frameId, table.shownAt),
+}))
+
+export type DisplayHistory = typeof displayHistory.$inferSelect
+export type NewDisplayHistory = typeof displayHistory.$inferInsert
+
+export const databaseSchema = {
+  frameDocuments,
+  frameTemplates,
+  contentSources,
+  displayHistory,
+}
