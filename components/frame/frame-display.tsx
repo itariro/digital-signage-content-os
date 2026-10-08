@@ -40,7 +40,7 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
         if (!cancelled) {
-          setDecision(data.decision)
+          setDecision(prev => (prev?.id === data.decision?.id ? prev : data.decision))
           setStore(data.store)
         }
       } catch (error) {
