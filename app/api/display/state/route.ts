@@ -1,0 +1,26 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getDecision } from '@/lib/engine/state'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: NextRequest) {
+  const frameId = req.nextUrl.searchParams.get('frame') || 'home'
+
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(frameId)) {
+    return NextResponse.json({ error: 'Invalid frame ID' }, { status: 400 })
+  }
+
+  try {
+    const { decision, context, store } = await getDecision(frameId)
+    return NextResponse.json(
+      { decision, context, store },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
+  } catch (error) {
+    console.error('[display/state] Error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
