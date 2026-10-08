@@ -1,6 +1,7 @@
 'use client'
 
-import { Download, Frame, Loader2, Play, Redo2, Undo2 } from 'lucide-react'
+import { Download, Frame, Loader2, Moon, Play, Redo2, Sun, Undo2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { EditorApi } from '@/hooks/use-editor'
 import { IconButton } from './controls'
 import { cn } from '@/lib/utils'
@@ -17,10 +18,22 @@ type TopBarProps = {
 
 export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }: TopBarProps) {
   const { state, dirty } = editor
+  const [isDark, setIsDark] = useState(true)
+
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains('dark'))
+  }, [])
+
+  function toggleTheme() {
+    const nextIsDark = !isDark
+    document.documentElement.classList.toggle('dark', nextIsDark)
+    setIsDark(nextIsDark)
+  }
+
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3 lg:px-4">
+    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 lg:px-4">
       <div className="flex items-center gap-2 pr-2">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <Frame className="size-4" aria-hidden />
         </span>
         <div className="hidden items-baseline gap-1.5 sm:flex">
@@ -41,7 +54,7 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
           maxLength={80}
           onFocus={() => editor.checkpoint()}
           onChange={(e) => editor.rename(e.target.value, false)}
-          className="h-8 w-full min-w-0 max-w-64 rounded-md bg-transparent px-2 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:bg-secondary"
+          className="h-7 w-full min-w-0 max-w-64 rounded-sm bg-transparent px-2 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:bg-secondary"
         />
         {isActive && (
           <span className="hidden shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary md:inline">On frame</span>
@@ -62,6 +75,15 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
         </IconButton>
       </div>
 
+      <button
+        type="button"
+        onClick={toggleTheme}
+        title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+      >
+        {isDark ? <Sun aria-hidden /> : <Moon aria-hidden />}
+      </button>
       <button
         type="button"
         onClick={onPreview}
