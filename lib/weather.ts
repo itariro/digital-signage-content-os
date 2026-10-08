@@ -15,7 +15,7 @@ export async function fetchWeather(lat: number, lon: number, units: string): Pro
   }
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day,uv_index&daily=temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto&forecast_days=5`
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto&forecast_days=5`
     const res = await fetch(url, { next: { revalidate: 900 } })
     if (!res.ok) throw new Error(`Open-Meteo returned ${res.status}`)
     const json = await res.json()
@@ -41,7 +41,7 @@ export async function fetchWeather(lat: number, lon: number, units: string): Pro
         max: json.daily.temperature_2m_max[i],
         min: json.daily.temperature_2m_min[i],
       })),
-      hourly: (json.hourly?.time ?? []).map((time: string, i: number) => ({
+      hourly: (json.hourly?.time ?? []).slice(0, 12).map((time: string, i: number) => ({
         time,
         code: json.hourly.weather_code[i],
         temp: json.hourly.temperature_2m[i],
