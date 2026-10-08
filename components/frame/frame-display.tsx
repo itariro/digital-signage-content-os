@@ -1,23 +1,13 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
-import useSWR from 'swr'
-import type { FrameStore } from '@/lib/types'
+import { useState, useEffect, useSyncExternalStore } from 'react'
+import type { DisplayDecision, FrameStore } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { clockParts, resolveDisplay } from '@/lib/schedule'
 import { googleFontHref } from '@/lib/fonts'
 import { useNow } from '@/hooks/use-now'
 import { useWeather } from '@/hooks/use-frame-store'
 import { FrameScene } from './frame-scene'
-
-const fetcher = async (url: string) => {
-  const res = await fetch(url, {
-    cache: 'no-store',
-    headers: { 'Cache-Control': 'no-cache' },
-  })
-  if (!res.ok) throw new Error('Request failed')
-  return res.json()
-}
 
 function subscribeResize(callback: () => void) {
   window.addEventListener('resize', callback)
@@ -33,17 +23,43 @@ function useViewportScale() {
 }
 
 export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore: FrameStore; frameId?: string }) {
-  const { data } = useSWR<FrameStore>(`/api/store?frame=${encodeURIComponent(frameId)}`, fetcher, {
-    fallbackData: initialStore,
-    refreshInterval: 30_000,
-    dedupingInterval: 1_000,
-    revalidateOnFocus: false,
-    refreshWhenHidden: false,
-  })
-  const store = data ?? initialStore
+  const [decision, setDecision] = useState<DisplayDecision | null>(null)
+  const [store, setStore] = useState<FrameStore>(initialStore)
   const now = useNow()
   const scale = useViewportScale()
-  const { layout, night } = resolveDisplay(store, clockParts(now ?? new Date()))
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function poll() {
+      try {
+        const res = await fetch(`/api/display/state?frame=${encodeURIComponent(frameId)}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (!cancelled) {
+          setDecision(data.decision)
+          setStore(data.store)
+        }
+      } catch (error) {
+        console.error('[FrameDisplay] Poll failed:', error)
+      }
+    }
+
+    poll()
+    const interval = setInterval(poll, 30_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [frameId])
+
+  const fallback = resolveDisplay(store, clockParts(now ?? new Date()))
+  const layoutId = decision?.layoutId || fallback.layout?.id
+  const layout = store.layouts.find((l) => l.id === layoutId) || fallback.layout
+  const night = fallback.night
   const weather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
 
   return (
@@ -61,6 +77,7 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
           album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
           scale={scale}
           night={night ? store.schedule.night : null}
+          decision={decision}
         />
       ) : (
         !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
