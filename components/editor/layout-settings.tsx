@@ -50,7 +50,7 @@ export function LayoutSettingsPanel({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-0 flex-col">
       <div className="border-b border-border px-4 py-3">
         <p className="text-sm font-semibold text-foreground">Layout settings</p>
         <p className="text-xs text-muted-foreground">Select a widget on the canvas to edit its style.</p>

@@ -49,7 +49,7 @@ export function Inspector({ editor, customFonts, albums, onOpenAlbums, onSavePre
   if (selection.length === 0) return <LayoutSettingsPanel editor={editor} albums={albums} onOpenAlbums={onOpenAlbums} />
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-0 flex-col">
       <SelectionHeader editor={editor} selection={selection} onSavePreset={onSavePreset} />
       {selection.length === 1 && <TemplateSection editor={editor} widget={selection[0]} />}
       {selection.length === 1 && <ContentSection editor={editor} widget={selection[0]} />}
