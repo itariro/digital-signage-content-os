@@ -214,3 +214,38 @@ describe('schedule fallback', () => {
     expect(decision.layoutId).toBe('layout-2')
   })
 })
+
+describe('weather honesty', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockQueryHistory.mockResolvedValue({ recent: [], seenLayouts: new Set(), latestLayoutId: null })
+    mockRecordDecision.mockResolvedValue(undefined)
+    mockPruneHistory.mockResolvedValue(undefined)
+  })
+
+  it('drops sample weather so weather rules never match on fabricated data', async () => {
+    const store = makeStore({
+      experiences: {
+        enabled: true,
+        rules: [{
+          id: 'rain', name: 'Rain', enabled: true, priority: 200,
+          when: { weather: { rainProbabilityAbove: 60 } },
+          then: { layoutId: 'layout-1', state: 'weather', score: 0, durationMs: 0 },
+        }],
+        settings: { schoolHolidays: [] },
+      },
+    })
+    mockReadStore.mockResolvedValue(store)
+    mockFetchWeather.mockResolvedValue({
+      sample: true,
+      current: { temp: 20, code: 1, isDay: true, uv: 5 },
+      today: { high: 25, low: 15, uvMax: 6, sunrise: '', sunset: '' },
+      daily: [{ date: '2026-10-08', code: 61, max: 18, min: 10, rainProbability: 90 }],
+      hourly: [],
+    })
+
+    const { decision, context } = await getDecision('home', new Date('2026-10-08T10:00:00Z'))
+    expect(context.weather).toBeUndefined()
+    expect(decision.ruleId).toBeNull()
+  })
+})

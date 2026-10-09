@@ -67,9 +67,12 @@ export async function getDecision(
   const timezone = store.experiences.settings.timezone
 
   const layout = store.layouts.find(l => l.id === store.activeId) || store.layouts[0]
-  const weather = layout
+  const fetched = layout
     ? await fetchWeather(layout.settings.lat, layout.settings.lon, layout.settings.units)
     : undefined
+  // Spec §10: weather unavailable => context.weather undefined, weather rules do
+  // not match. A sample/fabricated reading must never drive a decision.
+  const weather = fetched && !fetched.sample ? fetched : undefined
 
   const context = buildContext(store, time, weather)
 
