@@ -9,6 +9,8 @@ import { googleFontHref } from '@/lib/fonts'
 import { useNow } from '@/hooks/use-now'
 import { useWeather } from '@/hooks/use-frame-store'
 import { FrameScene } from './frame-scene'
+import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
+import { NotificationProvider } from '@/components/notifications/notification-provider'
 
 const fetcher = async (url: string) => {
   const res = await fetch(url, {
@@ -47,24 +49,27 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
   const weather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
 
   return (
-    <main className="flex h-dvh w-screen cursor-none items-center justify-center overflow-hidden bg-background">
-      <h1 className="sr-only">{layout ? `Frame showing ${layout.name}` : 'Frame display'}</h1>
-      {store.customFonts.map((family) => (
-        <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
-      ))}
-      {layout && scale > 0 ? (
-        <FrameScene
-          widgets={layout.widgets}
-          settings={layout.settings}
-          weather={weather}
-          now={now}
-          album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
-          scale={scale}
-          night={night ? store.schedule.night : null}
-        />
-      ) : (
-        !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
-      )}
-    </main>
+    <NotificationProvider notifications={store.notifications}>
+      <main className="flex h-dvh w-screen cursor-none items-center justify-center overflow-hidden bg-background">
+        <h1 className="sr-only">{layout ? `Frame showing ${layout.name}` : 'Frame display'}</h1>
+        {store.customFonts.map((family) => (
+          <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
+        ))}
+        {layout && scale > 0 ? (
+          <FrameScene
+            widgets={layout.widgets}
+            settings={layout.settings}
+            weather={weather}
+            now={now}
+            album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
+            scale={scale}
+            night={night ? store.schedule.night : null}
+          />
+        ) : (
+          !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
+        )}
+        <FrameNoticeLayer />
+      </main>
+    </NotificationProvider>
   )
 }

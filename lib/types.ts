@@ -159,6 +159,16 @@ export type FrameSchedule = {
   night: NightMode
 }
 
+export type FrameNotification = {
+  id: string
+  title: string
+  message?: string
+  variant: 'info' | 'success' | 'warning' | 'error' | 'reminder'
+  durationMs: number
+  createdAt: string
+  eventKey?: string
+}
+
 export type FrameStore = {
   activeId: string | null
   layouts: Layout[]
@@ -166,6 +176,7 @@ export type FrameStore = {
   customFonts: string[]
   schedule: FrameSchedule
   albums: Album[]
+  notifications?: FrameNotification[]
 }
 
 export type WeatherData = {
