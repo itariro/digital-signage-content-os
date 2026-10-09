@@ -1,0 +1,1 @@
+ALTER TABLE "display_history" ADD COLUMN "rule_id" text;
