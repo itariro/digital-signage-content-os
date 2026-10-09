@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import * as schema from './schema'
 import { displayHistory } from './schema'
+import { retentionCutoff, truncateToMinute } from './history-utils'
 import type { HistorySummary } from '../engine/types'
 
 const globalForDb = globalThis as unknown as { framePool?: Pool }
@@ -83,8 +84,8 @@ export async function recordDecision(
   shownAt: Date
 ): Promise<void> {
   const db = getDb()
-  const shownAtMinute = new Date(Math.floor(shownAt.getTime() / 60000) * 60000)
-  const cutoff = new Date(Date.now() - RETENTION_MS)
+  const shownAtMinute = truncateToMinute(shownAt)
+  const cutoff = retentionCutoff(new Date(), RETENTION_MS)
   await db.transaction(async tx => {
     await tx
       .delete(displayHistory)
@@ -112,7 +113,7 @@ export async function recordDecision(
  */
 export async function pruneHistory(frameId: string): Promise<void> {
   const db = getDb()
-  const cutoff = new Date(Date.now() - RETENTION_MS)
+  const cutoff = retentionCutoff(new Date(), RETENTION_MS)
   await db
     .delete(displayHistory)
     .where(and(eq(displayHistory.frameId, frameId), lt(displayHistory.shownAt, cutoff)))
