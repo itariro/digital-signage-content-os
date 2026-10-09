@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { nanoid } from 'nanoid'
 import { eq } from 'drizzle-orm'
-import type { Album, FrameStore, Layout, LayoutSettings, Widget } from './types'
+import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Widget } from './types'
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
@@ -63,22 +63,88 @@ function seedPhotoAlbum(): Album {
   }
 }
 
-function seed(): FrameStore {
+const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'] as const
+
+function curatedLayout(name: string, background: string, dim: number, widgets: Widget[], albumId: string | null = null): Layout {
   const now = new Date().toISOString()
-  const morning: Layout = {
+  return {
     id: nanoid(10),
-    name: 'Morning lockscreen',
+    name,
     createdAt: now,
     updatedAt: now,
-    settings: { ...DEFAULT_SETTINGS },
-    widgets: [
-      w('date', 140, 200, 800, 70, { template: 'long' }),
-      w('clock-digital', 90, 270, 900, 330, { template: 'classic', style: { fontWeight: 600, letterSpacing: -3 } as Widget['style'] }),
-      w('weather', 140, 1500, 480, 200, { template: 'compact' }),
-      w('uv', 640, 1500, 300, 200, { template: 'bar' }),
-      w('text', 140, 1730, 800, 90, { template: 'caption', props: { text: 'Home is wherever we are together' } }),
-    ],
+    settings: { ...DEFAULT_SETTINGS, background, dim, albumId },
+    widgets,
   }
+}
+
+/** The eight curated layouts from spec §7, composed from the existing widget set. */
+function curatedLayouts(albumId: string): Layout[] {
+  return [
+    curatedLayout('Morning', '/backgrounds/alpine-lake.png', 20, [
+      w('date', 140, 200, 800, 70, { template: 'long' }),
+      w('weather', 140, 320, 560, 200, { template: 'compact' }),
+      w('text', 140, 560, 800, 120, { template: 'plain', props: { text: 'Good morning' } }),
+      w('bob', 360, 780, 360, 480, { props: { source: 'decision', expression: 'planning' } }),
+    ]),
+    curatedLayout('Today', '/backgrounds/alpine-lake.png', 25, [
+      w('date', 140, 160, 800, 80, { template: 'long' }),
+      w('calendar', 140, 300, 800, 560, { template: 'week' }),
+      w('weather', 140, 920, 480, 200, { template: 'compact' }),
+      w('bob', 620, 900, 320, 420, { props: { source: 'decision', expression: 'planning' } }),
+    ]),
+    curatedLayout('Gallery', '/backgrounds/city-night.png', 30, [
+      w('now-showing', 120, 1560, 840, 220, { template: 'card' }),
+      w('date', 120, 140, 500, 60, { template: 'compact' }),
+      w('weather', 660, 140, 300, 120, { template: 'compact', props: { showLocation: false } }),
+    ], albumId),
+    curatedLayout('Welcome Home', '/backgrounds/coastal-cliffs.png', 25, [
+      w('text', 140, 300, 800, 160, { template: 'caption', props: { text: 'Welcome home' } }),
+      w('weather', 140, 520, 560, 200, { template: 'compact' }),
+      w('bob', 360, 820, 360, 480, { props: { source: 'decision', expression: 'happy' } }),
+    ]),
+    curatedLayout('Evening', '/backgrounds/desert-dunes.png', 35, [
+      w('clock-digital', 140, 200, 800, 220, { template: 'classic' }),
+      w('date', 140, 460, 800, 70, { template: 'long' }),
+      w('quote', 140, 620, 800, 240, { template: 'serif' }),
+      w('bob', 360, 940, 360, 480, { props: { source: 'decision', expression: 'talking' } }),
+    ]),
+    curatedLayout('Weekend', '/backgrounds/coastal-cliffs.png', 30, [
+      w('countdown', 140, 200, 800, 220, { template: 'ring' }),
+      w('quote', 140, 500, 800, 240, { template: 'marks' }),
+      w('bob', 360, 820, 360, 480, { props: { source: 'decision', expression: 'celebrate' } }),
+    ], albumId),
+    curatedLayout('Weather', '/backgrounds/alpine-lake.png', 20, [
+      w('weather', 140, 200, 800, 300, { template: 'detailed' }),
+      w('uv', 140, 560, 360, 260, { template: 'bar' }),
+      w('sun', 540, 560, 400, 260, { template: 'arc' }),
+      w('bob', 360, 900, 360, 480, { props: { source: 'decision', expression: 'reminder' } }),
+    ]),
+    curatedLayout('Night', '/backgrounds/city-night.png', 55, [
+      w('clock-digital', 140, 700, 800, 220, { template: 'classic' }),
+      w('date', 140, 960, 800, 70, { template: 'compact' }),
+    ]),
+  ]
+}
+
+/** Default rules from spec §4.5, wired to the curated layout ids. */
+function defaultExperienceRules(layouts: Layout[]): ExperienceRule[] {
+  const byName = new Map(layouts.map(l => [l.name, l.id]))
+  const id = (name: string) => byName.get(name) ?? layouts[0].id
+  return [
+    { id: nanoid(8), name: 'Morning', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '06:00', to: '08:45' } }] }, then: { layoutId: id('Morning'), state: 'action', bob: { expression: 'planning' }, score: 0, durationMs: 0, reason: 'Morning' } },
+    { id: nanoid(8), name: 'Gallery', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '08:45', to: '16:30' } }] }, then: { layoutId: id('Gallery'), state: 'gallery', score: 0, durationMs: 0, reason: 'Gallery' } },
+    { id: nanoid(8), name: 'Welcome home', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '16:30', to: '18:30' } }] }, then: { layoutId: id('Welcome Home'), state: 'action', bob: { expression: 'happy' }, score: 0, durationMs: 0, reason: 'Welcome home' } },
+    { id: nanoid(8), name: 'Evening', enabled: true, priority: 100, when: { time: { from: '18:30', to: '21:00' } }, then: { layoutId: id('Evening'), state: 'information', bob: { expression: 'talking' }, score: 0, durationMs: 0, reason: 'Evening' } },
+    { id: nanoid(8), name: 'Weekend', enabled: true, priority: 100, when: { days: ['SAT', 'SUN'] }, then: { layoutId: id('Weekend'), state: 'ambient', bob: { expression: 'celebrate' }, score: 0, durationMs: 0, reason: 'Weekend' } },
+    { id: nanoid(8), name: 'Rain', enabled: true, priority: 200, when: { weather: { rainProbabilityAbove: 60 } }, then: { layoutId: id('Weather'), state: 'weather', bob: { expression: 'reminder' }, score: 0, durationMs: 0, reason: 'Rain' } },
+    { id: nanoid(8), name: 'Night', enabled: true, priority: 100, when: { time: { from: '21:00', to: '06:00' } }, then: { layoutId: id('Night'), state: 'ambient', score: 0, durationMs: 0, reason: 'Night' } },
+  ]
+}
+
+export function seed(): FrameStore {
+  const now = new Date().toISOString()
+  const album = seedPhotoAlbum()
+  const layouts = curatedLayouts(album.id)
   const desk: Layout = {
     id: nanoid(10),
     name: 'Analog desk',
@@ -92,20 +158,22 @@ function seed(): FrameStore {
       w('calendar', 140, 1680, 800, 160, { template: 'week' }),
     ],
   }
+  const allLayouts = [...layouts, desk]
+  const morningId = allLayouts[0].id
   return {
-    activeId: morning.id,
-    layouts: [morning, desk],
-    albums: [seedPhotoAlbum()],
+    activeId: morningId,
+    layouts: allLayouts,
+    albums: [album],
     presets: [],
     customFonts: [],
     schedule: {
       ...structuredClone(DEFAULT_SCHEDULE),
       rules: [
-        { id: nanoid(8), layoutId: morning.id, days: [0, 1, 2, 3, 4, 5, 6], start: '06:00', end: '18:00' },
+        { id: nanoid(8), layoutId: morningId, days: [0, 1, 2, 3, 4, 5, 6], start: '06:00', end: '18:00' },
         { id: nanoid(8), layoutId: desk.id, days: [0, 1, 2, 3, 4, 5, 6], start: '18:00', end: '06:00' },
       ],
     },
-    experiences: { enabled: false, rules: [], settings: { schoolHolidays: [] } },
+    experiences: { enabled: true, rules: defaultExperienceRules(allLayouts), settings: { schoolHolidays: [] } },
   }
 }
 
