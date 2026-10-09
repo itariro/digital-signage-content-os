@@ -305,6 +305,7 @@ function PreviewSection({ frameId = 'home' }: { frameId?: string }) {
       setPreview(await res.json())
     } catch (error) {
       console.error('Preview failed:', error)
+      setPreview(null)
       setError(error instanceof Error ? error.message : 'Preview failed')
     } finally {
       setLoading(false)

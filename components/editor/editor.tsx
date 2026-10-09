@@ -348,6 +348,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
 
   useEffect(() => {
     if (!previewOpen) return
+    setPreviewDecision(null)
     let cancelled = false
     ;(async () => {
       try {
