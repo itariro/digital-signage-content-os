@@ -1,104 +1,116 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Bell, CheckCircle2, ChevronRight, CircleAlert, Clock3, Info, Megaphone, Pause, Play, RotateCcw, Settings2, Sparkles, Trash2, TriangleAlert, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { Bell, BellRing, Check, Clock3, Eye, Info, Megaphone, Play, RotateCcw, Settings2, ShieldAlert, Trash2, Volume2, X } from 'lucide-react'
 import type { FrameNotification } from '@/lib/types'
-import { NOTIFICATION_DEFAULT_DURATION } from '@/lib/notifications'
+import { NOTIFICATION_DEFAULT_DURATION, notificationTone } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 
-type NotificationPanelProps = {
-  notifications: FrameNotification[]
-}
-
-type MockNotification = FrameNotification & { read: boolean }
-
-const seedHistory: MockNotification[] = [
-  { id: 'history-1', title: 'Welcome back', message: 'Your lobby display is online and ready.', variant: 'success', durationMs: 4500, createdAt: '2026-10-10T09:42:00.000Z', eventKey: 'welcome', read: true },
-  { id: 'history-2', title: 'Schedule switched', message: 'Evening Lobby is now showing on the frame.', variant: 'info', durationMs: 6000, createdAt: '2026-10-10T08:15:00.000Z', eventKey: 'schedule-switch', read: true },
-  { id: 'history-3', title: 'Reminder', message: 'The breakfast menu starts in 30 minutes.', variant: 'reminder', durationMs: 15000, createdAt: '2026-10-09T23:30:00.000Z', eventKey: 'breakfast', read: false },
-  { id: 'history-4', title: 'Weather data delayed', message: 'The last successful update was 18 minutes ago.', variant: 'warning', durationMs: 9000, createdAt: '2026-10-09T21:18:00.000Z', eventKey: 'weather-delay', read: false },
+const MOCK_NOTIFICATIONS: FrameNotification[] = [
+  { id: 'mock-maintenance', title: 'Scheduled maintenance', message: 'The display will restart at 02:00 tonight.', variant: 'reminder', durationMs: 15000, createdAt: new Date(Date.now() - 1000 * 60 * 4).toISOString(), eventKey: 'maintenance-02' },
+  { id: 'mock-sync', title: 'Content synced', message: 'Your latest layout is now showing on the frame.', variant: 'success', durationMs: 4500, createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(), eventKey: 'sync-123' },
+  { id: 'mock-offline', title: 'Connection interrupted', message: 'The frame is using its last known content.', variant: 'warning', durationMs: 9000, createdAt: new Date(Date.now() - 1000 * 60 * 36).toISOString(), eventKey: 'offline-1' },
 ]
 
-const variantMeta = {
-  info: { label: 'Information', icon: Info, className: 'text-sky-500 bg-sky-500/10 border-sky-500/20' },
-  success: { label: 'Success', icon: CheckCircle2, className: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
-  warning: { label: 'Warning', icon: TriangleAlert, className: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
-  error: { label: 'Alert', icon: CircleAlert, className: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
-  reminder: { label: 'Reminder', icon: Clock3, className: 'text-violet-500 bg-violet-500/10 border-violet-500/20' },
-} as const
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(new Date(value))
+const VARIANT_META: Record<FrameNotification['variant'], { label: string; icon: typeof Info }> = {
+  info: { label: 'Informational', icon: Info },
+  success: { label: 'Success', icon: Check },
+  warning: { label: 'Warning', icon: ShieldAlert },
+  error: { label: 'Critical alert', icon: ShieldAlert },
+  reminder: { label: 'Reminder', icon: BellRing },
 }
 
-export function NotificationsPanel({ notifications }: NotificationPanelProps) {
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={cn('relative h-5 w-9 rounded-full transition-colors', checked ? 'bg-primary' : 'bg-muted')}>
+      <span className={cn('absolute top-0.5 size-4 rounded-full bg-background shadow-sm transition-transform', checked ? 'translate-x-4' : 'translate-x-0.5')} />
+    </button>
+  )
+}
+
+export function NotificationsPanel() {
+  const [history, setHistory] = useState(MOCK_NOTIFICATIONS)
   const [enabled, setEnabled] = useState(true)
-  const [history, setHistory] = useState(seedHistory)
-  const [activePreview, setActivePreview] = useState<MockNotification | null>(null)
-  const [duration, setDuration] = useState(6000)
-  const unread = history.filter((item) => !item.read).length
+  const [sound, setSound] = useState(false)
+  const [showPreview, setShowPreview] = useState(true)
+  const [activeFilter, setActiveFilter] = useState<'all' | FrameNotification['variant']>('all')
+  const [testNotification, setTestNotification] = useState<FrameNotification | null>(null)
 
-  const liveCount = notifications.length
-  const currentPreview = activePreview ?? history[0]
-  const groupedHistory = useMemo(() => history.filter((item) => item.read || item.id !== currentPreview?.id), [history, currentPreview])
+  const filteredHistory = useMemo(() => activeFilter === 'all' ? history : history.filter((item) => item.variant === activeFilter), [activeFilter, history])
 
-  function preview(variant: MockNotification['variant']) {
-    const meta = variantMeta[variant]
-    const sample: MockNotification = {
-      id: `preview-${Date.now()}`,
-      title: meta.label === 'Reminder' ? 'Preview reminder' : `Preview ${meta.label.toLowerCase()}`,
-      message: 'This is how a context-driven notice will appear on your display.',
+  function sendTest(variant: FrameNotification['variant']) {
+    const item: FrameNotification = {
+      id: `test-${Date.now()}`,
+      title: variant === 'error' ? 'Frame needs attention' : `Test ${VARIANT_META[variant].label.toLowerCase()}`,
+      message: 'This is a preview notification. It will not be sent to a live frame.',
       variant,
-      durationMs: duration,
+      durationMs: NOTIFICATION_DEFAULT_DURATION[variant],
       createdAt: new Date().toISOString(),
-      read: false,
     }
-    setActivePreview(sample)
-    setHistory((items) => [sample, ...items].slice(0, 12))
-    toast.success('Preview sent to the frame', { description: `${meta.label} · ${duration / 1000}s` })
-  }
-
-  function clearHistory() {
-    setHistory([])
-    setActivePreview(null)
-    toast.success('Notification history cleared')
+    setTestNotification(item)
+    setHistory((current) => [item, ...current].slice(0, 20))
   }
 
   return (
-    <div className="flex flex-col gap-5 p-4 pb-8">
-      <div className="flex items-start justify-between gap-3">
+    <section className="flex flex-col gap-4 p-3" aria-label="Notification manager">
+      <header className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Frame behavior</p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">Notifications</h2>
-          <p className="mt-1 max-w-[18rem] text-xs leading-relaxed text-muted-foreground">Control the notices your displays surface and see exactly how they will look.</p>
+          <div className="flex items-center gap-2">
+            <Bell className="size-4 text-primary" aria-hidden />
+            <h2 className="text-sm font-semibold">Notifications</h2>
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Control what appears on your frame and test the experience before publishing.</p>
         </div>
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Bell aria-hidden /></div>
+        <Toggle checked={enabled} onChange={setEnabled} label="Enable frame notifications" />
+      </header>
+
+      <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1" role="tablist" aria-label="Notification history filter">
+        {(['all', 'warning', 'reminder'] as const).map((filter) => (
+          <button key={filter} type="button" role="tab" aria-selected={activeFilter === filter} onClick={() => setActiveFilter(filter)} className={cn('rounded-md px-2 py-1.5 text-[10px] font-medium capitalize', activeFilter === filter ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+            {filter === 'all' ? 'All history' : filter}
+          </button>
+        ))}
       </div>
 
-      <section className="rounded-2xl border border-border bg-secondary/35 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2"><div className={cn('size-2 rounded-full', enabled ? 'bg-emerald-500' : 'bg-muted-foreground')} /><div><p className="text-sm font-medium text-foreground">Display notifications</p><p className="text-[11px] text-muted-foreground">{enabled ? 'Active on connected frames' : 'Paused everywhere'}</p></div></div>
-          <button type="button" role="switch" aria-checked={enabled} aria-label="Display notifications" onClick={() => setEnabled((value) => !value)} className={cn('relative h-6 w-11 rounded-full transition-colors', enabled ? 'bg-primary' : 'bg-muted')}><span className={cn('absolute top-1 size-4 rounded-full bg-background shadow-sm transition-transform', enabled ? 'left-6' : 'left-1')} /></button>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xs font-semibold">Recent activity</h3>
+          <p className="text-[10px] text-muted-foreground">Last 20 events on this frame</p>
         </div>
-      </section>
+        <button type="button" onClick={() => setHistory([])} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground" disabled={!history.length}><Trash2 className="size-3" aria-hidden /> Clear</button>
+      </div>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-foreground">Live preview</p><p className="text-[11px] text-muted-foreground">Send a safe mock notice to the frame</p></div><Sparkles className="text-primary" aria-hidden /></div>
-        <div className="rounded-2xl border border-border bg-foreground/[0.03] p-3">
-          <div className="relative overflow-hidden rounded-xl border border-border bg-slate-950 p-3 shadow-inner">
-            <div className="mb-7 flex items-center justify-between text-[9px] text-white/45"><span>LOBBY DISPLAY</span><span>10:09</span></div>
-            <div className="mx-auto flex min-h-24 max-w-[15rem] items-start gap-2 rounded-xl border border-white/10 bg-white/[0.09] p-3 text-white shadow-2xl backdrop-blur"><div className={cn('mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg', variantMeta[currentPreview.variant].className)}>{(() => { const Icon = variantMeta[currentPreview.variant].icon; return <Icon aria-hidden /> })()}</div><div className="min-w-0"><p className="text-[11px] font-semibold">{currentPreview.title}</p><p className="mt-1 text-[10px] leading-relaxed text-white/60">{currentPreview.message}</p></div><button type="button" aria-label="Dismiss preview" onClick={() => setActivePreview(null)} className="text-white/40 hover:text-white"><X aria-hidden /></button></div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => preview('info')} className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-[11px] font-medium text-foreground hover:bg-secondary"><Play aria-hidden />Test info</button><button type="button" onClick={() => preview('warning')} className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-[11px] font-medium text-foreground hover:bg-secondary"><TriangleAlert aria-hidden />Test warning</button></div>
+      <div className="flex flex-col gap-2">
+        {filteredHistory.length ? filteredHistory.map((item) => {
+          const Icon = VARIANT_META[item.variant].icon
+          return <article key={item.id} className="rounded-lg border border-border bg-background/60 p-2.5">
+            <div className="flex items-start gap-2">
+              <div className={cn('mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border', notificationTone(item.variant))}><Icon className="size-3.5" aria-hidden /></div>
+              <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h4 className="truncate text-[11px] font-medium">{item.title}</h4><span className="shrink-0 text-[9px] text-muted-foreground">{item.variant}</span></div><p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{item.message}</p><p className="mt-1 text-[9px] text-muted-foreground">{new Date(item.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · auto-dismisses</p></div>
+            </div>
+          </article>
+        }) : <p className="rounded-lg border border-dashed border-border p-4 text-center text-[10px] text-muted-foreground">No notifications in this view.</p>}
+      </div>
+
+      <div className="border-t border-border pt-4">
+        <div className="mb-2 flex items-center gap-2"><Play className="size-3.5 text-primary" aria-hidden /><h3 className="text-xs font-semibold">Preview lab</h3></div>
+        <p className="mb-3 text-[10px] leading-relaxed text-muted-foreground">Trigger sample events to see how unattended notices look on the frame.</p>
+        <div className="grid grid-cols-2 gap-2">
+          {(['info', 'success', 'warning', 'error'] as const).map((variant) => <button key={variant} type="button" onClick={() => sendTest(variant)} className="flex items-center gap-2 rounded-md border border-border px-2 py-2 text-left text-[10px] capitalize hover:bg-muted"><span className={cn('size-2 rounded-full', variant === 'error' ? 'bg-destructive' : variant === 'warning' ? 'bg-accent' : variant === 'success' ? 'bg-primary' : 'bg-muted-foreground')} /> Test {variant}</button>)}
         </div>
-      </section>
+      </div>
 
-      <section className="flex flex-col gap-3"><div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-foreground">Timing</p><p className="text-[11px] text-muted-foreground">How long routine notices remain visible</p></div><span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-muted-foreground">{duration / 1000}s</span></div><input aria-label="Notification duration" type="range" min="2500" max="15000" step="500" value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="w-full accent-primary" /><div className="flex justify-between text-[10px] text-muted-foreground"><span>2.5s</span><span>15s</span></div></section>
+      <div className="border-t border-border pt-4">
+        <div className="mb-3 flex items-center gap-2"><Settings2 className="size-3.5 text-primary" aria-hidden /><h3 className="text-xs font-semibold">Display settings</h3></div>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Eye className="size-3.5 text-muted-foreground" aria-hidden /><span className="text-[11px]">Show live preview</span></div><Toggle checked={showPreview} onChange={setShowPreview} label="Show live preview" /></div>
+          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Volume2 className="size-3.5 text-muted-foreground" aria-hidden /><span className="text-[11px]">Sound cues</span></div><Toggle checked={sound} onChange={setSound} label="Sound cues" /></div>
+          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Clock3 className="size-3.5 text-muted-foreground" aria-hidden /><span className="text-[11px]">Default duration</span></div><span className="text-[10px] text-muted-foreground">6 seconds</span></div>
+        </div>
+      </div>
 
-      <section className="flex flex-col gap-3"><div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-foreground">Recent history</p><p className="text-[11px] text-muted-foreground">{unread} unread · {liveCount} active from the frame</p></div><button type="button" onClick={clearHistory} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"><Trash2 aria-hidden />Clear</button></div><div className="flex flex-col divide-y divide-border rounded-2xl border border-border">{groupedHistory.length ? groupedHistory.map((item) => { const meta = variantMeta[item.variant]; const Icon = meta.icon; return <button type="button" key={item.id} onClick={() => setActivePreview(item)} className="flex items-start gap-2.5 p-3 text-left hover:bg-secondary/50"><div className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg border', meta.className)}><Icon aria-hidden /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-medium text-foreground">{item.title}</p><span className="shrink-0 text-[10px] text-muted-foreground">{formatTime(item.createdAt)}</span></div><p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.message}</p></div><ChevronRight className="mt-1 shrink-0 text-muted-foreground" aria-hidden /></button> }) : <div className="p-5 text-center text-xs text-muted-foreground">No notifications in history.</div>}</div></section>
-
-      <section className="rounded-2xl border border-dashed border-border p-3"><div className="flex items-start gap-2.5"><Settings2 className="mt-0.5 text-muted-foreground" aria-hidden /><div><p className="text-xs font-semibold text-foreground">Quiet hours and priority</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Critical alerts can bypass quiet hours. Informational notices will be held until your schedule resumes.</p><button type="button" onClick={() => toast('Advanced controls coming next', { description: 'Quiet hours and priority rules are ready to configure.' })} className="mt-2 flex items-center gap-1 text-[11px] font-medium text-primary">Configure rules <ChevronRight aria-hidden /></button></div></div></section>
-    </div>
+      {showPreview && testNotification && <div className="border-t border-border pt-4"><div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-medium text-muted-foreground">Live preview</span><button type="button" onClick={() => setTestNotification(null)} aria-label="Close preview" className="text-muted-foreground hover:text-foreground"><X className="size-3" /></button></div><div className={cn('rounded-xl border p-3', notificationTone(testNotification.variant))}><div className="flex items-start gap-2"><Megaphone className="mt-0.5 size-4" aria-hidden /><div><p className="text-xs font-semibold">{testNotification.title}</p><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{testNotification.message}</p></div></div></div></div>}
+      <button type="button" onClick={() => { setHistory(MOCK_NOTIFICATIONS); setTestNotification(null); setActiveFilter('all') }} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-[10px] text-muted-foreground hover:bg-muted"><RotateCcw className="size-3" aria-hidden /> Reset demo data</button>
+    </section>
   )
 }
