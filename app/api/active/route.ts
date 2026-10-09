@@ -15,6 +15,7 @@ function validZone(tz: string | null) {
 
 export async function GET(request: Request) {
   const store = await readStore()
+  if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
   const timeZone = validZone(new URL(request.url).searchParams.get('tz'))
   const { layout, rule, night } = resolveDisplay(store, clockParts(new Date(), timeZone))
   return NextResponse.json({

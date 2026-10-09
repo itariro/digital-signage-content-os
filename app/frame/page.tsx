@@ -11,5 +11,6 @@ export const metadata: Metadata = {
 
 export default async function FramePage() {
   const store = await readStore()
+  if (!store) return <main className="flex h-screen items-center justify-center bg-background"><p className="text-muted-foreground">Frame store not found.</p></main>
   return <FrameDisplay initialStore={store} />
 }

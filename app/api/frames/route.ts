@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid'
 import { getDb } from '@/lib/db'
 import { frameDocuments } from '@/lib/db/schema'
 import { readStore } from '@/lib/store'
+import type { FrameStore } from '@/lib/types'
 import { resolveDisplay, clockParts } from '@/lib/schedule'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ export async function GET() {
   const documents = await getDb().select().from(frameDocuments).orderBy(desc(frameDocuments.updatedAt))
   const now = new Date()
   return NextResponse.json(await Promise.all(documents.map(async (document) => {
-    const store = document.data as Parameters<typeof resolveDisplay>[0]
+    const store = document.data as FrameStore
     const display = resolveDisplay(store, clockParts(now))
     return {
       id: document.identifier,
@@ -68,7 +69,8 @@ export async function PATCH(request: Request) {
     if (body[key] !== undefined) updates[column] = body[key] === null || body[key] === '' ? null : Math.max(1, Number(body[key]))
   }
   if (body.layoutId !== undefined) {
-    const data = structuredClone(document.data as Awaited<ReturnType<typeof readStore>>)
+    if (!document.data) return NextResponse.json({ error: 'Frame data not found' }, { status: 404 })
+    const data = structuredClone(document.data as FrameStore)
     data.activeId = typeof body.layoutId === 'string' && data.layouts.some((layout) => layout.id === body.layoutId) ? body.layoutId : null
     updates.data = data
   }

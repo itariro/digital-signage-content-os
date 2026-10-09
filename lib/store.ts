@@ -182,7 +182,8 @@ async function persist(frameId: string, store: FrameStore) {
 export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
   const queue = queues.get(frameId) ?? Promise.resolve()
   const run = queue.then(async () => {
-    const current = structuredClone(await readStore(frameId))
+    const current = await readStore(frameId)
+    if (!current) throw new Error(`Store not found for frame "${frameId}"`)
     const next = normalize(fn(current) ?? current)
     await persist(frameId, next)
     storeCache.set(frameId, next)
