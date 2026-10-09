@@ -52,8 +52,14 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
   function update(next: Experiences, debounce = false) {
     setDraft(next)
     if (timer.current) clearTimeout(timer.current)
-    if (debounce) timer.current = setTimeout(() => onSave(next), 400)
-    else onSave(next)
+    if (debounce) {
+      timer.current = setTimeout(() => {
+        timer.current = null
+        onSave(next)
+      }, 400)
+    } else {
+      onSave(next)
+    }
   }
 
   const updateRule = (id: string, patch: Partial<ExperienceRule>, debounce = false) =>
