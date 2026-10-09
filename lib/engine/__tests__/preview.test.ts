@@ -21,7 +21,7 @@ describe('preview', () => {
     const { readStore } = await import('../../store')
     vi.mocked(readStore).mockResolvedValue(store)
     const { fetchWeather } = await import('../../weather')
-    vi.mocked(fetchWeather).mockResolvedValue(undefined)
+    vi.mocked(fetchWeather).mockResolvedValue(undefined as any)
 
     await getDecision('home', new Date('2026-10-08T10:00:00Z'), { simulatedTime: new Date('2026-10-08T10:00:00Z'), recordHistory: false })
     expect(recordDecision).not.toHaveBeenCalled()

@@ -18,7 +18,7 @@ describe('fallback', () => {
     const { readStore } = await import('../../store')
     vi.mocked(readStore).mockResolvedValue(store)
     const { fetchWeather } = await import('../../weather')
-    vi.mocked(fetchWeather).mockResolvedValue(undefined)
+    vi.mocked(fetchWeather).mockResolvedValue(undefined as any)
 
     const { decision } = await getDecision('home', new Date('2026-10-08T10:00:00Z'))
     expect(decision.ruleId).toBeNull()
