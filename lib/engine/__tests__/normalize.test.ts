@@ -32,4 +32,21 @@ describe('normalize', () => {
     expect(result.experiences.rules).toHaveLength(1)
     expect(result.experiences.rules[0].id).toBe('r1')
   })
+
+  it('does not mutate the input store', () => {
+    const store = {
+      activeId: 'l1',
+      layouts: [{ id: 'l1', name: 'Test' }],
+      schedule: { enabled: false, rules: [] },
+      albums: [],
+      experiences: {
+        enabled: true,
+        rules: [{ id: 'r1', name: 'Bad', enabled: true, priority: 100, when: { days: ['MON'] }, then: { layoutId: 'deleted', state: 'ambient', score: 0, durationMs: 0 } }],
+        settings: { schoolHolidays: [] },
+      },
+    } as any
+    const snapshot = structuredClone(store)
+    normalize(store)
+    expect(store).toEqual(snapshot)
+  })
 })

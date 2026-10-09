@@ -183,24 +183,20 @@ export function seed(): FrameStore {
 }
 
 export function normalize(store: FrameStore): FrameStore {
-  // Add default experiences if missing
-  if (!store.experiences) {
-    store.experiences = { enabled: false, rules: [], settings: { schoolHolidays: [] } }
-  }
-
+  const experiences = store.experiences ?? { enabled: false, rules: [], settings: { schoolHolidays: [] } }
   const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
   const albums = store.albums ?? [seedPhotoAlbum()]
 
-  // Prune experience rules referencing deleted layouts
+  // Prune experience rules referencing deleted layouts (never mutate the input).
   const layoutIds = new Set(store.layouts.map(l => l.id))
-  const rulesBefore = store.experiences.rules.length
-  store.experiences.rules = store.experiences.rules.filter(r => layoutIds.has(r.then.layoutId))
-  if (store.experiences.rules.length < rulesBefore) {
-    console.log(`[normalize] Pruned ${rulesBefore - store.experiences.rules.length} experience rules referencing deleted layouts`)
+  const prunedRules = experiences.rules.filter(r => layoutIds.has(r.then.layoutId))
+  if (prunedRules.length < experiences.rules.length) {
+    console.log(`[normalize] Pruned ${experiences.rules.length - prunedRules.length} experience rules referencing deleted layouts`)
   }
 
   return {
     ...store,
+    experiences: { ...experiences, rules: prunedRules },
     albums,
     layouts: store.layouts.map((l) => ({
       ...l,
@@ -239,13 +235,26 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
 
   const store = seed()
   const now = new Date()
-  await db.insert(frameDocuments).values({
-    id: nanoid(12), identifier: frameId, name: frameId === DEFAULT_FRAME_ID ? 'Home frame' : frameId,
-    data: store, createdAt: now, updatedAt: now,
-    resolutionWidth: 1920, resolutionHeight: 1080,
-  })
-  storeCache.set(frameId, store)
-  return store
+  // Two concurrent first requests can both miss the cache; ON CONFLICT makes
+  // the loser a no-op, then re-select to return the winning document.
+  await db
+    .insert(frameDocuments)
+    .values({
+      id: nanoid(12),
+      identifier: frameId,
+      name: 'Home frame',
+      data: store,
+      createdAt: now,
+      updatedAt: now,
+      resolutionWidth: 1920,
+      resolutionHeight: 1080,
+    })
+    .onConflictDoNothing({ target: frameDocuments.identifier })
+
+  const [created] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, frameId)).limit(1)
+  const resolved = created ? normalize(created.data as FrameStore) : store
+  storeCache.set(frameId, resolved)
+  return resolved
 }
 
 async function persist(frameId: string, store: FrameStore) {
