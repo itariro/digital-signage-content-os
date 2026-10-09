@@ -109,7 +109,7 @@ function seed(): FrameStore {
   }
 }
 
-function normalize(store: FrameStore): FrameStore {
+export function normalize(store: FrameStore): FrameStore {
   // Add default experiences if missing
   if (!store.experiences) {
     store.experiences = { enabled: false, rules: [], settings: { schoolHolidays: [] } }
