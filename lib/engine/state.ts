@@ -10,6 +10,10 @@ import { fetchWeather } from '../weather'
 import { queryHistory, recordDecision, pruneHistory } from '../db'
 import { clockParts, resolveDisplay } from '../schedule'
 
+function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) {
+  console.log(JSON.stringify({ level, message, ...meta, timestamp: new Date().toISOString() }))
+}
+
 function decisionId(
   ruleId: string | null,
   layoutId: string,
@@ -82,7 +86,7 @@ export async function getDecision(
   try {
     history = await queryHistory(frameId)
   } catch (error) {
-    console.error('[state] Failed to query history:', error)
+    log('error', 'Failed to query history', { frameId, error: String(error) })
   }
 
   const scored = scoreCandidates(evaluated.map(e => e.rule), history, '')
@@ -112,7 +116,7 @@ export async function getDecision(
       // Prune and append run in one transaction (spec §5.2).
       await recordDecision(frameId, decision, new Date())
     } catch (error) {
-      console.error('[state] Failed to record decision:', error)
+      log('error', 'Failed to record decision', { frameId, error: String(error) })
     }
   }
 
@@ -124,7 +128,7 @@ async function pruneHistorySafely(frameId: string): Promise<void> {
   try {
     await pruneHistory(frameId)
   } catch (error) {
-    console.error('[state] Failed to prune history:', error)
+    log('error', 'Failed to prune history', { frameId, error: String(error) })
   }
 }
 
