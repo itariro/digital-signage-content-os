@@ -103,7 +103,7 @@ function curatedLayouts(albumId: string): Layout[] {
       w('bob', 360, 820, 360, 480, { props: { source: 'decision', expression: 'happy' } }),
     ]),
     curatedLayout('Evening', '/backgrounds/desert-dunes.png', 35, [
-      w('clock-digital', 140, 200, 800, 220, { template: 'classic' }),
+      w('weather', 140, 200, 800, 220, { template: 'compact' }),
       w('date', 140, 460, 800, 70, { template: 'long' }),
       w('quote', 140, 620, 800, 240, { template: 'serif' }),
       w('bob', 360, 940, 360, 480, { props: { source: 'decision', expression: 'talking' } }),
@@ -129,7 +129,11 @@ function curatedLayouts(albumId: string): Layout[] {
 /** Default rules from spec §4.5, wired to the curated layout ids. */
 function defaultExperienceRules(layouts: Layout[]): ExperienceRule[] {
   const byName = new Map(layouts.map(l => [l.name, l.id]))
-  const id = (name: string) => byName.get(name) ?? layouts[0].id
+  const id = (name: string) => {
+    const found = byName.get(name)
+    if (!found) throw new Error(`defaultExperienceRules: no curated layout named "${name}"`)
+    return found
+  }
   return [
     { id: nanoid(8), name: 'Morning', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '06:00', to: '08:45' } }] }, then: { layoutId: id('Morning'), state: 'action', bob: { expression: 'planning' }, score: 0, durationMs: 0, reason: 'Morning' } },
     { id: nanoid(8), name: 'Gallery', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '08:45', to: '16:30' } }] }, then: { layoutId: id('Gallery'), state: 'gallery', score: 0, durationMs: 0, reason: 'Gallery' } },

@@ -20,6 +20,27 @@ describe('seed', () => {
     }
   })
 
+  it('wires each default rule to the correct named layout', () => {
+    const store = seed()
+    const nameToId = new Map(store.layouts.map(l => [l.name, l.id]))
+    const expected: Record<string, string> = {
+      Morning: 'Morning',
+      Gallery: 'Gallery',
+      'Welcome home': 'Welcome Home',
+      Evening: 'Evening',
+      Weekend: 'Weekend',
+      Rain: 'Weather',
+      Night: 'Night',
+    }
+    for (const rule of store.experiences.rules) {
+      const expectedName = expected[rule.name]
+      expect(expectedName, `unexpected default rule "${rule.name}"`).toBeDefined()
+      const expectedId = nameToId.get(expectedName)
+      expect(expectedId, `no curated layout named "${expectedName}"`).toBeDefined()
+      expect(rule.then.layoutId).toBe(expectedId)
+    }
+  })
+
   it('keeps a fresh normalize default disabled for pre-existing frames', () => {
     const legacy = { activeId: 'l1', layouts: [{ id: 'l1', name: 'L' }], schedule: { enabled: false, rules: [] }, albums: [] } as any
     expect(normalize(legacy).experiences.enabled).toBe(false)
