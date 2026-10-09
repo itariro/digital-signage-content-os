@@ -4,9 +4,10 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
 import { CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Sparkles, Type } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
-import type { Album, AlbumTheme, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
+import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
 import { activeSlide } from '@/components/frame/frame-scene'
+import { formatLocalInputValue } from '@/lib/zoned-time'
 import { AlbumsPanel } from './albums-panel'
 import { ExperiencesPanel } from './experiences-panel'
 import { SchedulePanel } from './schedule-panel'
@@ -58,6 +59,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
   const weather = useWeather(state.settings)
   const [tab, setTab] = useState<TabId>('widgets')
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewDecision, setPreviewDecision] = useState<DisplayDecision | null>(null)
   const [saving, setSaving] = useState(false)
   const [nightPreview, setNightPreview] = useState(false)
   const [openAlbumId, setOpenAlbumId] = useState<string | null>(null)
@@ -344,6 +346,28 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
 
+  useEffect(() => {
+    if (!previewOpen) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/display/preview?frame=home', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dateTime: formatLocalInputValue(new Date()) }),
+        })
+        if (!res.ok) return
+        const data = (await res.json()) as { decision?: DisplayDecision }
+        if (!cancelled) setPreviewDecision(data.decision ?? null)
+      } catch {
+        if (!cancelled) setPreviewDecision(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [previewOpen])
+
   const liveData = useMemo(
     () => ({ now, weather, settings: state.settings, slide: activeSlide(layoutAlbum, now) }),
     [now, weather, state.settings, layoutAlbum],
@@ -463,6 +487,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
           now={now}
           album={layoutAlbum}
           night={nightPreview ? store.schedule.night : null}
+          decision={previewDecision}
           onClose={() => setPreviewOpen(false)}
         />
       )}

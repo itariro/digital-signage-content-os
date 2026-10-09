@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid'
 import { Plus, Trash2 } from 'lucide-react'
 import type { ExperienceRule, Experiences } from '@/lib/types'
 import { mergeDaysCondition, toggleWeekday } from '@/lib/experience-draft'
+import { formatLocalInputValue } from '@/lib/zoned-time'
 import { Section, ToggleField } from './controls'
 
 type ExperiencesPanelProps = {
@@ -282,8 +283,9 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
   )
 }
 
-function PreviewSection() {
-  const [preview, setPreview] = useState<{ decision?: { layoutId?: string; bob?: { expression?: string } | null; reason?: string }; warning?: string } | null>(null)
+function PreviewSection({ frameId = 'home' }: { frameId?: string }) {
+  const [dateTime, setDateTime] = useState(() => formatLocalInputValue(new Date()))
+  const [preview, setPreview] = useState<{ decision?: { layoutId?: string; bob?: { expression?: string } | null; reason?: string }; context?: { period?: string }; warning?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -291,17 +293,16 @@ function PreviewSection() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/display/preview?frame=home', {
+      const res = await fetch(`/api/display/preview?frame=${encodeURIComponent(frameId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dateTime: new Date().toISOString().slice(0, 16) }),
+        body: JSON.stringify({ dateTime }),
       })
       if (!res.ok) {
         const errData = (await res.json()) as { error?: string }
         throw new Error(errData.error ?? `Preview failed (${res.status})`)
       }
-      const data = await res.json()
-      setPreview(data)
+      setPreview(await res.json())
     } catch (error) {
       console.error('Preview failed:', error)
       setError(error instanceof Error ? error.message : 'Preview failed')
@@ -312,10 +313,19 @@ function PreviewSection() {
 
   return (
     <div className="flex flex-col gap-2">
+      <label className="flex flex-col gap-1">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Simulated time (frame local)</span>
+        <input
+          type="datetime-local"
+          value={dateTime}
+          onChange={(e) => setDateTime(e.target.value)}
+          className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+        />
+      </label>
       <button
         type="button"
         onClick={runPreview}
-        disabled={loading}
+        disabled={loading || !dateTime}
         className="flex h-8 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
         {loading ? 'Loading...' : 'Preview decision'}
@@ -334,6 +344,10 @@ function PreviewSection() {
           <div className="flex justify-between">
             <span className="text-muted-foreground">Reason:</span>
             <span className="font-mono text-foreground">{preview.decision?.reason ?? 'none'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Period:</span>
+            <span className="font-mono text-foreground">{preview.context?.period ?? 'none'}</span>
           </div>
           {preview.warning && <p className="text-pretty text-amber-600">{preview.warning}</p>}
         </div>
