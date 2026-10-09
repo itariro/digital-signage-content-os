@@ -298,4 +298,19 @@ describe('preview wall time', () => {
     expect(context.period).toBe('welcome-home')
     expect(context.weekday).toBe('THU')
   })
+
+  it('falls back to server UTC when the frame timezone is invalid', async () => {
+    const store = makeStore({
+      experiences: { enabled: true, rules: [], settings: { schoolHolidays: [], timezone: 'Invalid/Zone' } },
+    })
+    mockReadStore.mockResolvedValue(store)
+
+    const { context } = await getDecision('home', new Date('2026-01-01T00:00:00Z'), {
+      simulatedWallTime: '2026-10-08T18:15',
+      recordHistory: false,
+    })
+    // 18:15 interpreted as UTC is still the welcome-home period, Thursday.
+    expect(context.period).toBe('welcome-home')
+    expect(context.weekday).toBe('THU')
+  })
 })

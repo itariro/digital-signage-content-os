@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseZonedWallTime } from '../zoned-time'
+import { parseZonedWallTime, resolveTimezone } from '../zoned-time'
 
 describe('parseZonedWallTime', () => {
   it('interprets a naive time as wall time in the given zone', () => {
@@ -19,5 +19,19 @@ describe('parseZonedWallTime', () => {
 
   it('returns null for an invalid zone', () => {
     expect(parseZonedWallTime('2026-10-08T18:15', 'Invalid/Zone')).toBeNull()
+  })
+})
+
+describe('resolveTimezone', () => {
+  it('returns a valid IANA zone unchanged', () => {
+    expect(resolveTimezone('Europe/Zurich')).toBe('Europe/Zurich')
+  })
+
+  it('falls back to UTC for an invalid zone', () => {
+    expect(resolveTimezone('Invalid/Zone')).toBe('UTC')
+  })
+
+  it('falls back to UTC when unset', () => {
+    expect(resolveTimezone(undefined)).toBe('UTC')
   })
 })

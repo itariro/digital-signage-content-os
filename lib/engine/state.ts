@@ -9,7 +9,7 @@ import { readStore } from '../store'
 import { fetchWeather } from '../weather'
 import { queryHistory, recordDecision, pruneHistory } from '../db'
 import { clockParts, resolveDisplay } from '../schedule'
-import { parseZonedWallTime } from '../zoned-time'
+import { parseZonedWallTime, resolveTimezone } from '../zoned-time'
 
 /** Points a challenger must beat the incumbent by before the engine switches. */
 const INCUMBENT_HYSTERESIS = 25
@@ -70,9 +70,9 @@ export async function getDecision(
   if (!store) throw new Error(`Frame "${frameId}" not found`)
 
   // One resolved timezone for both context and schedule fallback (spec §4.3).
-  const timezone = store.experiences.settings.timezone || 'UTC'
+  const timezone = resolveTimezone(store.experiences.settings.timezone)
   const time = options?.simulatedWallTime
-    ? parseZonedWallTime(options.simulatedWallTime, timezone) ?? new Date(options.simulatedWallTime)
+    ? parseZonedWallTime(options.simulatedWallTime, timezone) ?? new Date(`${options.simulatedWallTime}Z`)
     : options?.simulatedTime || now
 
   const layout = store.layouts.find(l => l.id === store.activeId) || store.layouts[0]

@@ -35,6 +35,18 @@ export function parseZonedWallTime(value: string, timezone: string): Date | null
   }
 }
 
+/** Returns the zone if it is a valid IANA zone, else logs and returns 'UTC'. */
+export function resolveTimezone(timezone?: string): string {
+  if (!timezone) return 'UTC'
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+    return timezone
+  } catch {
+    console.warn(`[zoned-time] Invalid timezone "${timezone}", falling back to UTC`)
+    return 'UTC'
+  }
+}
+
 /** Formats a Date as a `datetime-local` value in the browser's local zone. */
 export function formatLocalInputValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
