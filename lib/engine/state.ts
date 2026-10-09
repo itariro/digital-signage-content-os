@@ -14,6 +14,13 @@ import { parseZonedWallTime, resolveTimezone } from '../zoned-time'
 /** Points a challenger must beat the incumbent by before the engine switches. */
 const INCUMBENT_HYSTERESIS = 25
 
+export class FrameNotFoundError extends Error {
+  constructor(frameId: string) {
+    super(`Frame "${frameId}" not found`)
+    this.name = 'FrameNotFoundError'
+  }
+}
+
 function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) {
   console.log(JSON.stringify({ level, message, ...meta, timestamp: new Date().toISOString() }))
 }
@@ -67,7 +74,7 @@ export async function getDecision(
   options?: GetDecisionOptions
 ): Promise<GetDecisionResult> {
   const store = await readStore(frameId)
-  if (!store) throw new Error(`Frame "${frameId}" not found`)
+  if (!store) throw new FrameNotFoundError(frameId)
 
   // One resolved timezone for both context and schedule fallback (spec §4.3).
   const timezone = resolveTimezone(store.experiences.settings.timezone)

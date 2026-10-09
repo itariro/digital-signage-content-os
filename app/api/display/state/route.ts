@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDecision } from '@/lib/engine/state'
+import { getDecision, FrameNotFoundError } from '@/lib/engine/state'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +17,10 @@ export async function GET(req: NextRequest) {
       { headers: { 'Cache-Control': 'no-store' } }
     )
   } catch (error) {
+    if (error instanceof FrameNotFoundError) {
+      return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
+    }
     console.error('[display/state] Error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
