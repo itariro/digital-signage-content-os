@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useSyncExternalStore } from 'react'
-import type { DisplayDecision, FrameStore } from '@/lib/types'
+import type { DisplayDecision, ExperienceContext, FrameStore } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { clockParts, resolveDisplay } from '@/lib/schedule'
 import { googleFontHref } from '@/lib/fonts'
@@ -25,34 +25,49 @@ function useViewportScale() {
 export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore: FrameStore; frameId?: string }) {
   const [decision, setDecision] = useState<DisplayDecision | null>(null)
   const [store, setStore] = useState<FrameStore>(initialStore)
+  const [context, setContext] = useState<ExperienceContext | null>(null)
   const now = useNow()
   const scale = useViewportScale()
 
   useEffect(() => {
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let controller: AbortController | undefined
+    let sequence = 0
+    let applied = -1
 
     async function poll() {
+      controller = new AbortController()
+      const timeout = setTimeout(() => controller?.abort(), 25_000)
+      const seq = ++sequence
       try {
         const res = await fetch(`/api/display/state?frame=${encodeURIComponent(frameId)}`, {
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache' },
+          signal: controller.signal,
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        if (!cancelled) {
-          setDecision(prev => (prev?.id === data.decision?.id ? prev : data.decision))
-          setStore(data.store)
-        }
+        if (cancelled || seq < applied) return
+        applied = seq
+        setDecision(prev => (prev?.id === data.decision?.id ? prev : data.decision))
+        setStore(data.store)
+        setContext(data.context ?? null)
       } catch (error) {
-        console.error('[FrameDisplay] Poll failed:', error)
+        if (!cancelled && (error as Error).name !== 'AbortError') {
+          console.error('[FrameDisplay] Poll failed:', error)
+        }
+      } finally {
+        clearTimeout(timeout)
+        if (!cancelled) timer = setTimeout(poll, 30_000)
       }
     }
 
     poll()
-    const interval = setInterval(poll, 30_000)
     return () => {
       cancelled = true
-      clearInterval(interval)
+      if (timer) clearTimeout(timer)
+      controller?.abort()
     }
   }, [frameId])
 
@@ -60,7 +75,8 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
   const layoutId = decision?.layoutId || fallback.layout?.id
   const layout = store.layouts.find((l) => l.id === layoutId) || fallback.layout
   const night = fallback.night
-  const weather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
+  const clientWeather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
+  const weather = context?.weather ?? clientWeather
 
   return (
     <main className="flex h-dvh w-screen cursor-none items-center justify-center overflow-hidden bg-background">
