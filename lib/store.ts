@@ -7,6 +7,7 @@ import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
 import { getDb } from './db'
 import { frameDocuments } from './db/schema'
+import { createTtlCache } from './ttl-cache'
 
 export const DEFAULT_FRAME_ID = 'home'
 export const DATA_DIR = process.env.FRAME_DATA_DIR ?? path.join(process.cwd(), '.data')
@@ -218,7 +219,8 @@ export function normalize(store: FrameStore): FrameStore {
   }
 }
 
-const storeCache = new Map<string, FrameStore>()
+const STORE_CACHE_TTL_MS = 5_000
+const storeCache = createTtlCache<FrameStore>(STORE_CACHE_TTL_MS)
 const queues = new Map<string, Promise<unknown>>()
 
 export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore | null> {
