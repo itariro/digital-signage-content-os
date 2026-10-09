@@ -153,7 +153,7 @@ const conditionSchema: z.ZodType<any> = z.lazy(() =>
     z.object({ any: z.array(conditionSchema) }),
     z.object({ not: conditionSchema }),
     z.object({ days: z.array(weekdaySchema) }),
-    z.object({ time: z.object({ from: z.string(), to: z.string() }) }),
+    z.object({ time: z.object({ from: clock, to: clock }) }),
     z.object({ schoolDay: z.boolean() }),
     z.object({
       weather: z.object({
@@ -188,7 +188,18 @@ const experienceRuleSchema = z.object({
 
 export const experiencesSchema = z.object({
   enabled: z.boolean(),
-  rules: z.array(experienceRuleSchema).max(100),
+  rules: z
+    .array(experienceRuleSchema)
+    .max(100)
+    .superRefine((rules, ctx) => {
+      const seen = new Set<string>()
+      rules.forEach((rule, index) => {
+        if (seen.has(rule.id)) {
+          ctx.addIssue({ code: 'custom', message: `Duplicate rule id "${rule.id}"`, path: [index, 'id'] })
+        }
+        seen.add(rule.id)
+      })
+    }),
   settings: z.object({
     schoolHolidays: z.array(z.string()).max(100),
     timezone: z.string().max(100).optional(),
