@@ -274,3 +274,28 @@ describe('weather honesty', () => {
     expect(decision.ruleId).toBeNull()
   })
 })
+
+describe('preview wall time', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockQueryHistory.mockResolvedValue({ recent: [], seenLayouts: new Set(), latestLayoutId: null })
+    mockRecordDecision.mockResolvedValue(undefined)
+    mockPruneHistory.mockResolvedValue(undefined)
+    mockFetchWeather.mockResolvedValue(undefined)
+  })
+
+  it('interprets simulatedWallTime in the frame timezone', async () => {
+    const store = makeStore({
+      experiences: { enabled: true, rules: [], settings: { schoolHolidays: [], timezone: 'Europe/Zurich' } },
+    })
+    mockReadStore.mockResolvedValue(store)
+
+    const { context } = await getDecision('home', new Date('2026-01-01T00:00:00Z'), {
+      simulatedWallTime: '2026-10-08T18:15',
+      recordHistory: false,
+    })
+    // 18:15 Zurich is the welcome-home period, and the weekday is Thursday.
+    expect(context.period).toBe('welcome-home')
+    expect(context.weekday).toBe('THU')
+  })
+})

@@ -21,13 +21,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'dateTime is required' }, { status: 400 })
   }
 
-  const simulatedTime = new Date(body.dateTime)
-  if (isNaN(simulatedTime.getTime())) {
-    return NextResponse.json({ error: 'Invalid dateTime' }, { status: 400 })
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(body.dateTime)) {
+    return NextResponse.json({ error: 'dateTime must be a timezone-less ISO string' }, { status: 400 })
   }
 
   try {
-    const { decision, context } = await getDecision(frameId, new Date(), { simulatedTime, recordHistory: false })
+    const { decision, context } = await getDecision(frameId, new Date(), {
+      simulatedWallTime: body.dateTime,
+      recordHistory: false,
+    })
     return NextResponse.json(
       {
         decision,
