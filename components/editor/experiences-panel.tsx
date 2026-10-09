@@ -267,20 +267,27 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
 
 function PreviewSection() {
   const [preview, setPreview] = useState<{ decision?: { layoutId?: string; bob?: { expression?: string } | null; reason?: string }; warning?: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function runPreview() {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch('/api/display/preview?frame=home', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dateTime: new Date().toISOString().slice(0, 16) }),
       })
+      if (!res.ok) {
+        const errData = (await res.json()) as { error?: string }
+        throw new Error(errData.error ?? `Preview failed (${res.status})`)
+      }
       const data = await res.json()
       setPreview(data)
     } catch (error) {
       console.error('Preview failed:', error)
+      setError(error instanceof Error ? error.message : 'Preview failed')
     } finally {
       setLoading(false)
     }
@@ -296,6 +303,7 @@ function PreviewSection() {
       >
         {loading ? 'Loading...' : 'Preview decision'}
       </button>
+      {error && <p className="text-pretty text-xs text-destructive">{error}</p>}
       {preview && (
         <div className="flex flex-col gap-1 rounded-lg bg-secondary p-3 text-xs">
           <div className="flex justify-between">
