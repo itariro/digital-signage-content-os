@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react'
 import type { Album, AlbumItem, Slideshow } from '@/lib/types'
 import { FRAME_WIDTH } from '@/lib/types'
-import { THEME_META, slideAt } from '@/lib/albums'
+import { themeMeta, slideAt } from '@/lib/albums'
 import { cn } from '@/lib/utils'
 
 const JUSTIFY = { top: 'flex-start', center: 'center', bottom: 'flex-end' } as const
@@ -175,7 +175,7 @@ function SlideLayer({
   }
 
   const width = (FRAME_WIDTH * show.artSize) / 100
-  const meta = THEME_META[album.theme]
+  const meta = themeMeta(album.theme)
   const aspect = show.presentation === 'gallery' && album.theme === 'photos' ? 4 / 5 : meta.aspect === 1 ? 1 : 2 / 3
 
   return (

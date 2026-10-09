@@ -71,6 +71,11 @@ export const THEME_META: Record<AlbumTheme, ThemeMeta> = {
   },
 }
 
+/** Safe lookup: legacy/imported albums may carry an unknown theme. */
+export function themeMeta(theme: AlbumTheme | undefined): ThemeMeta {
+  return (theme && THEME_META[theme]) || THEME_META.photos
+}
+
 export const PRESENTATION_META: Record<Presentation, { label: string; description: string }> = {
   fill: { label: 'Full bleed', description: 'Edge to edge, cropped to fill' },
   poster: { label: 'Poster', description: 'Framed one-sheet over a blurred wash' },

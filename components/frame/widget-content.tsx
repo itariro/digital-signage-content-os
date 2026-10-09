@@ -21,7 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ActiveSlide, DisplayDecision, LayoutSettings, WeatherData, Widget } from '@/lib/types'
-import { THEME_META } from '@/lib/albums'
+import { themeMeta } from '@/lib/albums'
 import { BOB_FALLBACK_EXPRESSION, BOB_PLACEHOLDER, bobAsset, isBobExpression } from '@/lib/bob'
 import {
   daysBetween,
@@ -795,7 +795,7 @@ function NowShowingWidget({ widget, slide }: { widget: Widget; slide: ActiveSlid
     )
   }
   const { item, theme } = slide
-  const label = String(props.label || '').trim() || THEME_META[theme].nowLabel
+  const label = String(props.label || '').trim() || themeMeta(theme).nowLabel
   const details = [
     item.subtitle,
     props.showYear ? item.year : '',
