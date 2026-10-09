@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { DisplayDecision, ExperienceContext, HistoryEntry } from './types'
+import type { DisplayDecision, ExperienceContext, HistorySummary } from './types'
 import type { FrameStore } from '../types'
 import { buildContext } from './context'
 import { evaluateRules } from './evaluator'
@@ -9,6 +9,9 @@ import { readStore } from '../store'
 import { fetchWeather } from '../weather'
 import { queryHistory, recordDecision, pruneHistory } from '../db'
 import { clockParts, resolveDisplay } from '../schedule'
+
+/** Points a challenger must beat the incumbent by before the engine switches. */
+const INCUMBENT_HYSTERESIS = 25
 
 function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) {
   console.log(JSON.stringify({ level, message, ...meta, timestamp: new Date().toISOString() }))
@@ -64,7 +67,8 @@ export async function getDecision(
   if (!store) throw new Error(`Frame "${frameId}" not found`)
 
   const time = options?.simulatedTime || now
-  const timezone = store.experiences.settings.timezone
+  // One resolved timezone for both context and schedule fallback (spec §4.3).
+  const timezone = store.experiences.settings.timezone || 'UTC'
 
   const layout = store.layouts.find(l => l.id === store.activeId) || store.layouts[0]
   const fetched = layout
@@ -85,15 +89,18 @@ export async function getDecision(
   const eligibleRules = store.experiences.rules.filter(r => layoutIds.has(r.then.layoutId))
   const evaluated = evaluateRules(eligibleRules, context)
 
-  let history: HistoryEntry[] = []
+  const maxDurationMs = eligibleRules.reduce((max, rule) => Math.max(max, rule.then.durationMs), 0)
+  const windowMs = Math.max(120 * 60 * 1000, maxDurationMs)
+  let history: HistorySummary = { recent: [], seenLayouts: new Set(), latestLayoutId: null }
   try {
-    history = await queryHistory(frameId)
+    history = await queryHistory(frameId, time, windowMs)
   } catch (error) {
     log('error', 'Failed to query history', { frameId, error: String(error) })
   }
 
-  const scored = scoreCandidates(evaluated.map(e => e.rule), history, '')
-  const winner = selectWinner(scored)
+  const incumbent = history.latestLayoutId ?? ''
+  const scored = scoreCandidates(evaluated, history, incumbent, time.getTime())
+  const winner = selectWinner(scored, { incumbentLayoutId: incumbent, hysteresis: INCUMBENT_HYSTERESIS })
 
   if (!winner) {
     await pruneHistorySafely(frameId)

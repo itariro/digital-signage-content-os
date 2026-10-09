@@ -1,4 +1,4 @@
-import type { ExperienceRule, ExperienceContext } from './types'
+import type { Condition, ExperienceRule, ExperienceContext } from './types'
 import { evaluateCondition } from './operators'
 
 export interface EvaluatedRule {
@@ -6,12 +6,21 @@ export interface EvaluatedRule {
   weatherMatched: boolean
 }
 
+/**
+ * True when at least one positive weather node inside the tree is satisfied.
+ * Negated weather never earns relevance, so a rule that matched because it did
+ * *not* rain is not rewarded as if it were weather-driven.
+ */
+function hasSatisfiedWeather(condition: Condition, ctx: ExperienceContext): boolean {
+  if ('weather' in condition) return evaluateCondition(condition, ctx)
+  if ('all' in condition) return condition.all.some(c => hasSatisfiedWeather(c, ctx))
+  if ('any' in condition) return condition.any.some(c => hasSatisfiedWeather(c, ctx))
+  return false
+}
+
 export function evaluateRules(rules: ExperienceRule[], ctx: ExperienceContext): EvaluatedRule[] {
   return rules
     .filter(rule => rule.enabled)
-    .map(rule => ({
-      rule,
-      weatherMatched: 'weather' in rule.when ? evaluateCondition(rule.when, ctx) : false,
-    }))
+    .map(rule => ({ rule, weatherMatched: hasSatisfiedWeather(rule.when, ctx) }))
     .filter(({ rule }) => evaluateCondition(rule.when, ctx))
 }

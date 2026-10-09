@@ -44,7 +44,7 @@ vi.mock('../../db', () => ({
 describe('getDecision', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockQueryHistory.mockResolvedValue([])
+    mockQueryHistory.mockResolvedValue({ recent: [], seenLayouts: new Set<string>(), latestLayoutId: null })
     mockRecordDecision.mockResolvedValue(undefined)
     mockPruneHistory.mockResolvedValue(undefined)
   })
@@ -109,12 +109,37 @@ describe('getDecision', () => {
       expect.objectContaining({
         id: expect.any(String),
         layoutId: 'layout-1',
+        ruleId: 'r1',
         score: expect.any(Number),
       }),
       expect.any(Date)
     )
     // Pruning happens inside recordDecision on the append path, not separately.
     expect(mockPruneHistory).not.toHaveBeenCalled()
+  })
+
+  it('records history at wall-clock time, not the simulated preview time', async () => {
+    const store = makeStore({
+      experiences: {
+        enabled: true,
+        rules: [{ id: 'r1', name: 'Morning', enabled: true, priority: 100, when: { days: ['THU'] }, then: { layoutId: 'layout-1', state: 'action', score: 0, durationMs: 0 } }],
+        settings: { schoolHolidays: [] },
+      },
+    })
+    mockReadStore.mockResolvedValue(store)
+    mockFetchWeather.mockResolvedValue(undefined)
+
+    const before = Date.now()
+    await getDecision('home', new Date('2026-01-01T00:00:00Z'), {
+      simulatedTime: new Date('2026-10-08T10:00:00Z'),
+    })
+    const after = Date.now()
+
+    // A simulated preview time must not be persisted as the show time, or it
+    // would poison the repetition/duration windows of the live frame.
+    const recordedAt = mockRecordDecision.mock.calls[0][2] as Date
+    expect(recordedAt.getTime()).toBeGreaterThanOrEqual(before)
+    expect(recordedAt.getTime()).toBeLessThanOrEqual(after)
   })
 
   it('prunes history on the fallback path (experiences disabled)', async () => {
@@ -146,7 +171,7 @@ describe('getDecision', () => {
 describe('schedule fallback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockQueryHistory.mockResolvedValue([])
+    mockQueryHistory.mockResolvedValue({ recent: [], seenLayouts: new Set<string>(), latestLayoutId: null })
     mockRecordDecision.mockResolvedValue(undefined)
     mockPruneHistory.mockResolvedValue(undefined)
     mockFetchWeather.mockResolvedValue(undefined)
@@ -218,7 +243,7 @@ describe('schedule fallback', () => {
 describe('weather honesty', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockQueryHistory.mockResolvedValue({ recent: [], seenLayouts: new Set(), latestLayoutId: null })
+    mockQueryHistory.mockResolvedValue({ recent: [], seenLayouts: new Set<string>(), latestLayoutId: null })
     mockRecordDecision.mockResolvedValue(undefined)
     mockPruneHistory.mockResolvedValue(undefined)
   })

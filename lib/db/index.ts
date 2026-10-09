@@ -1,9 +1,9 @@
-import { and, eq, lt } from 'drizzle-orm'
+import { and, desc, eq, gte, lt } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import * as schema from './schema'
 import { displayHistory } from './schema'
-import type { HistoryEntry } from '../engine/types'
+import type { HistorySummary } from '../engine/types'
 
 const globalForDb = globalThis as unknown as { framePool?: Pool }
 
@@ -19,18 +19,51 @@ export function getDb() {
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
- * Returns the recent decision history for a frame, used to compute the
- * repetition penalty and novelty bonus when scoring candidates.
+ * Returns a bounded history summary for scoring:
+ * - `recent`: rows inside the repetition/duration window (caller supplies it).
+ * - `seenLayouts`: distinct layouts inside the 7-day novelty retention window.
+ * - `latestLayoutId`: the most recently shown layout (the incumbent).
+ *
+ * The previous implementation loaded the entire 7-day table for the frame on
+ * every 30s poll; this keeps the read proportional to the window.
  */
-export async function queryHistory(frameId: string): Promise<HistoryEntry[]> {
+export async function queryHistory(
+  frameId: string,
+  now: Date,
+  windowMs: number,
+): Promise<HistorySummary> {
   const db = getDb()
-  const rows = await db.select().from(displayHistory).where(eq(displayHistory.frameId, frameId))
-  return rows.map(r => ({ layoutId: r.layoutId, shownAt: r.shownAt }))
+  const windowStart = new Date(now.getTime() - windowMs)
+  const retentionStart = new Date(now.getTime() - RETENTION_MS)
+
+  const [recentRows, seenRows, latestRows] = await Promise.all([
+    db
+      .select({ layoutId: displayHistory.layoutId, ruleId: displayHistory.ruleId, shownAt: displayHistory.shownAt })
+      .from(displayHistory)
+      .where(and(eq(displayHistory.frameId, frameId), gte(displayHistory.shownAt, windowStart))),
+    db
+      .selectDistinct({ layoutId: displayHistory.layoutId })
+      .from(displayHistory)
+      .where(and(eq(displayHistory.frameId, frameId), gte(displayHistory.shownAt, retentionStart))),
+    db
+      .select({ layoutId: displayHistory.layoutId })
+      .from(displayHistory)
+      .where(eq(displayHistory.frameId, frameId))
+      .orderBy(desc(displayHistory.shownAt))
+      .limit(1),
+  ])
+
+  return {
+    recent: recentRows.map(r => ({ layoutId: r.layoutId, ruleId: r.ruleId, shownAt: r.shownAt })),
+    seenLayouts: new Set(seenRows.map(r => r.layoutId)),
+    latestLayoutId: latestRows[0]?.layoutId ?? null,
+  }
 }
 
 export interface DecisionRecord {
   id: string
   layoutId: string
+  ruleId: string | null
   score: number
 }
 
@@ -62,6 +95,7 @@ export async function recordDecision(
         frameId,
         decisionId: decision.id,
         layoutId: decision.layoutId,
+        ruleId: decision.ruleId,
         shownAt: shownAtMinute,
         score: decision.score,
       })

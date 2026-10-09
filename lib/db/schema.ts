@@ -42,6 +42,7 @@ export const displayHistory = pgTable('display_history', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   frameId: text('frame_id').notNull(),
   decisionId: text('decision_id').notNull(),
+  ruleId: text('rule_id'),
   layoutId: text('layout_id').notNull(),
   shownAt: timestamp('shown_at', { withTimezone: true }).notNull(),
   score: doublePrecision('score').notNull(),

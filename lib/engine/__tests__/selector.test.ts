@@ -38,3 +38,31 @@ describe('selectWinner', () => {
     expect(selectWinner([])).toBeNull()
   })
 })
+
+describe('selectWinner with incumbent', () => {
+  it('keeps the incumbent when a challenger does not clear the hysteresis margin', () => {
+    const candidates: ScoredCandidate[] = [
+      { rule: makeRule('challenger', 100), score: 140, layoutId: 'l-challenger' },
+      { rule: makeRule('incumbent', 100), score: 130, layoutId: 'l-incumbent' },
+    ]
+    const winner = selectWinner(candidates, { incumbentLayoutId: 'l-incumbent', hysteresis: 25 })
+    expect(winner?.layoutId).toBe('l-incumbent')
+  })
+
+  it('switches when the challenger clears the margin', () => {
+    const candidates: ScoredCandidate[] = [
+      { rule: makeRule('challenger', 100), score: 200, layoutId: 'l-challenger' },
+      { rule: makeRule('incumbent', 100), score: 130, layoutId: 'l-incumbent' },
+    ]
+    const winner = selectWinner(candidates, { incumbentLayoutId: 'l-incumbent', hysteresis: 25 })
+    expect(winner?.layoutId).toBe('l-challenger')
+  })
+
+  it('ignores the incumbent option when not supplied', () => {
+    const candidates: ScoredCandidate[] = [
+      { rule: makeRule('a', 100), score: 140, layoutId: 'l-a' },
+      { rule: makeRule('b', 100), score: 130, layoutId: 'l-b' },
+    ]
+    expect(selectWinner(candidates)?.layoutId).toBe('l-a')
+  })
+})
