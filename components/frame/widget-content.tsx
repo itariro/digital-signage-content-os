@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import type { CSSProperties, SyntheticEvent } from 'react'
 import {
   Cake,
   Camera,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import type { ActiveSlide, DisplayDecision, LayoutSettings, WeatherData, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
+import { BOB_FALLBACK_EXPRESSION, BOB_PLACEHOLDER, bobAsset, isBobExpression } from '@/lib/bob'
 import {
   daysBetween,
   formatTime,
@@ -72,30 +73,53 @@ function fit(text: string, maxCqh: number, widthFactor = 190) {
 
 const muted: CSSProperties = { opacity: 0.72 }
 
+function handleBobError(event: SyntheticEvent<HTMLImageElement>) {
+  const img = event.currentTarget
+  if (img.dataset.bobFallback) return
+  img.dataset.bobFallback = '1'
+  img.src = BOB_PLACEHOLDER
+}
+
 function BobWidget({ widget, ctx }: { widget: Widget; ctx: WidgetContext }) {
   const source = (widget.props.source as string) || 'fixed'
-  const expression = source === 'decision'
-    ? (ctx.decision?.bob?.expression ?? (widget.props.expression as string) ?? 'happy')
-    : ((widget.props.expression as string) ?? 'happy')
-  const speech = source === 'decision'
-    ? (ctx.decision?.bob?.speech ?? (widget.props.speech as string) ?? '')
-    : ((widget.props.speech as string) ?? '')
+  const decisionExpression = ctx.decision?.bob?.expression
+  const widgetExpression = widget.props.expression
+  const expression =
+    source === 'decision'
+      ? isBobExpression(decisionExpression)
+        ? decisionExpression
+        : isBobExpression(widgetExpression)
+          ? widgetExpression
+          : BOB_FALLBACK_EXPRESSION
+      : isBobExpression(widgetExpression)
+        ? widgetExpression
+        : BOB_FALLBACK_EXPRESSION
+  const speech =
+    source === 'decision'
+      ? (ctx.decision?.bob?.speech ?? String(widget.props.speech ?? ''))
+      : String(widget.props.speech ?? '')
+  const animate = Boolean(widget.props.animate)
+  const src = bobAsset(expression)
 
-  const imageSrc = `/bob/${expression}.webp`
-  const animate = widget.props.animate as boolean
+  const image = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={expression} className="h-full w-full object-contain" onError={handleBobError} />
+  )
 
   return (
-    <div className={cn('flex h-full w-full flex-col items-center justify-center', animate && 'animate-in fade-in')}>
-      <img
-        src={imageSrc}
-        alt={expression}
-        className="h-full w-full object-contain"
-        onError={(e) => {
-          (e.target as HTMLImageElement).src = '/bob/happy.webp'
-        }}
-      />
+    <div className={cn('relative flex h-full w-full flex-col items-center justify-center', animate && 'animate-in fade-in')}>
+      {widget.template === 'badge' ? (
+        <div
+          className="flex aspect-square h-full max-h-full items-center justify-center overflow-hidden rounded-full"
+          style={{ background: 'color-mix(in srgb, currentColor 12%, transparent)' }}
+        >
+          {image}
+        </div>
+      ) : (
+        image
+      )}
       {speech && widget.template === 'speech' && (
-        <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full rounded-xl bg-white px-3 py-1 text-sm font-medium text-gray-900 shadow-lg">
+        <div className="absolute left-1/2 top-2 max-w-[90%] -translate-x-1/2 rounded-xl bg-white px-3 py-1 text-center text-sm font-medium text-gray-900 shadow-lg">
           {speech}
         </div>
       )}
