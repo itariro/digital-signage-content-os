@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Design spec:** This plan implements [`docs/superpowers/specs/2026-10-08-bob-engine-design-v2.md`](../specs/2026-10-08-bob-engine-design-v2.md).
+
 **Goal:** Port the familyOS Bob decision engine into dscos, adding a server-side context → rules → scoring → selector pipeline, a `display_history` table, a decision-aware Bob widget, and an Experiences editor panel.
 
 **Architecture:** Pure TypeScript engine modules under `lib/engine/` mirror the familyOS Python layout. `state.ts` is the only impure module, injecting fakes for testability. The display polls a new `/api/display/state` endpoint that returns `{ decision, context, store }` in one round trip. The existing schedule and client-side `resolveDisplay()` remain as fallbacks.
