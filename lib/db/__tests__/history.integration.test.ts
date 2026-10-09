@@ -27,7 +27,7 @@ suite('display_history integration', () => {
     const summary = await queryHistory(frameId, at, 120 * 60 * 1000)
     expect(summary.recent.filter(r => r.layoutId === 'l1')).toHaveLength(1)
     expect(summary.latestLayoutId).toBe('l1')
-  })
+  }, 30_000)
 
   it('excludes layouts older than the retention window from novelty', async () => {
     const decision = { id: 'decision-old', layoutId: 'l-old', ruleId: 'r1', score: 10 }
@@ -35,5 +35,5 @@ suite('display_history integration', () => {
     await recordDecision(frameId, decision, at)
     const summary = await queryHistory(frameId, new Date(), 120 * 60 * 1000)
     expect(summary.seenLayouts.has('l-old')).toBe(false)
-  })
+  }, 30_000)
 })

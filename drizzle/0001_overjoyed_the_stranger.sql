@@ -1,1 +1,1 @@
-ALTER TABLE "display_history" ADD COLUMN "rule_id" text;
+ALTER TABLE "display_history" ADD COLUMN IF NOT EXISTS "rule_id" text;

@@ -1,4 +1,4 @@
-CREATE TABLE "content_sources" (
+CREATE TABLE IF NOT EXISTS "content_sources" (
 	"id" text PRIMARY KEY NOT NULL,
 	"frame_id" text NOT NULL,
 	"kind" text NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE "content_sources" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "display_history" (
+CREATE TABLE IF NOT EXISTS "display_history" (
 	"id" bigserial PRIMARY KEY NOT NULL,
 	"frame_id" text NOT NULL,
 	"decision_id" text NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE "display_history" (
 	"score" double precision NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "frame_documents" (
+CREATE TABLE IF NOT EXISTS "frame_documents" (
 	"id" text PRIMARY KEY NOT NULL,
 	"identifier" text NOT NULL,
 	"name" text NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE "frame_documents" (
 	CONSTRAINT "frame_documents_identifier_unique" UNIQUE("identifier")
 );
 --> statement-breakpoint
-CREATE TABLE "frame_templates" (
+CREATE TABLE IF NOT EXISTS "frame_templates" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"data" jsonb NOT NULL,
@@ -39,5 +39,5 @@ CREATE TABLE "frame_templates" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX "display_history_unique" ON "display_history" USING btree ("frame_id","decision_id","shown_at");--> statement-breakpoint
-CREATE INDEX "display_history_frame_time" ON "display_history" USING btree ("frame_id","shown_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "display_history_unique" ON "display_history" USING btree ("frame_id","decision_id","shown_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "display_history_frame_time" ON "display_history" USING btree ("frame_id","shown_at");
