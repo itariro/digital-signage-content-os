@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { Plus, Trash2 } from 'lucide-react'
 import type { ExperienceRule, Experiences } from '@/lib/types'
+import { mergeDaysCondition, toggleWeekday } from '@/lib/experience-draft'
 import { Section, ToggleField } from './controls'
 
 type ExperiencesPanelProps = {
@@ -37,6 +38,17 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
   const [draft, setDraft] = useState(experiences)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Re-sync when the server store changes (e.g. normalize pruned a rule for a
+  // deleted layout) but never clobber an in-flight debounced edit.
+  useEffect(() => {
+    if (timer.current) return
+    setDraft(experiences)
+  }, [experiences])
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+
   function update(next: Experiences, debounce = false) {
     setDraft(next)
     if (timer.current) clearTimeout(timer.current)
@@ -44,8 +56,8 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
     else onSave(next)
   }
 
-  const updateRule = (id: string, patch: Partial<ExperienceRule>) =>
-    update({ ...draft, rules: draft.rules.map((r) => (r.id === id ? { ...r, ...patch } : r)) })
+  const updateRule = (id: string, patch: Partial<ExperienceRule>, debounce = false) =>
+    update({ ...draft, rules: draft.rules.map((r) => (r.id === id ? { ...r, ...patch } : r)) }, debounce)
 
   function addRule() {
     const used = new Set(draft.rules.map((r) => r.then.layoutId))
@@ -106,7 +118,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                   <input
                     id={`exp-name-${rule.id}`}
                     value={rule.name}
-                    onChange={(e) => updateRule(rule.id, { name: e.target.value })}
+                    onChange={(e) => updateRule(rule.id, { name: e.target.value }, true)}
                     className="h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground"
                   />
                   <label className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -137,12 +149,8 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                         key={value}
                         type="button"
                         aria-pressed={on}
-                        onClick={() => {
-                          const days = on
-                            ? currentDays.filter((d) => d !== value)
-                            : [...currentDays, value]
-                          updateRule(rule.id, { when: { days } })
-                        }}
+                        aria-label={label}
+                        onClick={() => updateRule(rule.id, { when: mergeDaysCondition(rule.when, toggleWeekday(currentDays, value, !on)) })}
                         className={
                           on
                             ? 'h-7 rounded-md bg-primary text-[11px] font-medium text-primary-foreground'
@@ -234,13 +242,16 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
             type="text"
             value={draft.settings.schoolHolidays.join(', ')}
             onChange={(e) =>
-              update({
-                ...draft,
-                settings: {
-                  ...draft.settings,
-                  schoolHolidays: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+              update(
+                {
+                  ...draft,
+                  settings: {
+                    ...draft.settings,
+                    schoolHolidays: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                  },
                 },
-              })
+                true,
+              )
             }
             placeholder="2026-12-25, 2026-12-26"
             className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
@@ -251,7 +262,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
           <input
             type="text"
             value={draft.settings.timezone ?? ''}
-            onChange={(e) => update({ ...draft, settings: { ...draft.settings, timezone: e.target.value || undefined } })}
+            onChange={(e) => update({ ...draft, settings: { ...draft.settings, timezone: e.target.value || undefined } }, true)}
             placeholder="Europe/Zurich"
             className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
           />
