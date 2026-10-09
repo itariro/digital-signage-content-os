@@ -14,7 +14,13 @@ export interface EvaluatedRule {
 function hasSatisfiedWeather(condition: Condition, ctx: ExperienceContext): boolean {
   if ('weather' in condition) return evaluateCondition(condition, ctx)
   if ('all' in condition) return condition.all.some(c => hasSatisfiedWeather(c, ctx))
-  if ('any' in condition) return condition.any.some(c => hasSatisfiedWeather(c, ctx))
+  if ('any' in condition) {
+    // Only credit branches that actually satisfied the disjunction; a weather
+    // node inside a false branch did not drive the match.
+    return condition.any
+      .filter(c => evaluateCondition(c, ctx))
+      .some(c => hasSatisfiedWeather(c, ctx))
+  }
   return false
 }
 

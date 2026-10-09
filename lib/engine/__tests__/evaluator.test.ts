@@ -51,4 +51,19 @@ describe('evaluateRules', () => {
     expect(result).toHaveLength(1)
     expect(result[0].weatherMatched).toBe(false)
   })
+
+  it('does not credit weather from an unsatisfied any-branch that contains it', () => {
+    const ctx = makeContext({
+      weekday: 'TUE',
+      weather: { sample: false, current: { temp: 15, code: 61, isDay: true, uv: 2 }, today: { high: 18, low: 10, uvMax: 3, sunrise: '', sunset: '' }, daily: [{ date: '2026-10-08', code: 61, max: 18, min: 10, rainProbability: 75 }], hourly: [] },
+    })
+    // Branch 1 contains a satisfied weather node but fails on its day; branch 2
+    // matches. The rule matches via TUE, so weather must not earn relevance.
+    const result = evaluateRules(
+      [rule({ any: [{ all: [{ weather: { rainProbabilityAbove: 60 } }, { days: ['MON'] }] }, { days: ['TUE'] }] })],
+      ctx,
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0].weatherMatched).toBe(false)
+  })
 })
