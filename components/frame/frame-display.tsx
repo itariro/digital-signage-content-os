@@ -8,6 +8,7 @@ import { googleFontHref } from '@/lib/fonts'
 import { useNow } from '@/hooks/use-now'
 import { useWeather } from '@/hooks/use-frame-store'
 import { FrameScene } from './frame-scene'
+import { DecisionDebug } from './decision-debug'
 
 function subscribeResize(callback: () => void) {
   window.addEventListener('resize', callback)
@@ -26,6 +27,18 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
   const [decision, setDecision] = useState<DisplayDecision | null>(null)
   const [store, setStore] = useState<FrameStore>(initialStore)
   const [context, setContext] = useState<ExperienceContext | null>(null)
+  const [debug, setDebug] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setDebug(params.get('debug') === '1')
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 'd') setDebug(value => !value)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const now = useNow()
   const scale = useViewportScale()
 
@@ -98,6 +111,7 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
       ) : (
         !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
       )}
+      {debug && <DecisionDebug decision={decision} context={context} />}
     </main>
   )
 }
