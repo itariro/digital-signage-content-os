@@ -5,6 +5,7 @@ import { Bell, BellRing, Check, Clock3, Eye, Info, Megaphone, Play, RotateCcw, S
 import type { FrameNotification } from '@/lib/types'
 import { NOTIFICATION_DEFAULT_DURATION, notificationTone } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications/notification-provider'
 
 const MOCK_NOTIFICATIONS: FrameNotification[] = [
   { id: 'mock-maintenance', title: 'Scheduled maintenance', message: 'The display will restart at 02:00 tonight.', variant: 'reminder', durationMs: 15000, createdAt: new Date(Date.now() - 1000 * 60 * 4).toISOString(), eventKey: 'maintenance-02' },
@@ -35,6 +36,7 @@ export function NotificationsPanel() {
   const [showPreview, setShowPreview] = useState(true)
   const [activeFilter, setActiveFilter] = useState<'all' | FrameNotification['variant']>('all')
   const [testNotification, setTestNotification] = useState<FrameNotification | null>(null)
+  const { publish } = useNotifications()
 
   const filteredHistory = useMemo(() => activeFilter === 'all' ? history : history.filter((item) => item.variant === activeFilter), [activeFilter, history])
 
@@ -49,6 +51,7 @@ export function NotificationsPanel() {
     }
     setTestNotification(item)
     setHistory((current) => [item, ...current].slice(0, 20))
+    if (enabled) publish(item)
   }
 
   return (
