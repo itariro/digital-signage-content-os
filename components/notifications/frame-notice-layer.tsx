@@ -9,7 +9,7 @@ export function FrameNoticeLayer() {
   if (notifications.length === 0) return null
 
   return (
-    <section aria-label="Frame notifications" className="pointer-events-none fixed inset-x-4 top-4 z-40 flex flex-col items-center gap-3 sm:inset-x-8 sm:top-8">
+    <section aria-label="Frame notifications" className="pointer-events-none absolute inset-x-0 top-0 z-40 flex flex-col items-center gap-3 px-12 pt-12">
       {notifications.map((notification) => {
         const liveRole = notification.variant === 'warning' || notification.variant === 'error' ? 'alert' : 'status'
         return (

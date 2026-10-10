@@ -22,7 +22,6 @@ import { LayersPanel } from './layers-panel'
 import { LayoutsPanel } from './layouts-panel'
 import { FontsPanel } from './fonts-panel'
 import { NotificationsPanel } from './notifications-panel'
-import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { NotificationProvider } from '@/components/notifications/notification-provider'
 import { TopBar } from './top-bar'
 import { PreviewOverlay } from './preview-overlay'
@@ -429,7 +428,6 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
               onToggleNight={() => setNightPreview((v) => !v)}
               onDrop={addItem}
             />
-            <FrameNoticeLayer />
           </main>
 
           <aside aria-label="Inspector" className="order-3 flex min-h-0 flex-col overflow-hidden border-t border-border bg-card lg:h-full lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
