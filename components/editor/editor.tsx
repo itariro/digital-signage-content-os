@@ -355,10 +355,15 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
     let cancelled = false
     ;(async () => {
       try {
+        // Ask the frame for ITS wall time: the preview endpoint interprets
+        // dateTime as frame-local, so the browser's clock would simulate the
+        // wrong instant whenever the editor's zone differs from the frame's.
+        const nowRes = await fetch('/api/display/preview?frame=home')
+        const { frameLocalNow } = (await nowRes.json()) as { frameLocalNow?: string }
         const res = await fetch('/api/display/preview?frame=home', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dateTime: formatLocalInputValue(new Date()) }),
+          body: JSON.stringify({ dateTime: frameLocalNow ?? formatLocalInputValue(new Date()) }),
         })
         if (!res.ok) return
         const data = (await res.json()) as { decision?: DisplayDecision }

@@ -71,6 +71,11 @@ export interface GetDecisionOptions {
    * are schedule-driven and nothing displays the decision.
    */
   selection?: 'layout' | 'notification'
+  /**
+   * Preview-only: evaluate against these experiences instead of the stored
+   * ones. Lets the editor preview unsaved drafts.
+   */
+  experiencesOverride?: FrameStore['experiences']
 }
 
 export interface GetDecisionResult {
@@ -84,8 +89,12 @@ export async function getDecision(
   now: Date = new Date(),
   options?: GetDecisionOptions
 ): Promise<GetDecisionResult> {
-  const store = await readStore(frameId)
-  if (!store) throw new FrameNotFoundError(frameId)
+  const storedStore = await readStore(frameId)
+  if (!storedStore) throw new FrameNotFoundError(frameId)
+  // Preview drafts evaluate against the caller's experiences without any write.
+  const store = options?.experiencesOverride
+    ? { ...storedStore, experiences: options.experiencesOverride }
+    : storedStore
 
   // One resolved timezone for both context and schedule fallback (spec §4.3).
   const timezone = resolveTimezone(store.experiences.settings.timezone)

@@ -367,4 +367,32 @@ describe('preview wall time', () => {
     expect(notificationMode.decision.ruleId).toBe('r-rain')
     expect(notificationMode.decision.bob?.speech).toBe('Take an umbrella.')
   })
+
+  it('uses the experiences override when previewing a draft without touching the store', async () => {
+    const savedStore = makeStore({
+      experiences: { enabled: true, rules: [], settings: { schoolHolidays: [] } },
+    })
+    mockReadStore.mockResolvedValue(savedStore)
+    mockFetchWeather.mockResolvedValue(undefined)
+
+    const draft = {
+      enabled: true,
+      rules: [{
+        id: 'draft-1',
+        name: 'Draft',
+        enabled: true,
+        priority: 100,
+        when: { days: ['SAT' as const] },
+        then: { layoutId: 'layout-1', state: 'ambient' as const, bob: { expression: 'happy' as const }, score: 0, durationMs: 0 },
+      }],
+      settings: { schoolHolidays: [] },
+    }
+
+    // A Saturday morning: the draft rule matches; the saved store (no rules) would not.
+    const saturday = new Date('2026-10-10T09:00:00Z')
+    const { decision } = await getDecision('home', saturday, { recordHistory: false, experiencesOverride: draft })
+
+    expect(decision.ruleId).toBe('draft-1')
+    expect(savedStore.experiences.rules).toHaveLength(0) // store untouched
+  })
 })

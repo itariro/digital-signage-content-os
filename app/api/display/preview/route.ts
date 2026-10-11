@@ -1,16 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDecision, FrameNotFoundError } from '@/lib/engine/state'
+import { readStore } from '@/lib/store'
+import { experiencesSchema } from '@/lib/schema'
+import { formatZonedInputValue, resolveTimezone } from '@/lib/zoned-time'
 
 export const dynamic = 'force-dynamic'
+
+const FRAME_ID = /^[a-zA-Z0-9_-]{1,64}$/
+
+/** The frame's current wall time, so the editor pre-fills in frame-local time. */
+export async function GET(req: NextRequest) {
+  const frameId = req.nextUrl.searchParams.get('frame') || 'home'
+  if (!FRAME_ID.test(frameId)) {
+    return NextResponse.json({ error: 'Invalid frame ID' }, { status: 400 })
+  }
+  try {
+    const store = await readStore(frameId)
+    if (!store) return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
+    const timezone = resolveTimezone(store.experiences.settings.timezone)
+    return NextResponse.json({ frameLocalNow: formatZonedInputValue(new Date(), timezone) })
+  } catch (error) {
+    console.error('[display/preview] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
 
 export async function POST(req: NextRequest) {
   const frameId = req.nextUrl.searchParams.get('frame') || 'home'
 
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(frameId)) {
+  if (!FRAME_ID.test(frameId)) {
     return NextResponse.json({ error: 'Invalid frame ID' }, { status: 400 })
   }
 
-  let body: { dateTime?: string }
+  let body: { dateTime?: string; experiences?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -25,10 +47,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'dateTime must be a timezone-less ISO string' }, { status: 400 })
   }
 
+  // Optional draft: the editor previews unsaved experiences without writing them.
+  const draft = body.experiences === undefined
+    ? null
+    : experiencesSchema.safeParse(body.experiences)
+  if (body.experiences !== undefined && !draft?.success) {
+    return NextResponse.json({ error: 'Invalid experiences draft' }, { status: 400 })
+  }
+
   try {
     const { decision, context } = await getDecision(frameId, new Date(), {
       simulatedWallTime: body.dateTime,
       recordHistory: false,
+      experiencesOverride: draft?.success ? draft.data : undefined,
     })
     return NextResponse.json(
       {
@@ -36,7 +67,7 @@ export async function POST(req: NextRequest) {
         context,
         warning: 'This preview does not account for display history. The real decision may differ.',
       },
-      { headers: { 'Cache-Control': 'no-store' } }
+      { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (error) {
     if (error instanceof FrameNotFoundError) {

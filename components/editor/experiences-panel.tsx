@@ -5,7 +5,6 @@ import { nanoid } from 'nanoid'
 import { Plus, Trash2 } from 'lucide-react'
 import type { BobExpression, ExperienceRule, Experiences } from '@/lib/types'
 import { mergeDaysCondition, toggleWeekday } from '@/lib/experience-draft'
-import { formatLocalInputValue } from '@/lib/zoned-time'
 import { Section, ToggleField } from './controls'
 
 type ExperiencesPanelProps = {
@@ -326,38 +325,62 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
       </Section>
 
       <Section title="Preview">
-        <PreviewSection />
+        <PreviewSection experiences={draft} />
       </Section>
     </div>
   )
 }
 
-function PreviewSection({ frameId = 'home' }: { frameId?: string }) {
-  const [dateTime, setDateTime] = useState(() => formatLocalInputValue(new Date()))
+function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; experiences: Experiences }) {
+  const [dateTime, setDateTime] = useState('')
   const [preview, setPreview] = useState<{ decision?: { layoutId?: string; bob?: { expression?: string } | null; reason?: string }; context?: { period?: string }; warning?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const requestId = useRef(0)
+
+  // Pre-fill with the frame's own clock: the API interprets this value as
+  // frame-local wall time, so the browser's zone would simulate the wrong instant.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/display/preview?frame=${encodeURIComponent(frameId)}`)
+        const data = (await res.json()) as { frameLocalNow?: string }
+        if (!cancelled && data.frameLocalNow) setDateTime(data.frameLocalNow)
+      } catch {
+        // Leave empty; the user can type a time manually.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [frameId])
 
   async function runPreview() {
+    const id = ++requestId.current
     setLoading(true)
     setError(null)
     try {
       const res = await fetch(`/api/display/preview?frame=${encodeURIComponent(frameId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dateTime }),
+        // Send the current draft so the preview reflects unsaved edits.
+        body: JSON.stringify({ dateTime, experiences }),
       })
       if (!res.ok) {
         const errData = (await res.json()) as { error?: string }
         throw new Error(errData.error ?? `Preview failed (${res.status})`)
       }
-      setPreview(await res.json())
+      const data = await res.json()
+      if (id === requestId.current) setPreview(data)
     } catch (error) {
-      console.error('Preview failed:', error)
-      setPreview(null)
-      setError(error instanceof Error ? error.message : 'Preview failed')
+      if (id === requestId.current) {
+        console.error('Preview failed:', error)
+        setPreview(null)
+        setError(error instanceof Error ? error.message : 'Preview failed')
+      }
     } finally {
-      setLoading(false)
+      if (id === requestId.current) setLoading(false)
     }
   }
 

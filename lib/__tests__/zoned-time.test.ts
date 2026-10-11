@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseZonedWallTime, resolveTimezone } from '../zoned-time'
+import { formatZonedInputValue, parseZonedWallTime, resolveTimezone } from '../zoned-time'
 
 describe('parseZonedWallTime', () => {
   it('interprets a naive time as wall time in the given zone', () => {
@@ -33,5 +33,11 @@ describe('resolveTimezone', () => {
 
   it('falls back to UTC when unset', () => {
     expect(resolveTimezone(undefined)).toBe('UTC')
+  })
+
+  it('formats an instant as YYYY-MM-DDTHH:mm in the target zone', () => {
+    const instant = new Date('2026-10-11T21:30:00Z')
+    expect(formatZonedInputValue(instant, 'UTC')).toBe('2026-10-11T21:30')
+    expect(formatZonedInputValue(instant, 'Europe/Zurich')).toBe('2026-10-11T23:30')
   })
 })
