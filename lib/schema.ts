@@ -149,7 +149,9 @@ const bobExpressionSchema = z.enum([
 
 const MAX_CONDITION_DEPTH = 11
 const MAX_CONDITION_LIST = 20
-const MAX_DURATION_MS = 86_400_000
+export const MAX_DURATION_MS = 86_400_000
+export const MIN_RULE_SCORE = -1000
+export const MAX_RULE_SCORE = 1000
 
 const conditionSchema: z.ZodType<any> = z.lazy(() =>
   z.union([
@@ -184,7 +186,7 @@ const experienceRuleSchema = z.object({
       expression: bobExpressionSchema,
       speech: z.string().max(500).optional(),
     }).optional(),
-    score: z.number().min(-1000).max(1000),
+    score: z.number().min(MIN_RULE_SCORE).max(MAX_RULE_SCORE),
     durationMs: z.number().int().min(0).max(MAX_DURATION_MS),
     reason: z.string().max(200).optional(),
   }),
@@ -229,3 +231,59 @@ export const experiencesSchema = z.object({
     timezone: z.string().max(100).optional(),
   }),
 })
+
+/**
+ * Iterative (stack-safe) depth probe for a raw condition tree. zod's recursive
+ * schema parses eagerly, so adversarially nested input blows the call stack
+ * inside `safeParse` — a RangeError that superRefine never gets to see. Walking
+ * the raw value here rejects it first; depth starts at 1 to mirror
+ * conditionShapeIssue, so the two limits stay in agreement.
+ */
+function rawConditionTooDeep(value: unknown, max: number): boolean {
+  const stack: Array<{ node: unknown; depth: number }> = [{ node: value, depth: 1 }]
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!
+    if (depth > max) return true
+    if (!node || typeof node !== 'object' || Array.isArray(node)) continue
+    const record = node as Record<string, unknown>
+    for (const key of ['all', 'any'] as const) {
+      const child = record[key]
+      if (Array.isArray(child)) for (const entry of child) stack.push({ node: entry, depth: depth + 1 })
+    }
+    if (record.not !== undefined) stack.push({ node: record.not, depth: depth + 1 })
+  }
+  return false
+}
+
+/**
+ * Parse guard for untrusted experiences payloads (API bodies, stored drafts).
+ * Unlike a bare `experiencesSchema.safeParse`, it cannot throw on pathological
+ * nesting: it caps raw condition depth before parsing, and the try/catch is a
+ * belt for any residual parse-time throw, so callers always get a result to
+ * turn into a 400 rather than a 500.
+ */
+export function safeParseExperiences(input: unknown):
+  | { success: true; data: z.infer<typeof experiencesSchema> }
+  | { success: false; error: z.ZodError } {
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
+    const rules = (input as { rules?: unknown }).rules
+    if (Array.isArray(rules)) {
+      for (const rule of rules) {
+        if (!rule || typeof rule !== 'object') continue
+        if (rawConditionTooDeep((rule as { when?: unknown }).when, MAX_CONDITION_DEPTH)) {
+          return {
+            success: false,
+            error: new z.ZodError([
+              { code: 'custom', message: `Condition nests deeper than ${MAX_CONDITION_DEPTH} levels`, path: ['when'] },
+            ]),
+          }
+        }
+      }
+    }
+  }
+  try {
+    return experiencesSchema.safeParse(input)
+  } catch {
+    return { success: false, error: new z.ZodError([{ code: 'custom', message: 'Invalid experiences payload', path: [] }]) }
+  }
+}

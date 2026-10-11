@@ -69,6 +69,12 @@ export interface GetDecisionOptions {
    * selection only: priority + rule score + weather relevance, with durationMs
    * as the sole cooldown. Used by the Bob bridge on live frames, where layouts
    * are schedule-driven and nothing displays the decision.
+   *
+   * Coupling to note: this only changes *scoring*. When recordHistory is true
+   * (the live default) a notification-mode win is still appended to
+   * display_history, so it feeds later layout-mode repetition penalties and
+   * incumbent hysteresis for the same frame. Display history and speech history
+   * share one table; splitting them is the ledger's open work.
    */
   selection?: 'layout' | 'notification'
   /**

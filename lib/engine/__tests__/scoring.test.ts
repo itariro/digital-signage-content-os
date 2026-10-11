@@ -75,4 +75,16 @@ describe('scoreCandidates', () => {
     )
     expect(allowed).toHaveLength(1)
   })
+
+  it('still applies the durationMs cooldown in notification mode', () => {
+    // Notification mode ignores novelty/repetition scoring, but not eligibility:
+    // durationMs is the sole cooldown that stops the same speech repeating.
+    const long = rule({ id: 'r1', then: { durationMs: 30 * 60 * 1000 } })
+    const recent = [{ layoutId: 'l1', ruleId: 'r1', shownAt: minutesAgo(10) }]
+    const suppressed = scoreCandidates([ev(long)], summary({ recent }), '', NOW, 'notification')
+    expect(suppressed).toHaveLength(0)
+
+    const cold = scoreCandidates([ev(long)], summary(), '', NOW, 'notification')
+    expect(cold).toHaveLength(1)
+  })
 })

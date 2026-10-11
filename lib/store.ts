@@ -6,6 +6,7 @@ import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
 import { normalizeFrameNotifications } from './notifications'
+import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
 import { frameDocuments } from './db/schema'
 import { createTtlCache } from './ttl-cache'
@@ -183,6 +184,11 @@ export function seed(): FrameStore {
   }
 }
 
+/** Clamps a possibly-missing/legacy numeric field to the range the schema now enforces. */
+function clampLegacyNumber(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
+}
+
 export function normalize(store: FrameStore): FrameStore {
   const experiences = store.experiences ?? { enabled: false, rules: [], settings: { schoolHolidays: [] } }
   const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
@@ -194,10 +200,21 @@ export function normalize(store: FrameStore): FrameStore {
   if (prunedRules.length < experiences.rules.length) {
     console.log(`[normalize] Pruned ${experiences.rules.length - prunedRules.length} experience rules referencing deleted layouts`)
   }
+  // Legacy stores can hold values the schema now rejects (score/durationMs out
+  // of bounds). Clamp on read so an old save still loads instead of bricking
+  // the frame the next time it is saved through the validated PUT.
+  const rules = prunedRules.map((rule) => ({
+    ...rule,
+    then: {
+      ...rule.then,
+      score: clampLegacyNumber(rule.then.score, MIN_RULE_SCORE, MAX_RULE_SCORE, 0),
+      durationMs: clampLegacyNumber(rule.then.durationMs, 0, MAX_DURATION_MS, 0),
+    },
+  }))
 
   return {
     ...store,
-    experiences: { ...experiences, rules: prunedRules },
+    experiences: { ...experiences, rules },
     albums,
     layouts: store.layouts.map((l) => ({
       ...l,

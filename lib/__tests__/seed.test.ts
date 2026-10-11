@@ -50,4 +50,23 @@ describe('seed', () => {
     const withSpeech = seed().experiences.rules.filter((r) => r.then.bob?.speech?.trim())
     expect(withSpeech.length).toBeGreaterThanOrEqual(3)
   })
+
+  it('clamps legacy experience values that the schema now rejects, so old frames still load', () => {
+    const legacy = {
+      activeId: 'l1',
+      layouts: [{ id: 'l1', name: 'L' }],
+      schedule: { enabled: false, rules: [] },
+      albums: [],
+      experiences: {
+        enabled: true,
+        rules: [
+          { id: 'old', name: 'Old', enabled: true, priority: 100, when: { days: ['MON'] }, then: { layoutId: 'l1', state: 'ambient', score: 1_000_000_000, durationMs: 1_000_000_000 } },
+        ],
+        settings: { schoolHolidays: [] },
+      },
+    } as any
+    const rule = normalize(legacy).experiences.rules[0]
+    expect(rule.then.durationMs).toBe(86_400_000)
+    expect(rule.then.score).toBe(1000)
+  })
 })

@@ -1,12 +1,19 @@
 import { nanoid } from 'nanoid'
 import type { BobExpression, DisplayDecision, DisplayState, FrameNotification, FrameStore } from './types'
-import { NOTIFICATION_DEFAULT_DURATION, clampNotificationDuration, normalizeFrameNotifications, notificationKey } from './notifications'
+import { BOB_EVENT_KEY_PREFIX, NOTIFICATION_DEFAULT_DURATION, clampNotificationDuration, normalizeFrameNotifications, notificationKey } from './notifications'
 import { createTtlCache } from './ttl-cache'
 import { getDecision, log } from './engine/state'
 import { mutateStore } from './store'
 
-export const BOB_NOTIFICATION_EVENT_PREFIX = 'bob:'
 export const DEFAULT_BOB_THROTTLE_MS = 60_000
+
+/**
+ * Floor for a Bob speech card's on-screen time. The bridge publishes at most
+ * once per throttle window (60s), so a card that expires sooner leaves a long
+ * dead gap before the next tick can re-publish it. Floored to ~25s, a matching
+ * rule's speech is present a little under half the time instead of flashing.
+ */
+export const BOB_CARD_MIN_DURATION_MS = 25_000
 
 /**
  * Maps the engine's display state onto main's notification variants.
@@ -70,12 +77,13 @@ export function createBobBridge(deps: BobBridgeDeps) {
       if (!speech) return
 
       const ruleName = store.experiences.rules.find((r) => r.id === decision.ruleId)?.name
-      // Bob card durations are floored to the variant default (a rule's
-      // durationMs is the engine's dwell window, often 0 for new rules, not a
-      // display preference) and clamped to the renderer's maximum.
+      // Bob card durations are floored to a display minimum (a rule's durationMs
+      // is the engine's dwell window, often 0 for new rules, not a display
+      // preference), kept above the variant default so the card is never a
+      // flash, and clamped to the renderer's maximum.
       const variant = bobVariantFor(decision.state, decision.bob?.expression)
       const durationMs = clampNotificationDuration(
-        Math.max(decision.durationMs, NOTIFICATION_DEFAULT_DURATION[variant]),
+        Math.max(decision.durationMs, NOTIFICATION_DEFAULT_DURATION[variant], BOB_CARD_MIN_DURATION_MS),
       )
       const notification: FrameNotification = {
         id: nanoid(12),
@@ -84,12 +92,12 @@ export function createBobBridge(deps: BobBridgeDeps) {
         variant,
         durationMs,
         createdAt: new Date(now()).toISOString(),
-        eventKey: `${BOB_NOTIFICATION_EVENT_PREFIX}${decision.ruleId}`,
+        eventKey: `${BOB_EVENT_KEY_PREFIX}${decision.ruleId}`,
       }
       // The same winning decision keeps its id; once the published card has
-      // expired, re-publish it so the speech stays on screen while the rule
-      // matches (client replaces the card by identical eventKey, so nothing
-      // stacks and re-publishing identical content is invisible).
+      // expired, re-publish it so the speech reappears on the next tick while
+      // the rule matches (client replaces the card by identical eventKey, so
+      // nothing stacks and re-publishing identical content is invisible).
       if (lastPublishedDecisionId.get(frameId) === decision.id) {
         const publishedAt = lastPublishedAt.get(frameId) ?? 0
         if (now() < publishedAt + durationMs) return

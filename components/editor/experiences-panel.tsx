@@ -265,6 +265,8 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                     <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Score</span>
                     <input
                       type="number"
+                      min={-1000}
+                      max={1000}
                       value={rule.then.score}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, score: parseInt(e.target.value) || 0 } })}
                       className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
@@ -275,6 +277,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                     <input
                       type="number"
                       min={0}
+                      max={86400000}
                       value={rule.then.durationMs}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, durationMs: parseInt(e.target.value) || 0 } })}
                       className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
@@ -324,7 +327,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
         </label>
       </Section>
 
-      <Section title="Preview">
+      <Section title="Live preview">
         <PreviewSection experiences={draft} />
       </Section>
     </div>
@@ -337,16 +340,23 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const requestId = useRef(0)
+  // Once the user edits the time, auto-prefill must never clobber it.
+  const timeTouched = useRef(false)
 
   // Pre-fill with the frame's own clock: the API interprets this value as
-  // frame-local wall time, so the browser's zone would simulate the wrong instant.
+  // frame-local wall time, so the browser's zone would simulate the wrong
+  // instant. Pass the draft timezone so the prefill matches the zone the POST
+  // preview will use, and re-run when the user changes it.
   useEffect(() => {
     let cancelled = false
+    const params = new URLSearchParams({ frame: frameId })
+    if (experiences.settings.timezone) params.set('tz', experiences.settings.timezone)
     ;(async () => {
       try {
-        const res = await fetch(`/api/display/preview?frame=${encodeURIComponent(frameId)}`)
+        const res = await fetch(`/api/display/preview?${params.toString()}`)
+        if (!res.ok) return
         const data = (await res.json()) as { frameLocalNow?: string }
-        if (!cancelled && data.frameLocalNow) setDateTime(data.frameLocalNow)
+        if (!cancelled && data.frameLocalNow && !timeTouched.current) setDateTime(data.frameLocalNow)
       } catch {
         // Leave empty; the user can type a time manually.
       }
@@ -354,7 +364,7 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
     return () => {
       cancelled = true
     }
-  }, [frameId])
+  }, [frameId, experiences.settings.timezone])
 
   async function runPreview() {
     const id = ++requestId.current
@@ -364,8 +374,9 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
       const res = await fetch(`/api/display/preview?frame=${encodeURIComponent(frameId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Send the current draft so the preview reflects unsaved edits.
-        body: JSON.stringify({ dateTime, experiences }),
+        // Send the current draft so the preview reflects unsaved edits, and ask
+        // for notification mode — that is the winner a live frame broadcasts.
+        body: JSON.stringify({ dateTime, experiences, selection: 'notification' }),
       })
       if (!res.ok) {
         const errData = (await res.json()) as { error?: string }
@@ -391,7 +402,10 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
         <input
           type="datetime-local"
           value={dateTime}
-          onChange={(e) => setDateTime(e.target.value)}
+          onChange={(e) => {
+            timeTouched.current = true
+            setDateTime(e.target.value)
+          }}
           className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
         />
       </label>
@@ -403,6 +417,9 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
       >
         {loading ? 'Loading...' : 'Preview decision'}
       </button>
+      <p className="text-pretty text-[11px] leading-relaxed text-muted-foreground">
+        Shows the rule whose Bob speech a live frame would publish. The layout on the frame itself is chosen by the schedule.
+      </p>
       {error && <p className="text-pretty text-xs text-destructive">{error}</p>}
       {preview && (
         <div className="flex flex-col gap-1 rounded-lg bg-secondary p-3 text-xs">

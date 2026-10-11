@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 import { mutateStore } from '@/lib/store'
-import { normalizeFrameNotifications } from '@/lib/notifications'
+import { BOB_EVENT_KEY_PREFIX, normalizeFrameNotifications } from '@/lib/notifications'
 import type { FrameNotification } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +25,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ fra
   const variants: FrameNotification['variant'][] = ['info', 'success', 'warning', 'error', 'reminder']
   if (!body.variant || !variants.includes(body.variant)) return NextResponse.json({ error: 'Invalid notification variant' }, { status: 400 })
   if (body.message !== undefined && (typeof body.message !== 'string' || body.message.length > 600)) return NextResponse.json({ error: 'Message must be 600 characters or fewer' }, { status: 400 })
+  // The Bob bridge owns the `bob:` key space (it replaces its card by eventKey
+  // and Bob cards out-rank normal ones). Reject client keys that would collide.
+  if (typeof body.eventKey === 'string' && body.eventKey.startsWith(BOB_EVENT_KEY_PREFIX)) {
+    return NextResponse.json({ error: `eventKey prefix "${BOB_EVENT_KEY_PREFIX}" is reserved` }, { status: 400 })
+  }
   const durationMs = typeof body.durationMs === 'number' && Number.isFinite(body.durationMs) ? Math.max(1000, Math.min(body.durationMs, 120000)) : 6000
   const notification: FrameNotification = {
     id: nanoid(12),

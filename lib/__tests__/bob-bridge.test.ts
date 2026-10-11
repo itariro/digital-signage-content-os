@@ -156,8 +156,10 @@ describe('createBobBridge.tick', () => {
     }
     const b = makeBridge({ throttleMs: 1_000, notifications: [foreign] })
     await b.bridge.tick('home')
-    // 40s of 1s cycles: the Bob card (30s clamp) expires and re-publishes
-    // mid-run; the foreign card (60s) is still live throughout.
+    // 40s of 1s cycles: the store is re-written on every publish, and each
+    // write replaces the prior bob:r1 card by eventKey (the harness's fake
+    // clock drives republish cadence; normalize's expiry uses the real clock,
+    // so neither card is pruned here — replace-by-key is what keeps it at one).
     for (let i = 0; i < 40; i++) {
       b.advance(1_001)
       await b.bridge.tick('home')
@@ -184,13 +186,13 @@ describe('createBobBridge.tick', () => {
     expect(notes[0].eventKey).toBe('bob:r1')
   })
 
-  it('floors durationMs 0 to the variant default so a new rule is never a flash', async () => {
+  it('floors a zero duration to a card minimum so a new rule is never a flash', async () => {
     const b = makeBridge()
     b.setDecision(makeDecision({ durationMs: 0 }))
     await b.bridge.tick('home')
 
-    // celebration → success variant, default 4500ms
-    expect(b.notifications()[0].durationMs).toBe(4_500)
+    // Below the 25s card floor, not the variant's shorter default.
+    expect(b.notifications()[0].durationMs).toBe(25_000)
   })
 
   it('clamps over-long durations to the 60s card maximum', async () => {
@@ -264,6 +266,7 @@ describe('createBobBridge.tick', () => {
 
     expect(getDecision).toHaveBeenCalledTimes(1)
     expect(mutateStore).toHaveBeenCalledTimes(1)
+    expect(bridge.stats().inflightSkips).toBe(1)
   })
 
   it('tracks frames independently', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { experiencesSchema } from '../schema'
+import { experiencesSchema, safeParseExperiences } from '../schema'
 
 const base = {
   enabled: true,
@@ -67,5 +67,14 @@ describe('experiencesSchema', () => {
     const long = { all: Array.from({ length: 21 }, () => ({ specialTag: 'rain' })) }
     expect(experiencesSchema.safeParse({ ...base, rules: [rule('r1', long)] }).success).toBe(false)
     expect(experiencesSchema.safeParse({ ...base, rules: [rule('r1', { all: Array.from({ length: 20 }, () => ({ specialTag: 'rain' })) })] }).success).toBe(true)
+  })
+
+  it('rejects pathological nesting without throwing (stack safety)', () => {
+    // 2000 chained `not` nodes: deep enough that zod's recursive parse blows the
+    // call stack, so the wrapper's pre-parse depth guard must reject it first.
+    let deep: unknown = { specialTag: 'rain' }
+    for (let i = 0; i < 2_000; i++) deep = { not: deep }
+    const result = safeParseExperiences({ ...base, rules: [rule('r1', deep)] })
+    expect(result.success).toBe(false)
   })
 })
