@@ -80,3 +80,34 @@ export function notificationIcon(variant: FrameNotification['variant']) {
 }
 
 export type { FrameNotification }
+
+/**
+ * Fixed anchor for editor demo notification history. Demo data must not depend
+ * on wall-clock time at module evaluation: the module loads separately on the
+ * server (SSR) and the client (hydration), and `Date.now()` there produced
+ * different timestamps per runtime — a hydration mismatch. An explicit anchor
+ * keeps demo data identical in every runtime.
+ */
+const DEMO_NOTIFICATION_ANCHOR_MS = Date.parse('2026-10-11T09:00:00.000Z')
+
+/**
+ * Formats a notification timestamp for display. Locale and timezone are pinned
+ * so the string is byte-identical on server and client — the runtime's default
+ * locale ('9:39 PM' on the server vs '9:39 pm' in the browser) and timezone
+ * differ, which is hydration-mismatch fuel in SSR'd client components.
+ */
+export function formatNotificationTime(createdAt: string): string {
+  const time = new Date(createdAt)
+  if (Number.isNaN(time.getTime())) return '—'
+  return time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
+}
+
+/** Deterministic demo history for the editor's notification manager. */
+export function createDemoNotifications(): FrameNotification[] {
+  const minutesBefore = (minutes: number) => new Date(DEMO_NOTIFICATION_ANCHOR_MS - minutes * 60_000).toISOString()
+  return [
+    { id: 'mock-maintenance', title: 'Scheduled maintenance', message: 'The display will restart at 02:00 tonight.', variant: 'reminder', durationMs: 15000, createdAt: minutesBefore(4), eventKey: 'maintenance-02' },
+    { id: 'mock-sync', title: 'Content synced', message: 'Your latest layout is now showing on the frame.', variant: 'success', durationMs: 4500, createdAt: minutesBefore(12), eventKey: 'sync-123' },
+    { id: 'mock-offline', title: 'Connection interrupted', message: 'The frame is using its last known content.', variant: 'warning', durationMs: 9000, createdAt: minutesBefore(36), eventKey: 'offline-1' },
+  ]
+}

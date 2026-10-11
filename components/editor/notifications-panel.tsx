@@ -3,15 +3,9 @@
 import { useMemo, useState } from 'react'
 import { Bell, BellRing, Check, Clock3, Eye, Info, Megaphone, Play, RotateCcw, Settings2, ShieldAlert, Trash2, Volume2, X } from 'lucide-react'
 import type { FrameNotification } from '@/lib/types'
-import { NOTIFICATION_DEFAULT_DURATION, notificationTone } from '@/lib/notifications'
+import { NOTIFICATION_DEFAULT_DURATION, createDemoNotifications, formatNotificationTime, notificationTone } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications/notification-provider'
-
-const MOCK_NOTIFICATIONS: FrameNotification[] = [
-  { id: 'mock-maintenance', title: 'Scheduled maintenance', message: 'The display will restart at 02:00 tonight.', variant: 'reminder', durationMs: 15000, createdAt: new Date(Date.now() - 1000 * 60 * 4).toISOString(), eventKey: 'maintenance-02' },
-  { id: 'mock-sync', title: 'Content synced', message: 'Your latest layout is now showing on the frame.', variant: 'success', durationMs: 4500, createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(), eventKey: 'sync-123' },
-  { id: 'mock-offline', title: 'Connection interrupted', message: 'The frame is using its last known content.', variant: 'warning', durationMs: 9000, createdAt: new Date(Date.now() - 1000 * 60 * 36).toISOString(), eventKey: 'offline-1' },
-]
 
 const VARIANT_META: Record<FrameNotification['variant'], { label: string; icon: typeof Info }> = {
   info: { label: 'Informational', icon: Info },
@@ -30,7 +24,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (val
 }
 
 export function NotificationsPanel() {
-  const [history, setHistory] = useState(MOCK_NOTIFICATIONS)
+  const [history, setHistory] = useState(createDemoNotifications)
   const [enabled, setEnabled] = useState(true)
   const [sound, setSound] = useState(false)
   const [showPreview, setShowPreview] = useState(true)
@@ -103,7 +97,7 @@ export function NotificationsPanel() {
           return <article key={item.id} className="rounded-lg border border-border bg-background/60 p-2.5">
             <div className="flex items-start gap-2">
               <div className={cn('mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border', notificationTone(item.variant))}><Icon className="size-3.5" aria-hidden /></div>
-              <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h4 className="truncate text-[11px] font-medium">{item.title}</h4><span className="shrink-0 text-[9px] text-muted-foreground">{item.variant}</span></div><p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{item.message}</p><p className="mt-1 text-[9px] text-muted-foreground">{new Date(item.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · auto-dismisses</p></div>
+              <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h4 className="truncate text-[11px] font-medium">{item.title}</h4><span className="shrink-0 text-[9px] text-muted-foreground">{item.variant}</span></div><p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{item.message}</p><p className="mt-1 text-[9px] text-muted-foreground">{formatNotificationTime(item.createdAt)} · auto-dismisses</p></div>
             </div>
           </article>
         }) : <p className="rounded-lg border border-dashed border-border p-4 text-center text-[10px] text-muted-foreground">No notifications in this view.</p>}
@@ -127,7 +121,7 @@ export function NotificationsPanel() {
           <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Clock3 className="size-3.5 text-muted-foreground" aria-hidden /><span className="text-[11px]">Default duration</span></div><span className="text-[10px] text-muted-foreground">6 seconds</span></div>
         </div>
       </div>
-      <button type="button" onClick={() => { setHistory(MOCK_NOTIFICATIONS); setTestNotification(null); setActiveFilter('all') }} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-[10px] text-muted-foreground hover:bg-muted"><RotateCcw className="size-3" aria-hidden /> Reset demo data</button>
+      <button type="button" onClick={() => { setHistory(createDemoNotifications()); setTestNotification(null); setActiveFilter('all') }} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-[10px] text-muted-foreground hover:bg-muted"><RotateCcw className="size-3" aria-hidden /> Reset demo data</button>
     </section>
   )
 }
