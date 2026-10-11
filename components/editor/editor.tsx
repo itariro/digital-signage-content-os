@@ -412,7 +412,9 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
               {tab === 'schedule' && (
                 <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />
               )}
-              {tab === 'notifications' && <NotificationsPanel />}
+              <div className={cn('min-h-full', tab === 'notifications' ? 'block' : 'hidden')} aria-hidden={tab !== 'notifications'}>
+  <NotificationsPanel />
+</div>
             </div>
           </aside>
 
