@@ -1,5 +1,57 @@
 import { describe, it, expect } from 'vitest'
-import { NOTIFICATION_MAX_DURATION, NOTIFICATION_MIN_DURATION, clampNotificationDuration, createDemoNotifications, formatNotificationTime, normalizeFrameNotifications } from '../notifications'
+import {
+  NOTIFICATION_MAX_DURATION,
+  NOTIFICATION_MIN_DURATION,
+  clampNotificationDuration,
+  createDemoNotifications,
+  formatNotificationTime,
+  mergeNotificationList,
+  normalizeFrameNotifications,
+  sortNotificationsForDisplay,
+} from '../notifications'
+import type { FrameNotification } from '../types'
+
+function card(overrides: Partial<FrameNotification> & { id: string }): FrameNotification {
+  return {
+    title: overrides.id,
+    variant: 'info',
+    durationMs: 60_000,
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  } as FrameNotification
+}
+
+describe('sortNotificationsForDisplay', () => {
+  it('orders errors first, then Bob cards, then the rest, stable within a tier', () => {
+    const custom = card({ id: 'c1' })
+    const bob = card({ id: 'b1', eventKey: 'bob:r1' })
+    const error = card({ id: 'e1', variant: 'error' })
+    const custom2 = card({ id: 'c2' })
+
+    expect(sortNotificationsForDisplay([custom, bob, error, custom2]).map((n) => n.id)).toEqual(['e1', 'b1', 'c1', 'c2'])
+  })
+})
+
+describe('mergeNotificationList', () => {
+  it('dedupes by eventKey, drops expired, keeps insertion order within a tier', () => {
+    const old = card({ id: 'old', eventKey: 'k' })
+    const fresh = card({ id: 'fresh', eventKey: 'k' })
+    const error = card({ id: 'err', variant: 'error' })
+
+    const merged = mergeNotificationList([], [old, error, fresh])
+    expect(merged.map((n) => n.id)).toEqual(['err', 'fresh'])
+  })
+
+  it('keeps the highest-priority 8 — errors are never evicted by volume', () => {
+    const error = card({ id: 'err', variant: 'error' })
+    const others = Array.from({ length: 20 }, (_, i) => card({ id: `c${i}` }))
+
+    const merged = mergeNotificationList([], [error, ...others])
+    expect(merged).toHaveLength(8)
+    expect(merged[0].id).toBe('err')
+    expect(merged.map((n) => n.id)).toContain('err')
+  })
+})
 
 describe('clampNotificationDuration', () => {
   it('passes through values already inside the bounds', () => {

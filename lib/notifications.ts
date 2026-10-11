@@ -54,6 +54,42 @@ export function notificationKey(notification: FrameNotification) {
   return notification.eventKey ?? notification.id
 }
 
+export const BOB_EVENT_KEY_PREFIX = 'bob:'
+
+/** Render priority: errors first, then Bob cards, then everything else. */
+function notificationDisplayRank(notification: FrameNotification): number {
+  if (notification.variant === 'error') return 0
+  if (notificationKey(notification).startsWith(BOB_EVENT_KEY_PREFIX)) return 1
+  return 2
+}
+
+/**
+ * Stable sort for display: error → Bob → other, preserving insertion order
+ * within a tier. Pure; never mutates the input.
+ */
+export function sortNotificationsForDisplay(list: FrameNotification[]): FrameNotification[] {
+  return list
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => notificationDisplayRank(a.item) - notificationDisplayRank(b.item) || a.index - b.index)
+    .map(({ item }) => item)
+}
+
+/**
+ * The single merge used by every surface: latest-per-eventKey wins, expired
+ * entries drop, and the KEEP set is the FIRST `limit` after priority sorting —
+ * so high-priority cards are never evicted by volume (the previous
+ * slice(-limit) dropped errors whenever more than `limit` cards were live).
+ */
+export function mergeNotificationList(
+  current: FrameNotification[],
+  incoming: FrameNotification[],
+  limit = 8,
+): FrameNotification[] {
+  const byKey = new Map(current.map((item) => [notificationKey(item), item]))
+  for (const item of incoming) byKey.set(notificationKey(item), item)
+  return sortNotificationsForDisplay([...byKey.values()].filter((item) => !notificationIsExpired(item))).slice(0, limit)
+}
+
 export function notificationIsExpired(notification: FrameNotification, now = Date.now()) {
   const created = Date.parse(notification.createdAt)
   return Number.isFinite(created) && created + notification.durationMs <= now

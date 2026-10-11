@@ -2,10 +2,10 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  mergeNotificationList,
   normalizeFrameNotifications,
   notificationDuration,
   notificationIsExpired,
-  notificationKey,
   type FrameNotification,
 } from '@/lib/notifications'
 
@@ -19,24 +19,15 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue | null>(null)
 const EMPTY_NOTIFICATIONS: unknown[] = []
 
-function mergeNotifications(current: FrameNotification[], incoming: FrameNotification[]) {
-  const byKey = new Map(current.map((item) => [notificationKey(item), item]))
-  for (const item of incoming) byKey.set(notificationKey(item), item)
-  return [...byKey.values()]
-    .filter((item) => !notificationIsExpired(item))
-    .sort((a, b) => Number(b.variant === 'error') - Number(a.variant === 'error'))
-    .slice(-8)
-}
-
 export function NotificationProvider({ notifications:   sourceNotifications = EMPTY_NOTIFICATIONS,
  children }: { notifications?: unknown; children: ReactNode }) {
   const [notifications, setNotifications] = useState<FrameNotification[]>(() =>
-    mergeNotifications([], normalizeFrameNotifications(sourceNotifications)),
+    mergeNotificationList([], normalizeFrameNotifications(sourceNotifications)),
   )
 
   useEffect(() => {
     const incoming = normalizeFrameNotifications(sourceNotifications)
-    setNotifications((current) => mergeNotifications(current, incoming))
+    setNotifications((current) => mergeNotificationList(current, incoming))
   }, [sourceNotifications])
 
   useEffect(() => {
@@ -51,7 +42,7 @@ export function NotificationProvider({ notifications:   sourceNotifications = EM
   const value = useMemo<NotificationContextValue>(
     () => ({
       notifications,
-      publish: (notification) => setNotifications((current) => mergeNotifications(current, [notification])),
+      publish: (notification) => setNotifications((current) => mergeNotificationList(current, [notification])),
       dismiss: (id) => setNotifications((current) => current.filter((item) => item.id !== id)),
       clear: () => setNotifications([]),
     }),
