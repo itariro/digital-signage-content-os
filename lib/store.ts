@@ -137,12 +137,12 @@ function defaultExperienceRules(layouts: Layout[]): ExperienceRule[] {
     return found
   }
   return [
-    { id: nanoid(8), name: 'Morning', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '06:00', to: '08:45' } }] }, then: { layoutId: id('Morning'), state: 'action', bob: { expression: 'planning' }, score: 0, durationMs: 0, reason: 'Morning' } },
+    { id: nanoid(8), name: 'Morning', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '06:00', to: '08:45' } }] }, then: { layoutId: id('Morning'), state: 'action', bob: { expression: 'planning', speech: 'Good morning! Have a great day.' }, score: 0, durationMs: 0, reason: 'Morning' } },
     { id: nanoid(8), name: 'Gallery', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '08:45', to: '16:30' } }] }, then: { layoutId: id('Gallery'), state: 'gallery', score: 0, durationMs: 0, reason: 'Gallery' } },
-    { id: nanoid(8), name: 'Welcome home', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '16:30', to: '18:30' } }] }, then: { layoutId: id('Welcome Home'), state: 'action', bob: { expression: 'happy' }, score: 0, durationMs: 0, reason: 'Welcome home' } },
+    { id: nanoid(8), name: 'Welcome home', enabled: true, priority: 100, when: { all: [{ days: [...WEEKDAYS] }, { time: { from: '16:30', to: '18:30' } }] }, then: { layoutId: id('Welcome Home'), state: 'action', bob: { expression: 'happy', speech: 'Welcome home!' }, score: 0, durationMs: 0, reason: 'Welcome home' } },
     { id: nanoid(8), name: 'Evening', enabled: true, priority: 100, when: { time: { from: '18:30', to: '21:00' } }, then: { layoutId: id('Evening'), state: 'information', bob: { expression: 'talking' }, score: 0, durationMs: 0, reason: 'Evening' } },
-    { id: nanoid(8), name: 'Weekend', enabled: true, priority: 100, when: { days: ['SAT', 'SUN'] }, then: { layoutId: id('Weekend'), state: 'ambient', bob: { expression: 'celebrate' }, score: 0, durationMs: 0, reason: 'Weekend' } },
-    { id: nanoid(8), name: 'Rain', enabled: true, priority: 200, when: { weather: { rainProbabilityAbove: 60 } }, then: { layoutId: id('Weather'), state: 'weather', bob: { expression: 'reminder' }, score: 0, durationMs: 0, reason: 'Rain' } },
+    { id: nanoid(8), name: 'Weekend', enabled: true, priority: 100, when: { days: ['SAT', 'SUN'] }, then: { layoutId: id('Weekend'), state: 'ambient', bob: { expression: 'celebrate', speech: 'It is the weekend — enjoy it!' }, score: 0, durationMs: 0, reason: 'Weekend' } },
+    { id: nanoid(8), name: 'Rain', enabled: true, priority: 200, when: { weather: { rainProbabilityAbove: 60 } }, then: { layoutId: id('Weather'), state: 'weather', bob: { expression: 'reminder', speech: 'Rain is on the way — take an umbrella.' }, score: 0, durationMs: 0, reason: 'Rain' } },
     { id: nanoid(8), name: 'Night', enabled: true, priority: 100, when: { time: { from: '21:00', to: '06:00' } }, then: { layoutId: id('Night'), state: 'ambient', score: 0, durationMs: 0, reason: 'Night' } },
   ]
 }

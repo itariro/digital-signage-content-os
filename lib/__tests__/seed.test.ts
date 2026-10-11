@@ -45,4 +45,9 @@ describe('seed', () => {
     const legacy = { activeId: 'l1', layouts: [{ id: 'l1', name: 'L' }], schedule: { enabled: false, rules: [] }, albums: [] } as any
     expect(normalize(legacy).experiences.enabled).toBe(false)
   })
+
+  it('authors speech on several default rules so the bridge can speak out of the box', () => {
+    const withSpeech = seed().experiences.rules.filter((r) => r.then.bob?.speech?.trim())
+    expect(withSpeech.length).toBeGreaterThanOrEqual(3)
+  })
 })

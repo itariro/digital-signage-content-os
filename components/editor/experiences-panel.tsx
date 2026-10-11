@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { Plus, Trash2 } from 'lucide-react'
-import type { ExperienceRule, Experiences } from '@/lib/types'
+import type { BobExpression, ExperienceRule, Experiences } from '@/lib/types'
 import { mergeDaysCondition, toggleWeekday } from '@/lib/experience-draft'
 import { formatLocalInputValue } from '@/lib/zoned-time'
 import { Section, ToggleField } from './controls'
@@ -23,6 +23,11 @@ const WEEKDAY_OPTIONS = [
   { value: 'SAT', label: 'Sat' },
   { value: 'SUN', label: 'Sun' },
 ] as const
+
+const EXPRESSION_OPTIONS = [
+  'thinking', 'action', 'celebrate', 'idea', 'reminder', 'success',
+  'exercise', 'talking', 'planning', 'building', 'reading', 'happy',
+].map((value) => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))
 
 const STATE_OPTIONS = [
   { value: 'ambient', label: 'Ambient' },
@@ -198,6 +203,50 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                         </option>
                       ))}
                     </select>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Bob expression</span>
+                    <select
+                      value={rule.then.bob?.expression ?? ''}
+                      onChange={(e) =>
+                        updateRule(rule.id, {
+                          then: {
+                            ...rule.then,
+                            bob: e.target.value
+                              ? { ...rule.then.bob, expression: e.target.value as BobExpression }
+                              : undefined,
+                          },
+                        })
+                      }
+                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                    >
+                      <option value="">No Bob</option>
+                      {EXPRESSION_OPTIONS.map(({ value, label }) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Bob speech</span>
+                    <input
+                      type="text"
+                      maxLength={500}
+                      value={rule.then.bob?.speech ?? ''}
+                      placeholder="What Bob says on the frame"
+                      onChange={(e) => {
+                        const speech = e.target.value
+                        const bob = speech || rule.then.bob?.expression
+                          ? { expression: rule.then.bob?.expression ?? ('talking' as BobExpression), speech: speech || undefined }
+                          : undefined
+                        updateRule(rule.id, { then: { ...rule.then, bob } }, true)
+                      }}
+                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                    />
                   </label>
                 </div>
 
