@@ -310,4 +310,30 @@ describe('createBobBridge.tick', () => {
 
     expect(b.getDecision).toHaveBeenCalledTimes(2)
   })
+
+  it('reports counters and the last tick timestamp for diagnostics', async () => {
+    const b = makeBridge()
+    const before = b.bridge.stats()
+    expect(before.ticks).toBe(0)
+
+    await b.bridge.tick('home')
+    b.advance(1)
+    await b.bridge.tick('home') // throttled
+
+    const stats = b.bridge.stats()
+    expect(stats.ticks).toBe(2)
+    expect(stats.throttleSkips).toBe(1)
+    expect(stats.evaluations).toBe(1)
+    expect(stats.publishes).toBe(1)
+    expect(stats.failures).toBe(0)
+    expect(typeof stats.lastTickAt).toBe('string')
+  })
+
+  it('counts failures per stage for the health endpoint', async () => {
+    const b = makeBridge()
+    b.getDecision.mockRejectedValueOnce(new Error('db down'))
+    await b.bridge.tick('home')
+
+    expect(b.bridge.stats().failures).toBe(1)
+  })
 })

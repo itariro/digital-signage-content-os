@@ -47,14 +47,25 @@ export function createBobBridge(deps: BobBridgeDeps) {
   const inFlight = new Set<string>()
   const lastPublishedDecisionId = new Map<string, string>()
   const lastPublishedAt = new Map<string, number>()
+  const counters = { ticks: 0, throttleSkips: 0, inflightSkips: 0, evaluations: 0, publishes: 0, failures: 0 }
+  let lastTickAt: number | null = null
 
   async function tick(frameId: string): Promise<void> {
-    if (inFlight.has(frameId)) return
-    if (throttle.get(frameId)) return
+    counters.ticks++
+    lastTickAt = now()
+    if (inFlight.has(frameId)) {
+      counters.inflightSkips++
+      return
+    }
+    if (throttle.get(frameId)) {
+      counters.throttleSkips++
+      return
+    }
     inFlight.add(frameId)
     throttle.set(frameId, true)
     try {
       const { decision, store } = await deps.getDecision(frameId)
+      counters.evaluations++
       const speech = decision.bob?.speech?.trim()
       if (!speech) return
 
@@ -96,14 +107,19 @@ export function createBobBridge(deps: BobBridgeDeps) {
       // Only remember success: a failed publish is retried on the next tick.
       lastPublishedDecisionId.set(frameId, decision.id)
       lastPublishedAt.set(frameId, now())
+      counters.publishes++
     } catch (error) {
+      counters.failures++
       log('error', 'Bob bridge tick failed', { frameId, error: String(error) })
     } finally {
       inFlight.delete(frameId)
     }
   }
 
-  return { tick }
+  return {
+    tick,
+    stats: () => ({ ...counters, lastTickAt: lastTickAt === null ? null : new Date(lastTickAt).toISOString() }),
+  }
 }
 
 const defaultBridge = createBobBridge({
@@ -115,4 +131,9 @@ const defaultBridge = createBobBridge({
 /** Fire-and-forget engine tick for a frame; the returned promise never rejects. */
 export function tickBobEngine(frameId: string): Promise<void> {
   return defaultBridge.tick(frameId)
+}
+
+/** Diagnostics for /api/health: counters plus the last tick time. */
+export function getBobBridgeStats() {
+  return defaultBridge.stats()
 }
