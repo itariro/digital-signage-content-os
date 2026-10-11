@@ -61,9 +61,24 @@ Published `FrameNotification` fields:
 | `title`      | the matched rule's display name (`rule.name`)                       |
 | `message`    | `bob.speech`                                                        |
 | `variant`    | mapped from `DisplayState` (table below)                            |
-| `durationMs` | `decision.durationMs`, clamped by `normalizeFrameNotifications` (2.5s–60s) |
+| `durationMs` | `max(rule durationMs, variant default)`, clamped to 2500–60000 (see below) |
 | `eventKey`   | `bob:<ruleId>`                                                      |
 | `createdAt`  | publish time (ISO)                                                  |
+
+Duration policy (review finding, fixed before merge): a rule's `durationMs` is
+the engine's dwell window — `0` for new rules and most authored rules — not a
+display preference, so the card duration is floored to the variant default
+(`NOTIFICATION_DEFAULT_DURATION`) and clamped to the renderer's 60s maximum
+(`clampNotificationDuration`). While the winning decision keeps its id, the
+bridge re-publishes the card each time it expires, so the speech stays on
+screen for as long as the rule matches; the client replaces the card by its
+identical `eventKey`, so nothing stacks.
+
+Renderer constraint (documented, not changed): `FrameNoticeLayer` displays one
+card at a time and floats `error`-variant notifications ahead of others, so a
+Bob card published while another card is still live may expire unseen. This is
+main's intentional priority behavior; frames display notification sources
+side-by-side and Bob is one producer among them.
 
 Variant mapping (pure function, unit-tested):
 
@@ -74,12 +89,13 @@ Variant mapping (pure function, unit-tested):
 | `action`                                            | `warning` |
 | `ambient`, `information`, `activity`, `gallery`, `weather`, `family` | `info` |
 
-Publish rule: **once per decision change.** The bridge remembers the last published
-decision id per frame (in-process cache). While the same decision persists across ticks,
-nothing is published. Because `eventKey = bob:<ruleId>` and `NotificationProvider` merges
-by eventKey, a newer decision on the same rule replaces the previous Bob card instead of
-stacking; a server restart can cause at most one re-publish, which is invisible
-(same key replaces same content).
+Publish rule: **a card per decision change, refreshed whenever it expires.** The bridge remembers the last published decision id per frame
+(in-process cache). A new decision publishes immediately; while the same
+decision persists, the card is re-published each time its (clamped) duration
+elapses so the speech remains visible. Because `eventKey = bob:<ruleId>` and
+`NotificationProvider` merges by eventKey, a re-publish on the same rule
+*replaces* the previous Bob card instead of stacking; a server restart can
+cause at most one invisible-keyed re-publish.
 
 When the rule stops matching, the notification is not withdrawn — it expires naturally
 after its clamped `durationMs`, matching how all notifications behave in main.
