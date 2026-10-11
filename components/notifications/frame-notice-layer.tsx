@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Bell, CalendarDays, Check, Clock3, Cuboid, ListChecks, MapPin, QrCode, Route, Siren, X } from 'lucide-react'
 import type { FrameNotification } from '@/lib/types'
 import { useNotifications } from './notification-provider'
@@ -15,34 +15,31 @@ const MASCOTS = {
 
 type NoticeProps = { notification: FrameNotification; onDismiss: (id: string) => void }
 
-function ProgressTimer({ durationMs, onComplete }: { durationMs: number; onComplete: () => void }) {
-  const [startedAt] = useState(() => Date.now())
-  const [progress, setProgress] = useState(0)
+function ProgressTimer({ durationMs, paused, onComplete }: { durationMs: number; paused: boolean; onComplete: () => void }) {
+  const [elapsed, setElapsed] = useState(0)
+  const lastTick = useRef(Date.now())
   useEffect(() => {
-    if (durationMs <= 0) return
+    if (durationMs <= 0 || paused) return
+    lastTick.current = Date.now()
     const timer = window.setInterval(() => {
-      const next = Math.min(1, (Date.now() - startedAt) / durationMs)
-      setProgress(next)
-      if (next >= 1) {
-        window.clearInterval(timer)
-        onComplete()
-      }
+      const now = Date.now()
+      const delta = now - lastTick.current
+      lastTick.current = now
+      setElapsed((value) => {
+        const next = Math.min(durationMs, value + delta)
+        if (next >= durationMs) onComplete()
+        return next
+      })
     }, 50)
     return () => window.clearInterval(timer)
-  }, [durationMs, onComplete, startedAt])
-  return <div aria-hidden className="h-3 w-36 overflow-hidden rounded-full bg-black/5"><div className="h-full rounded-full bg-black transition-[width] duration-75" style={{ width: `${progress * 100}%` }} /></div>
+  }, [durationMs, paused, onComplete, lastTick])
+  return <div aria-hidden className="h-3 w-36 overflow-hidden rounded-full bg-black/5"><div className="h-full rounded-full bg-black transition-[width] duration-75" style={{ width: `${durationMs > 0 ? (elapsed / durationMs) * 100 : 0}%` }} /></div>
 }
-
-const NOTICE_TOKENS = {
-  framePadding: 'clamp(24px, 3.5cqw, 68px)',
-  cardRadius: 'clamp(24px, 3.2cqw, 62px)',
-  surfaceRadius: 'clamp(16px, 2cqw, 36px)',
-} as const
 
 function CategoryPill({ notification }: { notification: FrameNotification }) {
   const label = notification.variant === 'warning' || notification.variant === 'error' ? 'Warning' : notification.variant === 'reminder' ? 'Today\'s the day' : notification.variant === 'success' ? 'Calendar' : 'System Message'
   const Icon = notification.variant === 'warning' || notification.variant === 'error' ? AlertTriangle : notification.variant === 'reminder' ? Bell : notification.variant === 'success' ? CalendarDays : Bell
-  return <div className="inline-flex w-fit items-center gap-[1.2cqw] rounded-full bg-[#d8eaf1] px-[2.2cqw] py-[1.1cqh] text-[clamp(18px,2.2cqw,42px)] font-medium leading-none text-black"><Icon className="size-[1.05em]" aria-hidden />{label}</div>
+  return <div className="inline-flex w-fit items-center gap-5 rounded-full bg-[#d8eaf1] px-8 py-4 text-[clamp(22px,2.2vw,42px)] font-medium leading-none text-black"><Icon className="size-[1.05em]" aria-hidden />{label}</div>
 }
 
 function Metadata({ notification }: { notification: FrameNotification }) {
@@ -50,7 +47,7 @@ function Metadata({ notification }: { notification: FrameNotification }) {
   const items = isError
     ? [['code', notification.eventKey ? `Error ${notification.eventKey}` : 'Error Code', Route], ['module', 'Module with the code', Cuboid]] as const
     : [['time', 'Sun, 11 Oct 2026 09:21', Clock3], ['location', 'Clifton Springs, VIC', MapPin]] as const
-  return <div className="flex flex-col gap-[2.5cqh] text-[clamp(20px,2.1cqw,40px)] text-black">{items.map(([key, value, Icon]) => <div className="flex items-center gap-5" key={key}><Icon className="size-[1.8em] shrink-0" strokeWidth={2.5} aria-hidden /><span>{value}</span></div>)}</div>
+  return <div className="flex flex-col gap-8 text-[clamp(22px,2.1vw,40px)] text-black">{items.map(([key, value, Icon]) => <div className="flex items-center gap-5" key={key}><Icon className="size-[1.8em] shrink-0" strokeWidth={2.5} aria-hidden /><span>{value}</span></div>)}</div>
 }
 
 function QrPanel({ value }: { value: string }) {
@@ -67,11 +64,11 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
   const mascot = MASCOTS[notification.variant === 'error' ? 'warning' : notification.variant]
   const onTimerComplete = useMemo(() => () => { if (!paused) onDismiss(notification.id) }, [notification.id, onDismiss, paused])
 
-  return <article role={isError ? 'alert' : 'status'} aria-live={isError ? 'assertive' : 'polite'} className="pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-[clamp(24px,3.2cqw,62px)] bg-white text-black shadow-2xl ring-1 ring-black/10">
-    <div className={cn('relative min-h-0 flex-1 overflow-hidden p-[clamp(24px,3.5cqw,68px)]', background)}>
-      <div className="relative z-10 flex h-full min-h-0 flex-col gap-[clamp(24px,3cqh,72px)] pr-[clamp(0px,22cqw,360px)]">
+  return <article role={isError ? 'alert' : 'status'} aria-live={isError ? 'assertive' : 'polite'} className="pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-[clamp(24px,3.2vw,62px)] bg-white text-black shadow-2xl ring-1 ring-black/10">
+    <div className={cn('relative min-h-0 flex-1 overflow-hidden p-[clamp(32px,3.5vw,68px)]', background)}>
+      <div className="relative z-10 flex h-full min-h-0 flex-col gap-[clamp(24px,3vh,72px)] pr-[clamp(0px,22vw,360px)]">
         <CategoryPill notification={notification} />
-        <div><h2 className="max-w-[90%] text-[clamp(30px,5.2cqw,100px)] font-semibold leading-[1.05] tracking-[-0.04em]">{notification.title}</h2>{notification.message && <p className="mt-[2cqh] max-w-[62ch] text-[clamp(20px,2.5cqw,48px)] leading-[1.18] text-[#5f5b62]">{notification.message}</p>}</div>
+        <div><h2 className="max-w-[90%] text-[clamp(40px,5.2vw,100px)] font-semibold leading-[1.05] tracking-[-0.04em]">{notification.title}</h2>{notification.message && <p className="mt-6 max-w-[62ch] text-[clamp(22px,2.5vw,48px)] leading-[1.18] text-[#5f5b62]">{notification.message}</p>}</div>
         <div className="mt-auto"><Metadata notification={notification} /></div>
       </div>
       {mascot && <img src={mascot} alt="" aria-hidden className="pointer-events-none absolute bottom-[3%] right-[2%] max-h-[78%] w-[32%] object-contain object-bottom" />}
@@ -81,12 +78,12 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
     </div>
     {isError && <div className="mx-[clamp(0.75rem,2vw,1.5rem)] my-[clamp(0.75rem,2vw,1.5rem)] flex items-center gap-5 rounded-2xl border border-black/15 p-[clamp(0.75rem,2vw,1.5rem)] text-[clamp(0.8rem,2vw,1.2rem)]"><span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[#d6f3e6]"><Check className="size-8" aria-hidden /></span><span>{notification.resolution ?? 'The resolution will appear here for the user to know how to fix it.'}</span></div>}
     {isCalendar && <div className="mx-[clamp(0.75rem,2vw,1.5rem)] mb-[clamp(0.75rem,2vw,1.5rem)] overflow-hidden rounded-2xl border border-black/15"><div className="flex items-center gap-4 border-b border-black/10 p-5"><span className="grid size-12 place-items-center rounded-2xl bg-[#fde8f0]"><ListChecks className="size-7" aria-hidden /></span><span className="font-medium">2 items</span><span className="ml-auto">14:00 – 15:30</span></div><div className="flex items-center gap-4 p-5"><span className="grid size-12 place-items-center rounded-2xl bg-[#d6f3e6]"><CalendarDays className="size-7" aria-hidden /></span><span className="font-medium">Event Name, Location</span><span className="ml-auto">14:00 – 15:30</span></div></div>}
-    <footer className="flex items-center justify-end gap-3 px-[clamp(0.75rem,2vw,1.5rem)] pb-[clamp(0.75rem,2vw,1.5rem)]"><button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? 'Resume notification timer' : 'Pause notification timer'} className="rounded-full bg-black px-8 py-3 text-sm font-semibold text-white">{paused ? 'Resume' : 'Pause'}</button>{notification.durationMs > 0 && !paused && <ProgressTimer durationMs={notification.durationMs} onComplete={onTimerComplete} />}<button type="button" onClick={() => onDismiss(notification.id)} aria-label="Dismiss notification" className="rounded-full bg-black/5 p-3"><X className="size-5" aria-hidden /></button></footer>
+    <footer className="flex items-center justify-end gap-3 px-[clamp(0.75rem,2vw,1.5rem)] pb-[clamp(0.75rem,2vw,1.5rem)]"><button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? 'Resume notification timer' : 'Pause notification timer'} className="rounded-full bg-black px-8 py-3 text-sm font-semibold text-white">{paused ? 'Resume' : 'Pause'}</button>{notification.durationMs > 0 && !paused && <ProgressTimer durationMs={notification.durationMs} paused={paused} onComplete={onTimerComplete} />}<button type="button" onClick={() => onDismiss(notification.id)} aria-label="Dismiss notification" className="rounded-full bg-black/5 p-3"><X className="size-5" aria-hidden /></button></footer>
   </article>
 }
 
 export function FrameNoticeLayer() {
   const { notifications, dismiss } = useNotifications()
   if (notifications.length === 0) return null
-  return <section aria-label="Frame notifications" className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden p-[clamp(24px,2.5cqw,48px)]"><div className="flex h-full w-full max-w-[min(100%,72rem)] flex-col justify-center gap-4">{notifications.slice(0, 1).map((notification) => <NoticeCard key={notification.id} notification={notification} onDismiss={dismiss} />)}</div></section>
+  return <section aria-label="Frame notifications" className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden p-[clamp(24px,2.5vw,48px)]"><div className="flex h-full w-full max-w-[min(100%,72rem)] flex-col justify-center gap-4">{notifications.slice(0, 1).map((notification) => <NoticeCard key={notification.id} notification={notification} onDismiss={dismiss} />)}</div></section>
 }
