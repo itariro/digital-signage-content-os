@@ -8,6 +8,7 @@ import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { getDefinition } from '@/lib/widgets'
 import type { EditorApi } from '@/hooks/use-editor'
 import { FrameScene, surfaceStyle } from '@/components/frame/frame-scene'
+import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { cn } from '@/lib/utils'
 
 export type DropPayload = { kind: 'widget'; type: Widget['type'] } | { kind: 'preset'; id: string } | { kind: 'combo'; id: string }
@@ -307,6 +308,7 @@ export function Canvas({ editor, weather, now, album, night, nightPreview, onTog
               )
             }}
           >
+            <FrameNoticeLayer />
             {selectionBox && (
               <div
                 aria-hidden

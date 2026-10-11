@@ -17,6 +17,7 @@ type NotificationContextValue = {
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null)
+const EMPTY_NOTIFICATIONS: unknown[] = []
 
 function mergeNotifications(current: FrameNotification[], incoming: FrameNotification[]) {
   const byKey = new Map(current.map((item) => [notificationKey(item), item]))
@@ -27,7 +28,8 @@ function mergeNotifications(current: FrameNotification[], incoming: FrameNotific
     .slice(-8)
 }
 
-export function NotificationProvider({ notifications: sourceNotifications = [], children }: { notifications?: unknown; children: ReactNode }) {
+export function NotificationProvider({ notifications:   sourceNotifications = EMPTY_NOTIFICATIONS,
+ children }: { notifications?: unknown; children: ReactNode }) {
   const [notifications, setNotifications] = useState<FrameNotification[]>(() =>
     mergeNotifications([], normalizeFrameNotifications(sourceNotifications)),
   )
