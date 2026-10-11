@@ -80,9 +80,10 @@ function makeStore(): FrameStore {
 }
 
 /** Fake deps with an injectable clock and a mutateStore that actually applies the mutator. */
-function makeBridge(opts?: { throttleMs?: number }) {
+function makeBridge(opts?: { throttleMs?: number; ruleName?: string }) {
   let clock = Date.parse('2026-10-11T08:00:00Z')
   let store = makeStore()
+  store.experiences.rules[0].name = opts?.ruleName ?? 'Chores'
   const getDecision = vi.fn(async (_frameId: string) => ({ decision: makeDecision(), context: makeContext(), store }))
   const mutateStore = vi.fn(async (fn: (s: FrameStore) => FrameStore | void, _frameId: string) => {
     store = fn(store) as FrameStore
@@ -128,15 +129,17 @@ describe('createBobBridge.tick', () => {
     expect(note.id.length).toBeGreaterThan(0)
   })
 
-  it('does not re-publish while the same decision persists', async () => {
+  it('re-publishes via replace-by-key once the card has expired while the same decision persists', async () => {
     const b = makeBridge()
     await b.bridge.tick('home')
     b.advance(DEFAULT_BOB_THROTTLE_MS + 1)
     await b.bridge.tick('home')
 
     expect(b.getDecision).toHaveBeenCalledTimes(2)
-    expect(b.mutateStore).toHaveBeenCalledTimes(1)
-    expect(b.notifications()).toHaveLength(1)
+    expect(b.mutateStore).toHaveBeenCalledTimes(2)
+    // Both cards share the eventKey; the client provider merges them into one.
+    expect(b.notifications().map((n) => n.eventKey)).toEqual(['bob:r1', 'bob:r1'])
+    expect(b.notifications()).toHaveLength(2)
   })
 
   it('publishes again when the decision id changes, newest first', async () => {
@@ -153,6 +156,33 @@ describe('createBobBridge.tick', () => {
     expect(notes[0].variant).toBe('info')
     expect(notes[0].eventKey).toBe('bob:r1')
     expect(notes[1].message).toBe('Well done!')
+  })
+
+  it('floors durationMs 0 to the variant default so a new rule is never a flash', async () => {
+    const b = makeBridge()
+    b.setDecision(makeDecision({ durationMs: 0 }))
+    await b.bridge.tick('home')
+
+    // celebration → success variant, default 4500ms
+    expect(b.notifications()[0].durationMs).toBe(4_500)
+  })
+
+  it('clamps over-long durations to the 60s card maximum', async () => {
+    const b = makeBridge()
+    b.setDecision(makeDecision({ durationMs: 300_000 }))
+    await b.bridge.tick('home')
+
+    expect(b.notifications()[0].durationMs).toBe(60_000)
+  })
+
+  it('falls back to decision.reason when the rule name is whitespace', async () => {
+    const b = makeBridge({ ruleName: '   ' })
+    await b.bridge.tick('home')
+
+    const [note] = b.notifications()
+    expect(note).toBeDefined()
+    expect(note.title).toBe('Chores complete')
+    expect(note.eventKey).toBe('bob:r1')
   })
 
   it('falls back to decision.reason as title when the rule is unknown', async () => {

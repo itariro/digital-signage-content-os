@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { BobExpression, DisplayDecision, DisplayState, FrameNotification, FrameStore } from './types'
-import { normalizeFrameNotifications } from './notifications'
+import { NOTIFICATION_DEFAULT_DURATION, clampNotificationDuration, normalizeFrameNotifications } from './notifications'
 import { createTtlCache } from './ttl-cache'
 import { getDecision, log } from './engine/state'
 import { mutateStore } from './store'
@@ -38,13 +38,15 @@ export interface BobBridgeDeps {
  * route calls tick(frameId) without awaiting. The tick is throttled and
  * single-flight per frame so display_history is written at roughly the cadence
  * the engine was designed for, and publishes bob.speech as a frame
- * notification once per decision change (deduped client-side by eventKey).
+ * notification when a new decision wins — re-published each time the published
+ * card expires (client replaces it by identical eventKey, so nothing stacks).
  */
 export function createBobBridge(deps: BobBridgeDeps) {
   const now = deps.now ?? (() => Date.now())
   const throttle = createTtlCache<boolean>(deps.throttleMs ?? DEFAULT_BOB_THROTTLE_MS, now)
   const inFlight = new Set<string>()
   const lastPublishedDecisionId = new Map<string, string>()
+  const lastPublishedAt = new Map<string, number>()
 
   async function tick(frameId: string): Promise<void> {
     if (inFlight.has(frameId)) return
@@ -55,17 +57,31 @@ export function createBobBridge(deps: BobBridgeDeps) {
       const { decision, store } = await deps.getDecision(frameId)
       const speech = decision.bob?.speech?.trim()
       if (!speech) return
-      if (lastPublishedDecisionId.get(frameId) === decision.id) return
 
       const ruleName = store.experiences.rules.find((r) => r.id === decision.ruleId)?.name
+      // Bob card durations are floored to the variant default (a rule's
+      // durationMs is the engine's dwell window, often 0 for new rules, not a
+      // display preference) and clamped to the renderer's maximum.
+      const variant = bobVariantFor(decision.state, decision.bob?.expression)
+      const durationMs = clampNotificationDuration(
+        Math.max(decision.durationMs, NOTIFICATION_DEFAULT_DURATION[variant]),
+      )
       const notification: FrameNotification = {
         id: nanoid(12),
-        title: ruleName ?? decision.reason,
+        title: ruleName?.trim() || decision.reason,
         message: speech,
-        variant: bobVariantFor(decision.state, decision.bob?.expression),
-        durationMs: decision.durationMs,
+        variant,
+        durationMs,
         createdAt: new Date(now()).toISOString(),
         eventKey: `${BOB_NOTIFICATION_EVENT_PREFIX}${decision.ruleId}`,
+      }
+      // The same winning decision keeps its id; once the published card has
+      // expired, re-publish it so the speech stays on screen while the rule
+      // matches (client replaces the card by identical eventKey, so nothing
+      // stacks and re-publishing identical content is invisible).
+      if (lastPublishedDecisionId.get(frameId) === decision.id) {
+        const publishedAt = lastPublishedAt.get(frameId) ?? 0
+        if (now() < publishedAt + durationMs) return
       }
       await deps.mutateStore(
         (current) => ({
@@ -76,6 +92,7 @@ export function createBobBridge(deps: BobBridgeDeps) {
       )
       // Only remember success: a failed publish is retried on the next tick.
       lastPublishedDecisionId.set(frameId, decision.id)
+      lastPublishedAt.set(frameId, now())
     } catch (error) {
       log('error', 'Bob bridge tick failed', { frameId, error: String(error) })
     } finally {

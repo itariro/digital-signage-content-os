@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { readStore } from '@/lib/store'
 import { tickBobEngine } from '@/lib/bob-bridge'
 
@@ -11,10 +11,13 @@ export async function GET(request: Request) {
   }
   const store = await readStore(frameId)
   if (!store) return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
-  // Drive the Bob engine in the background; it publishes winning speech as a
-  // frame notification which this frame picks up on its next poll. Never
-  // awaited: the tick cannot delay or fail the store response.
-  void tickBobEngine(frameId)
+  // Drive the Bob engine after the response is sent; it publishes winning
+  // speech as a frame notification which this frame picks up on its next
+  // poll. `after` keeps the background work running past the response on both
+  // the Node server and serverless runtimes.
+  after(async () => {
+    await tickBobEngine(frameId)
+  })
   return NextResponse.json(store, {
     headers: {
       'Cache-Control': 'no-store, max-age=0',

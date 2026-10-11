@@ -10,8 +10,13 @@ export const NOTIFICATION_DEFAULT_DURATION: Record<FrameNotification['variant'],
   reminder: 15000,
 }
 
-const MIN_DURATION = 2500
-const MAX_DURATION = 60_000
+export const NOTIFICATION_MIN_DURATION = 2500
+export const NOTIFICATION_MAX_DURATION = 60_000
+
+/** Clamps a raw duration to the range a kiosk card can usefully display. */
+export function clampNotificationDuration(rawDuration: number): number {
+  return Math.min(NOTIFICATION_MAX_DURATION, Math.max(NOTIFICATION_MIN_DURATION, rawDuration))
+}
 
 export function normalizeFrameNotifications(input: unknown): FrameNotification[] {
   if (!Array.isArray(input)) return []
@@ -27,7 +32,7 @@ export function normalizeFrameNotifications(input: unknown): FrameNotification[]
       const id = typeof item.id === 'string' ? item.id.trim().slice(0, 80) : ''
       const eventKey = typeof item.eventKey === 'string' ? item.eventKey.trim().slice(0, 120) : undefined
       const rawDuration = typeof item.durationMs === 'number' && Number.isFinite(item.durationMs) ? item.durationMs : NOTIFICATION_DEFAULT_DURATION[variant]
-      const durationMs = Math.min(MAX_DURATION, Math.max(MIN_DURATION, rawDuration))
+      const durationMs = clampNotificationDuration(rawDuration)
 
       return {
         id,
