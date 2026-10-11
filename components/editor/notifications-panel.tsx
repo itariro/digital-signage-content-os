@@ -36,6 +36,7 @@ export function NotificationsPanel() {
   const [showPreview, setShowPreview] = useState(true)
   const [activeFilter, setActiveFilter] = useState<'all' | FrameNotification['variant']>('all')
   const [testNotification, setTestNotification] = useState<FrameNotification | null>(null)
+  const [liveStatus, setLiveStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const { publish } = useNotifications()
 
   const filteredHistory = useMemo(() => activeFilter === 'all' ? history : history.filter((item) => item.variant === activeFilter), [activeFilter, history])
@@ -52,6 +53,19 @@ export function NotificationsPanel() {
     setTestNotification(item)
     setHistory((current) => [item, ...current].slice(0, 20))
     if (enabled) publish(item)
+    setLiveStatus('idle')
+  }
+
+  async function sendToLiveFrame() {
+    if (!testNotification) return
+    setLiveStatus('sending')
+    try {
+      const response = await fetch('/api/frames/home/notifications', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(testNotification) })
+      if (!response.ok) throw new Error('Live frame request failed')
+      setLiveStatus('sent')
+    } catch {
+      setLiveStatus('error')
+    }
   }
 
   return (
@@ -112,7 +126,7 @@ export function NotificationsPanel() {
         </div>
       </div>
 
-      {showPreview && testNotification && <div className="border-t border-border pt-4"><div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-medium text-muted-foreground">Live preview</span><button type="button" onClick={() => setTestNotification(null)} aria-label="Close preview" className="text-muted-foreground hover:text-foreground"><X className="size-3" /></button></div><div className={cn('rounded-xl border p-3', notificationTone(testNotification.variant))}><div className="flex items-start gap-2"><Megaphone className="mt-0.5 size-4" aria-hidden /><div><p className="text-xs font-semibold">{testNotification.title}</p><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{testNotification.message}</p></div></div></div></div>}
+      {showPreview && testNotification && <div className="border-t border-border pt-4"><div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-medium text-muted-foreground">Live preview</span><button type="button" onClick={() => setTestNotification(null)} aria-label="Close preview" className="text-muted-foreground hover:text-foreground"><X className="size-3" /></button></div><div className={cn('rounded-xl border p-3', notificationTone(testNotification.variant))}><div className="flex items-start gap-2"><Megaphone className="mt-0.5 size-4" aria-hidden /><div><p className="text-xs font-semibold">{testNotification.title}</p><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{testNotification.message}</p></div></div></div><button type="button" onClick={sendToLiveFrame} disabled={liveStatus === 'sending'} className="mt-3 flex w-full items-center justify-center rounded-md bg-primary px-3 py-2 text-[10px] font-medium text-primary-foreground disabled:opacity-60">{liveStatus === 'sending' ? 'Sending…' : liveStatus === 'sent' ? 'Sent to Home frame' : liveStatus === 'error' ? 'Retry live send' : 'Send to live Home frame'}</button>{liveStatus === 'error' && <p className="mt-1 text-center text-[10px] text-destructive">Could not reach the live frame.</p>}</div>}
       <button type="button" onClick={() => { setHistory(MOCK_NOTIFICATIONS); setTestNotification(null); setActiveFilter('all') }} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-[10px] text-muted-foreground hover:bg-muted"><RotateCcw className="size-3" aria-hidden /> Reset demo data</button>
     </section>
   )

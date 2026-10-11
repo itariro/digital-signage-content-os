@@ -37,6 +37,7 @@ export function normalizeFrameNotifications(input: unknown): FrameNotification[]
         durationMs,
         eventKey,
         createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
+        actionUrl: typeof item.actionUrl === 'string' ? item.actionUrl.trim().slice(0, 500) : undefined,
       }
     })
     .filter((item) => item.id.length > 0 && item.title.length > 0)
