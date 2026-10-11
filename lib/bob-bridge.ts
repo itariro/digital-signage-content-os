@@ -108,7 +108,7 @@ export function createBobBridge(deps: BobBridgeDeps) {
 
 const defaultBridge = createBobBridge({
   // The real getDecision also returns context; the bridge only needs decision + store.
-  getDecision: (frameId) => getDecision(frameId),
+  getDecision: (frameId) => getDecision(frameId, undefined, { selection: 'notification' }),
   mutateStore,
 })
 

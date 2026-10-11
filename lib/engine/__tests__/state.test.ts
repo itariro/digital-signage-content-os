@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getDecision } from '../state'
-import type { FrameStore } from '../../types'
+import type { FrameStore, LayoutSettings } from '../../types'
 
 function makeStore(overrides?: Partial<FrameStore>): FrameStore {
   return {
@@ -312,5 +312,59 @@ describe('preview wall time', () => {
     // 18:15 interpreted as UTC is still the welcome-home period, Thursday.
     expect(context.period).toBe('welcome-home')
     expect(context.weekday).toBe('THU')
+  })
+
+  it('notification mode ignores display-history scoring so the most relevant rule still speaks', async () => {
+    const settings: LayoutSettings = { resolution: '1080x1920', background: '', dim: 0, locationName: '', lat: 47.3769, lon: 8.5417, units: 'metric', snap: false, gridSize: 20, albumId: null }
+    const weatherRule = {
+      id: 'r-rain',
+      name: 'Rain',
+      enabled: true,
+      priority: 200,
+      when: { weather: { rainProbabilityAbove: 60 } },
+      then: { layoutId: 'layout-weather', state: 'weather' as const, bob: { expression: 'reminder' as const, speech: 'Take an umbrella.' }, score: 0, durationMs: 0, reason: 'Rain' },
+    }
+    const dayRule = {
+      id: 'r-day',
+      name: 'Day',
+      enabled: true,
+      priority: 100,
+      when: { time: { from: '00:00', to: '23:59' } },
+      then: { layoutId: 'layout-1', state: 'information' as const, bob: { expression: 'talking' as const, speech: 'Nice day.' }, score: 0, durationMs: 0, reason: 'Day' },
+    }
+    const store = makeStore({
+      layouts: [
+        { id: 'layout-1', name: 'Test', widgets: [], settings, createdAt: '', updatedAt: '' },
+        { id: 'layout-weather', name: 'Weather', widgets: [], settings, createdAt: '', updatedAt: '' },
+      ],
+      experiences: { enabled: true, rules: [weatherRule, dayRule], settings: { schoolHolidays: [] } },
+    })
+    mockReadStore.mockResolvedValue(store)
+    mockFetchWeather.mockResolvedValue({
+      sample: false,
+      current: { temp: 12, code: 61, isDay: true, uv: 2 },
+      today: { high: 14, low: 9, uvMax: 3, sunrise: '2026-10-11T06:48', sunset: '2026-10-11T19:12' },
+      daily: [{ date: '2026-10-11', code: 61, max: 14, min: 9, rainProbability: 80 }],
+      hourly: [],
+    })
+    // The rain layout showed 30s ago (recent-repetition territory) but the day
+    // layout is the incumbent. Layout mode subtracts 300 from the rain rule and
+    // hands the win to the mundane day rule; notification mode must not.
+    const now = Date.now()
+    mockQueryHistory.mockResolvedValue({
+      recent: [
+        { layoutId: 'layout-weather', ruleId: 'r-rain', shownAt: new Date(now - 30_000) },
+        { layoutId: 'layout-1', ruleId: 'r-day', shownAt: new Date(now - 10_000) },
+      ],
+      seenLayouts: new Set<string>(['layout-weather', 'layout-1']),
+      latestLayoutId: 'layout-1',
+    })
+
+    const layoutMode = await getDecision('home', new Date(), { recordHistory: false })
+    expect(layoutMode.decision.ruleId).toBe('r-day')
+
+    const notificationMode = await getDecision('home', new Date(), { recordHistory: false, selection: 'notification' })
+    expect(notificationMode.decision.ruleId).toBe('r-rain')
+    expect(notificationMode.decision.bob?.speech).toBe('Take an umbrella.')
   })
 })

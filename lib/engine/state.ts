@@ -60,6 +60,14 @@ export interface GetDecisionOptions {
   simulatedWallTime?: string
   /** When false, skip appending to display_history. Defaults to true. */
   recordHistory?: boolean
+  /**
+   * 'layout' (default) scores as if the winner drives the display — novelty,
+   * repetition penalties, incumbent hysteresis. 'notification' scores speech
+   * selection only: priority + rule score + weather relevance, with durationMs
+   * as the sole cooldown. Used by the Bob bridge on live frames, where layouts
+   * are schedule-driven and nothing displays the decision.
+   */
+  selection?: 'layout' | 'notification'
 }
 
 export interface GetDecisionResult {
@@ -111,8 +119,12 @@ export async function getDecision(
   }
 
   const incumbent = history.latestLayoutId ?? ''
-  const scored = scoreCandidates(evaluated, history, incumbent, time.getTime())
-  const winner = selectWinner(scored, { incumbentLayoutId: incumbent, hysteresis: INCUMBENT_HYSTERESIS })
+  const notificationMode = options?.selection === 'notification'
+  const scored = scoreCandidates(evaluated, history, incumbent, time.getTime(), options?.selection ?? 'layout')
+  const winner = selectWinner(
+    scored,
+    notificationMode ? {} : { incumbentLayoutId: incumbent, hysteresis: INCUMBENT_HYSTERESIS },
+  )
 
   if (!winner) {
     await pruneHistorySafely(frameId)

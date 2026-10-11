@@ -35,18 +35,28 @@ function isEligibleByDuration(rule: ExperienceRule, recent: HistoryEntry[], nowM
   return latest === -Infinity || nowMs - latest >= duration
 }
 
+export type SelectionMode = 'layout' | 'notification'
+
 export function scoreCandidates(
   candidates: EvaluatedRule[],
   history: HistorySummary,
   currentLayoutId: string,
   nowMs: number = Date.now(),
+  mode: SelectionMode = 'layout',
 ): ScoredCandidate[] {
   return candidates
     .filter(({ rule }) => isEligibleByDuration(rule, history.recent, nowMs))
     .map(({ rule, weatherMatched }) => {
+      // Notification mode publishes speech only. Novelty and repetition penalties
+      // measure layout *displays* — which no longer happen (live layouts are
+      // schedule-driven) — so applying them would suppress the most relevant
+      // rule's speech. `durationMs` still gates re-matching via eligibility.
+      const notificationMode = mode === 'notification'
       const weatherRelevance = weatherMatched ? WEATHER_RELEVANCE : 0
-      const novelty = history.seenLayouts.has(rule.then.layoutId) ? 0 : NOVELTY_BONUS
-      const penalty = getRepetitionPenalty(history.recent, rule.then.layoutId, currentLayoutId, nowMs)
+      const novelty = !notificationMode && !history.seenLayouts.has(rule.then.layoutId) ? NOVELTY_BONUS : 0
+      const penalty = notificationMode
+        ? 0
+        : getRepetitionPenalty(history.recent, rule.then.layoutId, currentLayoutId, nowMs)
       const score = rule.priority + rule.then.score + weatherRelevance + novelty - penalty
       return { rule, score, layoutId: rule.then.layoutId }
     })
