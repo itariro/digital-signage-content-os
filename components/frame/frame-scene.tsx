@@ -110,7 +110,7 @@ export function FrameScene({ widgets, settings, weather, now, scale, album, nigh
   const hideSeconds = Boolean(night?.hideSeconds)
   const slide = activeSlide(album, now)
   return (
-    <div style={{ width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale }} className="relative overflow-hidden">
+    <div style={{ width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale, containerType: 'size' }} className="relative overflow-hidden">
       <div
         className="absolute left-0 top-0 origin-top-left"
         style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT, transform: `scale(${scale})` }}

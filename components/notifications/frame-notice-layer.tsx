@@ -33,10 +33,16 @@ function ProgressTimer({ durationMs, onComplete }: { durationMs: number; onCompl
   return <div aria-hidden className="h-3 w-36 overflow-hidden rounded-full bg-black/5"><div className="h-full rounded-full bg-black transition-[width] duration-75" style={{ width: `${progress * 100}%` }} /></div>
 }
 
+const NOTICE_TOKENS = {
+  framePadding: 'clamp(24px, 3.5cqw, 68px)',
+  cardRadius: 'clamp(24px, 3.2cqw, 62px)',
+  surfaceRadius: 'clamp(16px, 2cqw, 36px)',
+} as const
+
 function CategoryPill({ notification }: { notification: FrameNotification }) {
   const label = notification.variant === 'warning' || notification.variant === 'error' ? 'Warning' : notification.variant === 'reminder' ? 'Today\'s the day' : notification.variant === 'success' ? 'Calendar' : 'System Message'
   const Icon = notification.variant === 'warning' || notification.variant === 'error' ? AlertTriangle : notification.variant === 'reminder' ? Bell : notification.variant === 'success' ? CalendarDays : Bell
-  return <div className="inline-flex items-center gap-3 rounded-full bg-sky-100/90 px-5 py-2 text-[clamp(0.75rem,1.8vw,1.2rem)] font-medium text-black"><Icon className="size-[1.15em]" aria-hidden />{label}</div>
+  return <div className="inline-flex w-fit items-center gap-[1.2cqw] rounded-full bg-[#d8eaf1] px-[2.2cqw] py-[1.1cqh] text-[clamp(18px,2.2cqw,42px)] font-medium leading-none text-black"><Icon className="size-[1.05em]" aria-hidden />{label}</div>
 }
 
 function Metadata({ notification }: { notification: FrameNotification }) {
@@ -44,7 +50,7 @@ function Metadata({ notification }: { notification: FrameNotification }) {
   const items = isError
     ? [['code', notification.eventKey ? `Error ${notification.eventKey}` : 'Error Code', Route], ['module', 'Module with the code', Cuboid]] as const
     : [['time', 'Sun, 11 Oct 2026 09:21', Clock3], ['location', 'Clifton Springs, VIC', MapPin]] as const
-  return <div className="flex flex-col gap-5 text-[clamp(0.8rem,2vw,1.25rem)] text-black">{items.map(([key, value, Icon]) => <div className="flex items-center gap-5" key={key}><Icon className="size-[1.8em] shrink-0" strokeWidth={2.5} aria-hidden /><span>{value}</span></div>)}</div>
+  return <div className="flex flex-col gap-[2.5cqh] text-[clamp(20px,2.1cqw,40px)] text-black">{items.map(([key, value, Icon]) => <div className="flex items-center gap-5" key={key}><Icon className="size-[1.8em] shrink-0" strokeWidth={2.5} aria-hidden /><span>{value}</span></div>)}</div>
 }
 
 function QrPanel({ value }: { value: string }) {
@@ -57,18 +63,18 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
   const isError = notification.variant === 'warning' || notification.variant === 'error'
   const isCalendar = notification.variant === 'success'
   const isSystem = notification.variant === 'info'
-  const background = isError ? 'bg-[#f8dff0]' : isCalendar ? 'bg-[#dff4fb]' : notification.variant === 'reminder' ? 'bg-[#fffed0]' : 'bg-[#f8dff0]'
+  const background = isError ? 'bg-[#f8dff0]' : isCalendar ? 'bg-[#dff4fb]' : notification.variant === 'reminder' ? 'bg-[#fffed0]' : 'bg-[#dff4fb]'
   const mascot = MASCOTS[notification.variant === 'error' ? 'warning' : notification.variant]
   const onTimerComplete = useMemo(() => () => { if (!paused) onDismiss(notification.id) }, [notification.id, onDismiss, paused])
 
-  return <article role={isError ? 'alert' : 'status'} aria-live={isError ? 'assertive' : 'polite'} className="pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-[clamp(1rem,3vw,2.25rem)] bg-white text-black shadow-2xl ring-1 ring-black/10">
-    <div className={cn('relative min-h-0 flex-1 overflow-hidden p-[clamp(1rem,4vw,3.5rem)]', background)}>
-      <div className="relative z-10 flex h-full min-h-0 flex-col gap-[clamp(1rem,3vw,2.5rem)] pr-[clamp(0rem,18vw,10rem)]">
+  return <article role={isError ? 'alert' : 'status'} aria-live={isError ? 'assertive' : 'polite'} className="pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-[clamp(24px,3.2cqw,62px)] bg-white text-black shadow-2xl ring-1 ring-black/10">
+    <div className={cn('relative min-h-0 flex-1 overflow-hidden p-[clamp(24px,3.5cqw,68px)]', background)}>
+      <div className="relative z-10 flex h-full min-h-0 flex-col gap-[clamp(24px,3cqh,72px)] pr-[clamp(0px,22cqw,360px)]">
         <CategoryPill notification={notification} />
-        <div><h2 className="max-w-[90%] text-[clamp(1.35rem,5vw,3.4rem)] font-semibold leading-[1.05] tracking-[-0.04em]">{notification.title}</h2>{notification.message && <p className="mt-4 max-w-[70ch] text-[clamp(0.85rem,2.5vw,1.55rem)] leading-[1.18] text-[#5f5b62]">{notification.message}</p>}</div>
+        <div><h2 className="max-w-[90%] text-[clamp(30px,5.2cqw,100px)] font-semibold leading-[1.05] tracking-[-0.04em]">{notification.title}</h2>{notification.message && <p className="mt-[2cqh] max-w-[62ch] text-[clamp(20px,2.5cqw,48px)] leading-[1.18] text-[#5f5b62]">{notification.message}</p>}</div>
         <div className="mt-auto"><Metadata notification={notification} /></div>
       </div>
-      {mascot && <img src={mascot} alt="" aria-hidden className="pointer-events-none absolute bottom-[3%] right-[1%] max-h-[78%] w-[32%] object-contain object-bottom" />}
+      {mascot && <img src={mascot} alt="" aria-hidden className="pointer-events-none absolute bottom-[3%] right-[2%] max-h-[78%] w-[32%] object-contain object-bottom" />}
       {isSystem && notification.actionUrl && <div className="absolute bottom-[5%] right-[3%]"><QrPanel value={notification.actionUrl} /></div>}
       {isSystem && !notification.actionUrl && <div className="absolute bottom-[8%] right-[4%] rounded-2xl bg-white/60 p-5 text-center text-sm text-black/60"><QrCode className="mx-auto mb-2 size-8" aria-hidden />QR unavailable</div>}
       {isSystem && <div className="absolute bottom-[6%] left-[clamp(1rem,4vw,3.5rem)] flex items-center gap-3 text-[clamp(0.8rem,2vw,1.25rem)] font-bold"><Siren className="size-[1.6em]" aria-hidden />Important/Urgent</div>}
@@ -82,5 +88,5 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
 export function FrameNoticeLayer() {
   const { notifications, dismiss } = useNotifications()
   if (notifications.length === 0) return null
-  return <section aria-label="Frame notifications" className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden p-[clamp(0.75rem,4vw,3rem)]"><div className="flex h-full w-full max-w-[min(100%,72rem)] flex-col justify-center gap-4">{notifications.slice(0, 1).map((notification) => <NoticeCard key={notification.id} notification={notification} onDismiss={dismiss} />)}</div></section>
+  return <section aria-label="Frame notifications" className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden p-[clamp(24px,2.5cqw,48px)]"><div className="flex h-full w-full max-w-[min(100%,72rem)] flex-col justify-center gap-4">{notifications.slice(0, 1).map((notification) => <NoticeCard key={notification.id} notification={notification} onDismiss={dismiss} />)}</div></section>
 }
