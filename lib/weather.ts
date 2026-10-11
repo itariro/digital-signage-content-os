@@ -16,7 +16,7 @@ export async function fetchWeather(lat: number, lon: number, units: string): Pro
 
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto&forecast_days=5`
-    const res = await fetch(url, { next: { revalidate: 900 } })
+    const res = await fetch(url, { next: { revalidate: 900 }, signal: AbortSignal.timeout(5_000) })
     if (!res.ok) throw new Error(`Open-Meteo returned ${res.status}`)
     const json = await res.json()
 
