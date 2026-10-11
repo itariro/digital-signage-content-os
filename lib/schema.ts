@@ -147,6 +147,10 @@ const bobExpressionSchema = z.enum([
   'exercise', 'talking', 'planning', 'building', 'reading', 'happy',
 ])
 
+const MAX_CONDITION_DEPTH = 11
+const MAX_CONDITION_LIST = 20
+const MAX_DURATION_MS = 86_400_000
+
 const conditionSchema: z.ZodType<any> = z.lazy(() =>
   z.union([
     z.object({ all: z.array(conditionSchema) }),
@@ -163,7 +167,7 @@ const conditionSchema: z.ZodType<any> = z.lazy(() =>
         uvAbove: z.number().optional(),
       }),
     }),
-    z.object({ specialTag: z.string() }),
+    z.object({ specialTag: z.enum(['rain', 'heat', 'cold', 'uv']) }),
   ])
 )
 
@@ -180,11 +184,29 @@ const experienceRuleSchema = z.object({
       expression: bobExpressionSchema,
       speech: z.string().max(500).optional(),
     }).optional(),
-    score: z.number(),
-    durationMs: z.number().int().min(0),
+    score: z.number().min(-1000).max(1000),
+    durationMs: z.number().int().min(0).max(MAX_DURATION_MS),
     reason: z.string().max(200).optional(),
   }),
 })
+
+/** Depth/size guard: recursive shapes are cheap to state in zod but expensive to accept unbounded. */
+function conditionShapeIssue(condition: unknown, depth: number, path: string): string | null {
+  if (depth > MAX_CONDITION_DEPTH) return `Condition at ${path} nests deeper than ${MAX_CONDITION_DEPTH} levels`
+  if (!condition || typeof condition !== 'object') return null
+  for (const key of ['all', 'any'] as const) {
+    const value = (condition as Record<string, unknown>)[key]
+    if (Array.isArray(value)) {
+      if (value.length > MAX_CONDITION_LIST) return `Condition list "${key}" at ${path} exceeds ${MAX_CONDITION_LIST} entries`
+      for (let i = 0; i < value.length; i++) {
+        const issue = conditionShapeIssue(value[i], depth + 1, `${path}.${key}[${i}]`)
+        if (issue) return issue
+      }
+    }
+  }
+  const not = (condition as Record<string, unknown>).not
+  return not === undefined ? null : conditionShapeIssue(not, depth + 1, `${path}.not`)
+}
 
 export const experiencesSchema = z.object({
   enabled: z.boolean(),
@@ -198,6 +220,8 @@ export const experiencesSchema = z.object({
           ctx.addIssue({ code: 'custom', message: `Duplicate rule id "${rule.id}"`, path: [index, 'id'] })
         }
         seen.add(rule.id)
+        const issue = conditionShapeIssue(rule.when, 1, `rules[${index}].when`)
+        if (issue) ctx.addIssue({ code: 'custom', message: issue, path: [index, 'when'] })
       })
     }),
   settings: z.object({
