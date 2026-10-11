@@ -167,6 +167,8 @@ export type FrameNotification = {
   durationMs: number
   createdAt: string
   eventKey?: string
+  resolution?: string
+  actionUrl?: string
 }
 
 export type FrameStore = {
