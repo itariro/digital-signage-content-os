@@ -1,14 +1,25 @@
 'use client'
 
-import { useState, useEffect, useSyncExternalStore } from 'react'
-import type { DisplayDecision, ExperienceContext, FrameStore } from '@/lib/types'
+import { useSyncExternalStore } from 'react'
+import useSWR from 'swr'
+import type { FrameStore } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { clockParts, resolveDisplay } from '@/lib/schedule'
 import { googleFontHref } from '@/lib/fonts'
 import { useNow } from '@/hooks/use-now'
 import { useWeather } from '@/hooks/use-frame-store'
 import { FrameScene } from './frame-scene'
-import { DecisionDebug } from './decision-debug'
+import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
+import { NotificationProvider } from '@/components/notifications/notification-provider'
+
+const fetcher = async (url: string) => {
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache' },
+  })
+  if (!res.ok) throw new Error('Request failed')
+  return res.json()
+}
 
 function subscribeResize(callback: () => void) {
   window.addEventListener('resize', callback)
@@ -24,94 +35,41 @@ function useViewportScale() {
 }
 
 export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore: FrameStore; frameId?: string }) {
-  const [decision, setDecision] = useState<DisplayDecision | null>(null)
-  const [store, setStore] = useState<FrameStore>(initialStore)
-  const [context, setContext] = useState<ExperienceContext | null>(null)
-  const [debug, setDebug] = useState(false)
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    setDebug(params.get('debug') === '1')
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === 'd') setDebug(value => !value)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
-
+  const { data } = useSWR<FrameStore>(`/api/store?frame=${encodeURIComponent(frameId)}`, fetcher, {
+    fallbackData: initialStore,
+    refreshInterval: 3_000,
+    dedupingInterval: 1_000,
+    revalidateOnFocus: false,
+    refreshWhenHidden: false,
+  })
+  const store = data ?? initialStore
   const now = useNow()
   const scale = useViewportScale()
-
-  useEffect(() => {
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let controller: AbortController | undefined
-    let sequence = 0
-    let applied = -1
-
-    async function poll() {
-      controller = new AbortController()
-      const timeout = setTimeout(() => controller?.abort(), 25_000)
-      const seq = ++sequence
-      try {
-        const res = await fetch(`/api/display/state?frame=${encodeURIComponent(frameId)}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-          signal: controller.signal,
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        if (cancelled || seq < applied) return
-        applied = seq
-        setDecision(prev => (prev?.id === data.decision?.id ? prev : data.decision))
-        setStore(data.store)
-        setContext(data.context ?? null)
-      } catch (error) {
-        if (!cancelled && (error as Error).name !== 'AbortError') {
-          console.error('[FrameDisplay] Poll failed:', error)
-        }
-      } finally {
-        clearTimeout(timeout)
-        if (!cancelled) timer = setTimeout(poll, 30_000)
-      }
-    }
-
-    poll()
-    return () => {
-      cancelled = true
-      if (timer) clearTimeout(timer)
-      controller?.abort()
-    }
-  }, [frameId])
-
-  const fallback = resolveDisplay(store, clockParts(now ?? new Date()))
-  const layoutId = decision?.layoutId || fallback.layout?.id
-  const layout = store.layouts.find((l) => l.id === layoutId) || fallback.layout
-  const night = fallback.night
-  const clientWeather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
-  const weather = context?.weather ?? clientWeather
+  const { layout, night } = resolveDisplay(store, clockParts(now ?? new Date()))
+  const weather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
 
   return (
-    <main className="flex h-dvh w-screen cursor-none items-center justify-center overflow-hidden bg-background">
-      <h1 className="sr-only">{layout ? `Frame showing ${layout.name}` : 'Frame display'}</h1>
-      {store.customFonts.map((family) => (
-        <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
-      ))}
-      {layout && scale > 0 ? (
-        <FrameScene
-          widgets={layout.widgets}
-          settings={layout.settings}
-          weather={weather}
-          now={now}
-          album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
-          scale={scale}
-          night={night ? store.schedule.night : null}
-          decision={decision}
-        />
-      ) : (
-        !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
-      )}
-      {debug && <DecisionDebug decision={decision} context={context} />}
-    </main>
+    <NotificationProvider notifications={store.notifications}>
+      <main className="flex h-dvh w-screen cursor-none items-center justify-center overflow-hidden bg-background">
+        <h1 className="sr-only">{layout ? `Frame showing ${layout.name}` : 'Frame display'}</h1>
+        {store.customFonts.map((family) => (
+          <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
+        ))}
+        {layout && scale > 0 ? (
+          <FrameScene
+            widgets={layout.widgets}
+            settings={layout.settings}
+            weather={weather}
+            now={now}
+            album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
+            scale={scale}
+            night={night ? store.schedule.night : null}
+          />
+        ) : (
+          !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
+        )}
+        <FrameNoticeLayer />
+      </main>
+    </NotificationProvider>
   )
 }

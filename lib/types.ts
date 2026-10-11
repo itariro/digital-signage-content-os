@@ -160,6 +160,18 @@ export type FrameSchedule = {
   night: NightMode
 }
 
+export type FrameNotification = {
+  id: string
+  title: string
+  message?: string
+  variant: 'info' | 'success' | 'warning' | 'error' | 'reminder'
+  durationMs: number
+  createdAt: string
+  eventKey?: string
+  resolution?: string
+  actionUrl?: string
+}
+
 export type FrameStore = {
   activeId: string | null
   layouts: Layout[]
@@ -168,6 +180,7 @@ export type FrameStore = {
   schedule: FrameSchedule
   albums: Album[]
   experiences: Experiences
+  notifications?: FrameNotification[]
 }
 
 // Bob Engine types

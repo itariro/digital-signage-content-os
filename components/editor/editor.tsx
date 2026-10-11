@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Sparkles, Type } from 'lucide-react'
+import { Bell, CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Sparkles, Type } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -23,6 +23,8 @@ import { LibraryPanel } from './library-panel'
 import { LayersPanel } from './layers-panel'
 import { LayoutsPanel } from './layouts-panel'
 import { FontsPanel } from './fonts-panel'
+import { NotificationsPanel } from './notifications-panel'
+import { NotificationProvider } from '@/components/notifications/notification-provider'
 import { TopBar } from './top-bar'
 import { PreviewOverlay } from './preview-overlay'
 import { LiveDataContext } from './widget-preview'
@@ -36,6 +38,7 @@ const TABS = [
   { id: 'fonts', label: 'Fonts', icon: Type },
   { id: 'schedule', label: 'Schedule', icon: CalendarClock },
   { id: 'experiences', label: 'Experiences', icon: Sparkles },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -376,6 +379,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
 
   return (
     <LiveDataContext value={liveData}>
+      <NotificationProvider>
       {store.customFonts.map((family) => (
         <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
       ))}
@@ -446,6 +450,9 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
               {tab === 'experiences' && (
                 <ExperiencesPanel experiences={store.experiences} layouts={liveLayouts} onSave={saveExperiences} />
               )}
+              <div className={cn('min-h-full', tab === 'notifications' ? 'block' : 'hidden')} aria-hidden={tab !== 'notifications'}>
+                <NotificationsPanel />
+              </div>
             </div>
           </aside>
 
@@ -493,6 +500,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
         />
       )}
       <Toaster theme="dark" position="bottom-center" toastOptions={{ className: 'font-sans' }} />
+      </NotificationProvider>
     </LiveDataContext>
   )
 }

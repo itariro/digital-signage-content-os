@@ -5,6 +5,7 @@ import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Widget 
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
+import { normalizeFrameNotifications } from './notifications'
 import { getDb } from './db'
 import { frameDocuments } from './db/schema'
 import { createTtlCache } from './ttl-cache'
@@ -212,6 +213,7 @@ export function normalize(store: FrameStore): FrameStore {
       night: { ...DEFAULT_SCHEDULE.night, ...schedule.night },
       rules: (schedule.rules ?? []).filter((r) => store.layouts.some((l) => l.id === r.layoutId)),
     },
+    notifications: normalizeFrameNotifications(store.notifications),
   }
 }
 
