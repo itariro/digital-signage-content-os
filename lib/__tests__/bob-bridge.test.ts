@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { bobVariantFor, createBobBridge, DEFAULT_BOB_THROTTLE_MS } from '../bob-bridge'
-import type { DisplayDecision, ExperienceContext, FrameStore } from '../types'
+import type { DisplayDecision, ExperienceContext, FrameNotification, FrameStore } from '../types'
 
 describe('bobVariantFor', () => {
   it('maps celebration to success', () => {
@@ -80,10 +80,15 @@ function makeStore(): FrameStore {
 }
 
 /** Fake deps with an injectable clock and a mutateStore that actually applies the mutator. */
-function makeBridge(opts?: { throttleMs?: number; ruleName?: string }) {
-  let clock = Date.parse('2026-10-11T08:00:00Z')
+function makeBridge(opts?: { throttleMs?: number; ruleName?: string; notifications?: FrameNotification[] }) {
+  // Base the fake clock on real time: normalizeFrameNotifications prunes by the
+  // real clock, so a clock anchored far in the past would make every synthetic
+  // card born-expired. Determinism comes from the *deltas* the tests advance.
+  const base = Date.now()
+  let clock = base
   let store = makeStore()
   store.experiences.rules[0].name = opts?.ruleName ?? 'Chores'
+  store.notifications = opts?.notifications ?? []
   const getDecision = vi.fn(async (_frameId: string) => ({ decision: makeDecision(), context: makeContext(), store }))
   const mutateStore = vi.fn(async (fn: (s: FrameStore) => FrameStore | void, _frameId: string) => {
     store = fn(store) as FrameStore
@@ -99,6 +104,7 @@ function makeBridge(opts?: { throttleMs?: number; ruleName?: string }) {
     bridge,
     getDecision,
     mutateStore,
+    base,
     advance: (ms: number) => { clock += ms },
     notifications: () => store.notifications ?? [],
     setDecision: (decision: DisplayDecision) => {
@@ -125,11 +131,11 @@ describe('createBobBridge.tick', () => {
     expect(note.variant).toBe('success')               // celebration → success
     expect(note.eventKey).toBe('bob:r1')
     expect(note.durationMs).toBe(30_000)               // normalize clamps to ≤60s; 30s passes through
-    expect(note.createdAt).toBe('2026-10-11T08:00:00.000Z')
+    expect(note.createdAt).toBe(new Date(b.base).toISOString())
     expect(note.id.length).toBeGreaterThan(0)
   })
 
-  it('re-publishes via replace-by-key once the card has expired while the same decision persists', async () => {
+  it('replaces the previous card by eventKey instead of stacking duplicates', async () => {
     const b = makeBridge()
     await b.bridge.tick('home')
     b.advance(DEFAULT_BOB_THROTTLE_MS + 1)
@@ -137,12 +143,32 @@ describe('createBobBridge.tick', () => {
 
     expect(b.getDecision).toHaveBeenCalledTimes(2)
     expect(b.mutateStore).toHaveBeenCalledTimes(2)
-    // Both cards share the eventKey; the client provider merges them into one.
-    expect(b.notifications().map((n) => n.eventKey)).toEqual(['bob:r1', 'bob:r1'])
-    expect(b.notifications()).toHaveLength(2)
+    // Same eventKey everywhere: the store keeps exactly one Bob entry.
+    const notes = b.notifications()
+    expect(notes).toHaveLength(1)
+    expect(notes[0].eventKey).toBe('bob:r1')
   })
 
-  it('publishes again when the decision id changes, newest first', async () => {
+  it('never evicts other notifications while re-publishing Bob cards', async () => {
+    const foreign: FrameNotification = {
+      id: 'editor-test', title: 'From the editor', variant: 'info', durationMs: 60_000,
+      createdAt: new Date().toISOString(),
+    }
+    const b = makeBridge({ throttleMs: 1_000, notifications: [foreign] })
+    await b.bridge.tick('home')
+    // 40s of 1s cycles: the Bob card (30s clamp) expires and re-publishes
+    // mid-run; the foreign card (60s) is still live throughout.
+    for (let i = 0; i < 40; i++) {
+      b.advance(1_001)
+      await b.bridge.tick('home')
+    }
+
+    const notes = b.notifications()
+    expect(notes.filter((n) => n.id === 'editor-test')).toHaveLength(1)
+    expect(notes.filter((n) => n.eventKey === 'bob:r1')).toHaveLength(1)
+  })
+
+  it('publishes again when the decision id changes, replacing the same-rule card', async () => {
     const b = makeBridge()
     await b.bridge.tick('home')
     b.setDecision(makeDecision({ id: 'dec-2', bob: { expression: 'talking', speech: 'Rain later' }, state: 'weather', reason: 'Weather watch' }))
@@ -150,12 +176,12 @@ describe('createBobBridge.tick', () => {
     await b.bridge.tick('home')
 
     expect(b.mutateStore).toHaveBeenCalledTimes(2)
+    // Same rule → same eventKey → the newest speech replaces the old card.
     const notes = b.notifications()
-    expect(notes).toHaveLength(2)
+    expect(notes).toHaveLength(1)
     expect(notes[0].message).toBe('Rain later')
     expect(notes[0].variant).toBe('info')
     expect(notes[0].eventKey).toBe('bob:r1')
-    expect(notes[1].message).toBe('Well done!')
   })
 
   it('floors durationMs 0 to the variant default so a new rule is never a flash', async () => {

@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { BobExpression, DisplayDecision, DisplayState, FrameNotification, FrameStore } from './types'
-import { NOTIFICATION_DEFAULT_DURATION, clampNotificationDuration, normalizeFrameNotifications } from './notifications'
+import { NOTIFICATION_DEFAULT_DURATION, clampNotificationDuration, normalizeFrameNotifications, notificationKey } from './notifications'
 import { createTtlCache } from './ttl-cache'
 import { getDecision, log } from './engine/state'
 import { mutateStore } from './store'
@@ -86,7 +86,10 @@ export function createBobBridge(deps: BobBridgeDeps) {
       await deps.mutateStore(
         (current) => ({
           ...current,
-          notifications: normalizeFrameNotifications([notification, ...(current.notifications ?? [])]).slice(0, 20),
+          notifications: normalizeFrameNotifications([
+            notification,
+            ...(current.notifications ?? []).filter((n) => notificationKey(n) !== notification.eventKey),
+          ]),
         }),
         frameId,
       )

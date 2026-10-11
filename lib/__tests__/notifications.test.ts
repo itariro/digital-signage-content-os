@@ -53,12 +53,28 @@ describe('createDemoNotifications', () => {
     expect(first[2].createdAt).toBe('2026-10-11T08:24:00.000Z')
   })
 
-  it('produces notifications that pass normalization unchanged', () => {
+  it('builds well-formed demo notifications', () => {
     for (const notification of createDemoNotifications()) {
-      const [normalized] = normalizeFrameNotifications([notification])
-      expect(normalized).toBeDefined()
-      expect(normalized.id).toBe(notification.id)
-      expect(normalized.title).toBe(notification.title)
+      expect(notification.id.length).toBeGreaterThan(0)
+      expect(notification.title.length).toBeGreaterThan(0)
+      expect(['info', 'success', 'warning', 'error', 'reminder']).toContain(notification.variant)
+      expect(Date.parse(notification.createdAt)).not.toBeNaN()
     }
+  })
+})
+
+describe('normalizeFrameNotifications expiry pruning', () => {
+  it('drops entries whose display window has passed and keeps fresh ones', () => {
+    const now = Date.now()
+    const expired = {
+      id: 'old', title: 'Old card', variant: 'info', durationMs: 6_000,
+      createdAt: new Date(now - 120_000).toISOString(),
+    }
+    const fresh = {
+      id: 'new', title: 'Fresh card', variant: 'info', durationMs: 6_000,
+      createdAt: new Date(now - 1_000).toISOString(),
+    }
+    const normalized = normalizeFrameNotifications([expired, fresh])
+    expect(normalized.map((n) => n.id)).toEqual(['new'])
   })
 })

@@ -46,6 +46,7 @@ export function normalizeFrameNotifications(input: unknown): FrameNotification[]
       }
     })
     .filter((item) => item.id.length > 0 && item.title.length > 0)
+    .filter((item) => !notificationIsExpired(item))
     .slice(0, 20)
 }
 
