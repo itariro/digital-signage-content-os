@@ -16,8 +16,7 @@ type TopBarProps = {
   onExport: () => void
 }
 
-export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }: TopBarProps) {
-  const { state, dirty } = editor
+export function ThemeToggle() {
   const [isDark, setIsDark] = useState(true)
 
   useEffect(() => {
@@ -30,6 +29,15 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
     setIsDark(nextIsDark)
   }
 
+  return (
+    <button type="button" onClick={toggleTheme} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground">
+      {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
+    </button>
+  )
+}
+
+export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }: TopBarProps) {
+  const { state, dirty } = editor
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 lg:px-4">
       <div className="flex items-center gap-2 pr-2">
@@ -75,15 +83,6 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
         </IconButton>
       </div>
 
-      <button
-        type="button"
-        onClick={toggleTheme}
-        title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-      >
-        {isDark ? <Sun aria-hidden /> : <Moon aria-hidden />}
-      </button>
       <button
         type="button"
         onClick={onPreview}

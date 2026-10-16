@@ -151,7 +151,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                   </button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-1" role="group" aria-label="Days">
+                <div className="inline-flex w-full rounded-md border border-border p-0.5" role="group" aria-label="Days">
                   {WEEKDAY_OPTIONS.map(({ value, label }) => {
                     const currentDays = 'days' in rule.when ? rule.when.days : []
                     const on = currentDays.includes(value)
@@ -164,8 +164,8 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                         onClick={() => updateRule(rule.id, { when: mergeDaysCondition(rule.when, toggleWeekday(currentDays, value, !on)) })}
                         className={
                           on
-                            ? 'h-7 rounded-md bg-primary text-[11px] font-medium text-primary-foreground'
-                            : 'h-7 rounded-md bg-card text-[11px] font-medium text-muted-foreground hover:text-foreground'
+                            ? 'h-6 flex-1 rounded-sm bg-primary text-[10px] font-medium text-primary-foreground'
+                            : 'h-6 flex-1 rounded-sm text-[10px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground'
                         }
                       >
                         {label[0]}

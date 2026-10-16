@@ -22,8 +22,8 @@ export function WidgetToolbar({ onAdd }: { onAdd: (payload: DropPayload) => void
   )
 
   return (
-    <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center rounded-2xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur" aria-label="Widget tools">
-      <button type="button" className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary" aria-label="Select tool">
+    <div className="absolute bottom-3 right-3 z-10 flex max-w-[calc(100%-1.5rem)] items-center rounded-xl border border-border bg-card/95 p-1 shadow-lg backdrop-blur" aria-label="Widget tools">
+      <button type="button" className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-label="Select tool">
         <LayoutGrid aria-hidden />
       </button>
       {groups.map((group) => {
@@ -33,12 +33,12 @@ export function WidgetToolbar({ onAdd }: { onAdd: (payload: DropPayload) => void
             {items.slice(0, 2).map((widget) => {
               const Icon = widget.icon
               return (
-                <button key={widget.type} type="button" title={widget.label} aria-label={`Add ${widget.label}`} onClick={() => onAdd({ kind: 'widget', type: widget.type as WidgetType })} className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                <button key={widget.type} type="button" title={widget.label} aria-label={`Add ${widget.label}`} onClick={() => onAdd({ kind: 'widget', type: widget.type as WidgetType })} className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
                   <Icon aria-hidden />
                 </button>
               )
             })}
-            <button type="button" aria-label={`More ${group.label}`} aria-expanded={open === group.label} onClick={() => setOpen(open === group.label ? null : group.label)} className={cn('flex size-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground', open === group.label && 'bg-secondary text-foreground')}>
+            <button type="button" aria-label={`More ${group.label}`} aria-expanded={open === group.label} onClick={() => setOpen(open === group.label ? null : group.label)} className={cn('flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground', open === group.label && 'bg-secondary text-foreground')}>
               <ChevronUp aria-hidden />
             </button>
             {open === group.label && (

@@ -24,7 +24,7 @@ import { LayoutsPanel } from './layouts-panel'
 import { FontsPanel } from './fonts-panel'
 import { NotificationsPanel } from './notifications-panel'
 import { NotificationProvider } from '@/components/notifications/notification-provider'
-import { TopBar } from './top-bar'
+import { ThemeToggle, TopBar } from './top-bar'
 import { PreviewOverlay } from './preview-overlay'
 import { LiveDataContext } from './widget-preview'
 import { cn } from '@/lib/utils'
@@ -401,15 +401,16 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
         />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <aside className="order-2 flex min-h-0 overflow-hidden border-t border-border bg-card lg:order-1 lg:h-full lg:w-[380px] lg:shrink-0 lg:border-r lg:border-t-0">
-            <nav aria-label="Editor sections" className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-card py-3">
-              <button type="button" aria-label="Open editor menu" className="mb-3 flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"><Menu aria-hidden /></button>
+            <nav aria-label="Editor sections" className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-card py-2">
+              <button type="button" aria-label="Open editor menu" className="mb-2 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"><Menu className="size-4" aria-hidden /></button>
               {PANELS.map((panel) => {
                 const Icon = panel.icon
-                return <button key={panel.id} type="button" aria-label={panel.label} aria-pressed={tab === panel.id} onClick={() => setTab(panel.id)} className={cn('flex size-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', tab === panel.id && 'bg-primary/10 text-primary')}><Icon aria-hidden /></button>
+                return <button key={panel.id} type="button" aria-label={panel.label} aria-pressed={tab === panel.id} onClick={() => setTab(panel.id)} className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', tab === panel.id && 'bg-primary/10 text-primary')}><Icon className="size-4" aria-hidden /></button>
               })}
+              <div className="mt-auto border-t border-border pt-2"><ThemeToggle /></div>
             </nav>
             <div role="tabpanel" id={`panel-${tab}`} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-border px-5 py-4"><h2 className="text-lg font-semibold tracking-tight">{PANELS.find((panel) => panel.id === tab)?.label}</h2><button type="button" aria-label="Collapse panel" className="text-muted-foreground hover:text-foreground"><PanelLeftClose aria-hidden /></button></div>
+              <div className="flex items-center justify-between border-b border-border px-3 py-2.5"><h2 className="text-base font-semibold tracking-tight">{PANELS.find((panel) => panel.id === tab)?.label}</h2><button type="button" aria-label="Collapse panel" className="text-muted-foreground hover:text-foreground"><PanelLeftClose aria-hidden /></button></div>
               {tab === 'layers' && <LayersPanel editor={editor} />}
               {tab === 'layouts' && (
                 <LayoutsPanel layouts={liveLayouts} activeId={store.activeId} editingId={state.layoutId} onOpen={(id) => id !== state.layoutId && confirmDiscard() && openLayout(id)} onCreate={() => createLayout({ name: 'Untitled layout', widgets: [], settings: state.settings }, 'New layout created')} onDuplicate={(l) => createLayout({ name: `${l.name} copy`.slice(0, 80), widgets: l.widgets, settings: l.settings }, 'Layout duplicated')} onDelete={deleteLayout} onActivate={activate} onImport={importLayout} />
