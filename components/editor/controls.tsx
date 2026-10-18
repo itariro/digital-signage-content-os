@@ -40,7 +40,7 @@ export function SliderField({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-sm text-foreground">
+        <label htmlFor={id} className="text-xs text-foreground">
           {label}
         </label>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
