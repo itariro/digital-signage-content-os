@@ -384,7 +384,7 @@ function TimerControls({ durationMs, paused, onTogglePause, onComplete, onDismis
   useEffect(() => {
     if (!done) return
     // Let the 100% progress state render before removing the card.
-    const completionTimer = window.setTimeout(() => completeRef.current(), 120)
+    const completionTimer = window.setTimeout(() => completeRef.current(), 350)
     return () => window.clearTimeout(completionTimer)
   }, [done])
 
@@ -403,7 +403,7 @@ function TimerControls({ durationMs, paused, onTogglePause, onComplete, onDismis
           aria-valuenow={Math.round(progress * 100)}
           style={{ position: 'relative', width: u(T.footerProgress), height: '100%', padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}
         >
-          <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: u(T.footerProgress), transform: `scaleX(${progress})`, transformOrigin: 'left center', borderRadius: 9999, background: '#000', opacity: paused ? 0.55 : 1 }} />
+          <span aria-hidden style={{ position: 'absolute', inset: 0, right: 'auto', width: `${Math.round(progress * 10000) / 100}%`, borderRadius: 9999, background: '#000', opacity: paused ? 0.55 : 1 }} />
         </button>
       ) : (
         <div aria-hidden style={{ width: u(T.footerProgress), height: '100%' }} />
