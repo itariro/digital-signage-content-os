@@ -382,7 +382,10 @@ function TimerControls({ durationMs, paused, onTogglePause, onComplete, onDismis
   const completeRef = useRef(onComplete)
   completeRef.current = onComplete
   useEffect(() => {
-    if (done) completeRef.current()
+    if (!done) return
+    // Let the 100% progress state render before removing the card.
+    const completionTimer = window.setTimeout(() => completeRef.current(), 120)
+    return () => window.clearTimeout(completionTimer)
   }, [done])
 
   const progress = timed ? Math.min(1, elapsed / durationMs) : 0
