@@ -426,7 +426,7 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
   const mascot = spec.mascot
 
   const cardVars = {
-    '--card-w': 'min(calc(100vw - 72px), 1440px)',
+    '--card-w': 'min(720px, 68vw, max(280px, calc(100vw - 48px)))',
     '--u': 'calc(var(--card-w) / 1332)',
   } as CSSProperties
 
@@ -484,7 +484,7 @@ export function FrameNoticeLayer() {
   const { notifications, dismiss } = useNotifications()
   if (notifications.length === 0) return null
   return (
-    <section aria-label="Frame notifications" className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden">
+    <section aria-label="Frame notifications" className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden p-6 sm:p-8">
       {notifications.slice(0, 1).map((notification) => (
         <NoticeCard key={notification.id} notification={notification as NoticeData} onDismiss={dismiss} />
       ))}
