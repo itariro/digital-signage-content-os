@@ -29,7 +29,6 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
       <div className="flex gap-2">
         <button
           type="button"
-          size="sm"
           onClick={onCreate}
           className="flex h-7 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
@@ -38,7 +37,6 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
         </button>
         <button
           type="button"
-          size="sm"
           onClick={() => fileRef.current?.click()}
           className="flex h-7 items-center justify-center gap-1.5 rounded-lg bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
         >
