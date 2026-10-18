@@ -426,7 +426,7 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
   const mascot = spec.mascot
 
   const cardVars = {
-    '--card-w': 'min(720px, 68vw, max(280px, calc(100vw - 48px)))',
+    '--card-w': 'min(480px, 62vw, max(280px, calc(100vw - 48px)))',
     '--u': 'calc(var(--card-w) / 1332)',
   } as CSSProperties
 
