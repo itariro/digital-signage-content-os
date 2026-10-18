@@ -24,7 +24,7 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
           <li
             key={w.id}
             className={cn(
-              'flex items-center gap-1 rounded-lg pl-2 pr-1 transition-colors',
+              'flex items-center gap-0.5 rounded-md pl-1.5 pr-0.5 transition-colors',
               isSelected ? 'bg-primary/15' : 'hover:bg-secondary',
               w.hidden && 'opacity-50',
             )}
@@ -38,9 +38,9 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
                   editor.select([w.id])
                 }
               }}
-              className="flex min-w-0 flex-1 items-center gap-2.5 py-2 text-left"
+              className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
             >
-              <def.icon className={cn('size-4 shrink-0', isSelected ? 'text-primary' : 'text-muted-foreground')} aria-hidden />
+              <def.icon className={cn('size-3.5 shrink-0', isSelected ? 'text-primary' : 'text-muted-foreground')} aria-hidden />
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-sm text-foreground">
                   {w.type === 'text' ? String(w.props.text || def.label) : def.label}

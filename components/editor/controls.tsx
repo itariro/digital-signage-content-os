@@ -7,9 +7,9 @@ import { STYLE_THEMES } from '@/lib/widgets'
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2 border-b border-border px-3 py-3 last:border-b-0">
+    <section className="flex flex-col gap-1.5 border-b border-border px-2.5 py-2 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
         {action}
       </div>
       {children}
@@ -40,7 +40,7 @@ export function SliderField({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-sm text-foreground">
+        <label htmlFor={id} className="text-xs text-foreground">
           {label}
         </label>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -151,11 +151,11 @@ export function ToggleField({ label, checked, onChange }: { label: string; check
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between gap-3 text-left text-sm text-foreground"
+      className="flex items-center justify-between gap-2 text-left text-xs text-foreground"
     >
       {label}
-      <span className={cn('relative h-6 w-10 shrink-0 rounded-full transition-colors', checked ? 'bg-primary' : 'bg-secondary')}>
-        <span className={cn('absolute top-0.5 size-5 rounded-full bg-foreground shadow transition-transform', checked ? 'translate-x-4.5' : 'translate-x-0.5')} />
+      <span className={cn('relative h-4 w-7 shrink-0 rounded-full transition-colors', checked ? 'bg-primary' : 'bg-secondary')}>
+        <span className={cn('absolute top-0.5 size-3 rounded-full bg-foreground shadow transition-transform', checked ? 'translate-x-3.5' : 'translate-x-0.5')} />
       </span>
     </button>
   )

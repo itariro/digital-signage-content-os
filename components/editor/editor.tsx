@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { Bell, CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, LayoutGrid, Sparkles, Type } from 'lucide-react'
+import { Bell, CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, Sparkles, Type, Menu, PanelLeftClose } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -19,29 +19,28 @@ import { useFrameStore, useWeather } from '@/hooks/use-frame-store'
 import { useNow } from '@/hooks/use-now'
 import { Canvas, type DropPayload } from './canvas'
 import { Inspector } from './inspector'
-import { LibraryPanel } from './library-panel'
 import { LayersPanel } from './layers-panel'
 import { LayoutsPanel } from './layouts-panel'
 import { FontsPanel } from './fonts-panel'
 import { NotificationsPanel } from './notifications-panel'
 import { NotificationProvider } from '@/components/notifications/notification-provider'
-import { TopBar } from './top-bar'
+import { ThemeToggle, TopBar } from './top-bar'
 import { PreviewOverlay } from './preview-overlay'
 import { LiveDataContext } from './widget-preview'
 import { cn } from '@/lib/utils'
+import { WidgetToolbar } from './widget-toolbar'
 
-const TABS = [
-  { id: 'widgets', label: 'Widgets', icon: LayoutGrid },
+const PANELS = [
   { id: 'layers', label: 'Layers', icon: Layers },
   { id: 'layouts', label: 'Layouts', icon: LayoutTemplate },
   { id: 'albums', label: 'Albums', icon: GalleryVerticalEnd },
   { id: 'fonts', label: 'Fonts', icon: Type },
   { id: 'schedule', label: 'Schedule', icon: CalendarClock },
-  { id: 'experiences', label: 'Experiences', icon: Sparkles },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'experiences', label: 'Bob', icon: Sparkles },
 ] as const
 
-type TabId = (typeof TABS)[number]['id']
+type TabId = (typeof PANELS)[number]['id']
 
 function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : 'Something went wrong'
@@ -60,7 +59,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
   const { state, dirty } = editor
   const now = useNow()
   const weather = useWeather(state.settings)
-  const [tab, setTab] = useState<TabId>('widgets')
+  const [tab, setTab] = useState<TabId>('layers')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewDecision, setPreviewDecision] = useState<DisplayDecision | null>(null)
   const [saving, setSaving] = useState(false)
@@ -235,7 +234,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
     if (!name?.trim()) return
     try {
       await call('/api/presets', 'POST', { name: name.trim(), widgets: normalizeGroup(widgets) })
-      setTab('widgets')
+      setTab('layers')
       toast.success(`Saved "${name.trim()}" to My widgets`)
     } catch (e) {
       toast.error(errorMessage(e))
@@ -401,70 +400,30 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
           onExport={exportLayout}
         />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          <aside className="order-2 flex min-h-0 flex-col overflow-hidden border-t border-border bg-card lg:order-1 lg:h-full lg:w-80 lg:shrink-0 lg:border-r lg:border-t-0">
-            <div role="tablist" aria-label="Editor panels" className="grid shrink-0 grid-cols-7 gap-0.5 border-b border-border p-1.5">
-              {TABS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  id={`tab-${t.id}`}
-                  aria-selected={tab === t.id}
-                  aria-controls={`panel-${t.id}`}
-                  title={t.label}
-                  onClick={() => setTab(t.id)}
-                  className={cn(
-                    'flex items-center justify-center rounded-md p-2 text-[10px] font-medium transition-colors',
-                    tab === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <t.icon className={cn('size-4', tab === t.id && 'text-primary')} aria-hidden />
-                  <span className="sr-only">{t.label}</span>
-                </button>
-              ))}
-            </div>
-            <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
-              {tab === 'widgets' && <LibraryPanel presets={store.presets} onAdd={(p) => addItem(p)} onDeletePreset={deletePreset} />}
+          <aside className="order-2 flex min-h-0 overflow-hidden border-t border-border bg-card lg:order-1 lg:h-full lg:w-[380px] lg:shrink-0 lg:border-r lg:border-t-0">
+            <nav aria-label="Editor sections" className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-card py-2">
+              <button type="button" aria-label="Open editor menu" className="mb-2 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"><Menu className="size-4" aria-hidden /></button>
+              {PANELS.map((panel) => {
+                const Icon = panel.icon
+                return <button key={panel.id} type="button" aria-label={panel.label} aria-pressed={tab === panel.id} onClick={() => setTab(panel.id)} className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', tab === panel.id && 'bg-primary/10 text-primary')}><Icon className="size-4" aria-hidden /></button>
+              })}
+              <div className="mt-auto border-t border-border pt-2"><ThemeToggle /></div>
+            </nav>
+            <div role="tabpanel" id={`panel-${tab}`} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2.5"><h2 className="text-base font-semibold tracking-tight">{PANELS.find((panel) => panel.id === tab)?.label}</h2><button type="button" aria-label="Collapse panel" className="text-muted-foreground hover:text-foreground"><PanelLeftClose aria-hidden /></button></div>
               {tab === 'layers' && <LayersPanel editor={editor} />}
               {tab === 'layouts' && (
-                <LayoutsPanel
-                  layouts={liveLayouts}
-                  activeId={store.activeId}
-                  editingId={state.layoutId}
-                  onOpen={(id) => id !== state.layoutId && confirmDiscard() && openLayout(id)}
-                  onCreate={() => createLayout({ name: 'Untitled layout', widgets: [], settings: state.settings }, 'New layout created')}
-                  onDuplicate={(l) => createLayout({ name: `${l.name} copy`.slice(0, 80), widgets: l.widgets, settings: l.settings }, 'Layout duplicated')}
-                  onDelete={deleteLayout}
-                  onActivate={activate}
-                  onImport={importLayout}
-                />
+                <LayoutsPanel layouts={liveLayouts} activeId={store.activeId} editingId={state.layoutId} onOpen={(id) => id !== state.layoutId && confirmDiscard() && openLayout(id)} onCreate={() => createLayout({ name: 'Untitled layout', widgets: [], settings: state.settings }, 'New layout created')} onDuplicate={(l) => createLayout({ name: `${l.name} copy`.slice(0, 80), widgets: l.widgets, settings: l.settings }, 'Layout duplicated')} onDelete={deleteLayout} onActivate={activate} onImport={importLayout} />
               )}
-              {tab === 'albums' && (
-                <AlbumsPanel
-                  albums={liveAlbums}
-                  openId={openAlbumId}
-                  layoutAlbumId={state.settings.albumId}
-                  onOpen={setOpenAlbumId}
-                  onCreate={createAlbum}
-                  onUpdate={updateAlbum}
-                  onDelete={deleteAlbum}
-                  onUseOnLayout={attachAlbum}
-                />
-              )}
+              {tab === 'albums' && <AlbumsPanel albums={liveAlbums} openId={openAlbumId} layoutAlbumId={state.settings.albumId} onOpen={setOpenAlbumId} onCreate={createAlbum} onUpdate={updateAlbum} onDelete={deleteAlbum} onUseOnLayout={attachAlbum} />}
               {tab === 'fonts' && <FontsPanel customFonts={store.customFonts} onAdd={addFont} onRemove={removeFont} />}
-              {tab === 'schedule' && (
-                <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />
-              )}
-              {tab === 'experiences' && (
-                <ExperiencesPanel experiences={store.experiences} layouts={liveLayouts} onSave={saveExperiences} />
-              )}
-              <div className={cn('min-h-full', tab === 'notifications' ? 'block' : 'hidden')} aria-hidden={tab !== 'notifications'}>
-                <NotificationsPanel />
-              </div>
+              {tab === 'schedule' && <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />}
+              {tab === 'experiences' && <ExperiencesPanel experiences={store.experiences} layouts={liveLayouts} onSave={saveExperiences} />}
+              {tab === 'notifications' && <NotificationsPanel />}
             </div>
           </aside>
 
-          <main className="canvas-surface order-1 min-h-0 min-w-0 overflow-hidden lg:order-2 lg:flex-1">
+          <main className="canvas-surface relative order-1 min-h-0 min-w-0 overflow-hidden lg:order-2 lg:flex-1">
             <h1 className="sr-only">Lockscreen layout editor</h1>
             <Canvas
               editor={editor}
@@ -476,6 +435,7 @@ export function Editor({ initialStore }: { initialStore: FrameStore }) {
               onToggleNight={() => setNightPreview((v) => !v)}
               onDrop={addItem}
             />
+            <WidgetToolbar onAdd={addItem} />
           </main>
 
           <aside aria-label="Inspector" className="order-3 flex min-h-0 flex-col overflow-hidden border-t border-border bg-card lg:h-full lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
