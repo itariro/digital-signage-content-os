@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { nanoid } from 'nanoid'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Widget } from './types'
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
@@ -279,7 +279,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
 
 async function persist(frameId: string, store: FrameStore) {
   const db = getDb()
-  await db.update(frameDocuments).set({ data: store, updatedAt: new Date() }).where(eq(frameDocuments.identifier, frameId))
+  await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1` }).where(eq(frameDocuments.identifier, frameId))
 }
 
 export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
@@ -290,6 +290,15 @@ export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameI
     const next = normalize(fn(current) ?? current)
     await persist(frameId, next)
     storeCache.set(frameId, next)
+    // Enqueue synchronization work in instance mode (durable local queue).
+    if (process.env.FRAME_MODE === 'instance') {
+      try {
+        const { enqueueChange } = await import('./sync/queue')
+        await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16) })
+      } catch {
+        // Sync queue failure must not block local writes.
+      }
+    }
     return next
   })
   queues.set(frameId, run.catch(() => undefined))
