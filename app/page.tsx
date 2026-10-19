@@ -3,8 +3,10 @@ import { Editor } from '@/components/editor/editor'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Page() {
-  const store = await readStore()
+export default async function Page({ searchParams }: { searchParams: Promise<{ frame?: string }> }) {
+  const { frame } = await searchParams
+  const frameId = frame || undefined
+  const store = await readStore(frameId)
   if (!store) return <main className="flex h-screen items-center justify-center bg-background"><p className="text-muted-foreground">Store not found.</p></main>
-  return <Editor initialStore={store} />
+  return <Editor initialStore={store} frameId={frameId} />
 }

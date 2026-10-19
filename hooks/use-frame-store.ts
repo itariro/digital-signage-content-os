@@ -11,8 +11,9 @@ const fetcher = async (url: string, { signal }: { signal?: AbortSignal } = {}) =
 
 type MutationResult = { store: FrameStore; id?: string }
 
-export function useFrameStore(fallbackData: FrameStore) {
-  const { data, mutate } = useSWR<FrameStore>('/api/store', fetcher, {
+export function useFrameStore(fallbackData: FrameStore, frameId?: string) {
+  const url = frameId ? `/api/store?frame=${encodeURIComponent(frameId)}` : '/api/store'
+  const { data, mutate } = useSWR<FrameStore>(url, fetcher, {
     fallbackData,
     revalidateOnFocus: false,
   })
