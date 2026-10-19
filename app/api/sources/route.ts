@@ -3,7 +3,8 @@ import { nanoid } from 'nanoid'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
-import { contentSources } from '@/lib/db/schema'
+import { getTables } from '@/lib/db/tables'
+const { contentSources } = getTables() as any
 
 const sourceSchema = z.object({
   frameId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/).default('home'),

@@ -8,7 +8,8 @@ import { defaultSlideshow } from './albums'
 import { normalizeFrameNotifications } from './notifications'
 import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
-import { frameDocuments } from './db/schema'
+import { getTables } from './db/tables'
+const { frameDocuments } = getTables() as any
 import { createTtlCache } from './ttl-cache'
 
 export const DEFAULT_FRAME_ID = 'home'
