@@ -83,5 +83,5 @@ export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get('id')
   if (!id || !validId(id) || id === 'home') return NextResponse.json({ error: 'The home frame cannot be removed' }, { status: 400 })
   const result = await getDb().delete(frameDocuments).where(eq(frameDocuments.identifier, id))
-  return NextResponse.json({ ok: true, deleted: result.rowCount ?? 0 })
+  return NextResponse.json({ ok: true, deleted: (result as any).changes ?? (result as any).rowCount ?? 0 })
 }
