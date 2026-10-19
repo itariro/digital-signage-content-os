@@ -105,10 +105,6 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
         {dirty && !saving && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-card" aria-label="Unsaved changes" />}
       </button>
       <div className="ml-2 flex items-center gap-2">
-        <Show when="signed-out">
-          <SignInButton />
-          <SignUpButton />
-        </Show>
         <Show when="signed-in">
           <UserButton />
         </Show>
