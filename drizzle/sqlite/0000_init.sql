@@ -91,3 +91,13 @@ CREATE TABLE IF NOT EXISTS instances (
   created_at INTEGER NOT NULL,
   last_seen_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id TEXT PRIMARY KEY,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  details TEXT,
+  created_at INTEGER NOT NULL
+);

@@ -103,3 +103,13 @@ export const instances = sqliteTable('instances', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }),
 })
+
+export const auditLog = sqliteTable('audit_log', {
+  id: text('id').primaryKey(),
+  actor: text('actor').notNull(),
+  action: text('action').notNull(),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id').notNull(),
+  details: text('details', { mode: 'json' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})

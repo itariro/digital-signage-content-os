@@ -121,3 +121,13 @@ export const instances = pgTable('instances', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
 })
+
+export const auditLog = pgTable('audit_log', {
+  id: text('id').primaryKey(),
+  actor: text('actor').notNull(),
+  action: text('action').notNull(),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id').notNull(),
+  details: jsonb('details'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
