@@ -3,12 +3,13 @@ import { mutateStore } from '@/lib/store'
 import { safeParseExperiences } from '@/lib/schema'
 
 export async function PUT(request: Request) {
+  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
   const parsed = safeParseExperiences(await request.json().catch(() => null))
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid experiences' }, { status: 400 })
   }
   const store = await mutateStore((s) => {
     s.experiences = parsed.data
-  })
+  }, frameId)
   return NextResponse.json({ store })
 }

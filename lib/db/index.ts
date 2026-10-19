@@ -70,19 +70,36 @@ export async function recordDecision(
   const shownAtMinute = truncateToMinute(shownAt)
   const cutoff = retentionCutoff(new Date(), RETENTION_MS)
   const D = dh()
-  await db.transaction(async (tx: any) => {
-    await tx.delete(D).where(and(eq(D.frameId, frameId), lt(D.shownAt, cutoff)))
-    await tx.insert(D).values({
-      frameId,
-      decisionId: decision.id,
-      layoutId: decision.layoutId,
-      ruleId: decision.ruleId,
-      shownAt: shownAtMinute,
-      score: decision.score,
-    }).onConflictDoNothing({
-      target: [D.frameId, D.decisionId, D.shownAt],
+  const isSqlite = getDatabaseMode() === 'sqlite'
+  if (isSqlite) {
+    db.transaction((tx: any) => {
+      tx.delete(D).where(and(eq(D.frameId, frameId), lt(D.shownAt, cutoff))).run()
+      tx.insert(D).values({
+        frameId,
+        decisionId: decision.id,
+        layoutId: decision.layoutId,
+        ruleId: decision.ruleId,
+        shownAt: shownAtMinute,
+        score: decision.score,
+      }).onConflictDoNothing({
+        target: [D.frameId, D.decisionId, D.shownAt],
+      }).run()
     })
-  })
+  } else {
+    await db.transaction(async (tx: any) => {
+      await tx.delete(D).where(and(eq(D.frameId, frameId), lt(D.shownAt, cutoff)))
+      await tx.insert(D).values({
+        frameId,
+        decisionId: decision.id,
+        layoutId: decision.layoutId,
+        ruleId: decision.ruleId,
+        shownAt: shownAtMinute,
+        score: decision.score,
+      }).onConflictDoNothing({
+        target: [D.frameId, D.decisionId, D.shownAt],
+      })
+    })
+  }
 }
 
 export async function pruneHistory(frameId: string): Promise<void> {

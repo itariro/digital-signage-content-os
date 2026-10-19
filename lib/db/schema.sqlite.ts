@@ -1,12 +1,12 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const frameDocuments = sqliteTable('frame_documents', {
   id: text('id').primaryKey(),
   identifier: text('identifier').notNull().unique(),
   name: text('name').notNull(),
-  data: text('data').notNull(),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
+  data: text('data', { mode: 'json' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   resolutionWidth: integer('resolution_width').notNull().default(1920),
   resolutionHeight: integer('resolution_height').notNull().default(1080),
   screenWidthMm: integer('screen_width_mm'),
@@ -16,9 +16,9 @@ export const frameDocuments = sqliteTable('frame_documents', {
 export const frameTemplates = sqliteTable('frame_templates', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  data: text('data').notNull(),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
+  data: text('data', { mode: 'json' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
 export const contentSources = sqliteTable('content_sources', {
@@ -26,9 +26,9 @@ export const contentSources = sqliteTable('content_sources', {
   frameId: text('frame_id').notNull(),
   kind: text('kind').notNull(),
   name: text('name').notNull(),
-  config: text('config').notNull(),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
+  config: text('config', { mode: 'json' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
 export const displayHistory = sqliteTable('display_history', {
@@ -37,19 +37,21 @@ export const displayHistory = sqliteTable('display_history', {
   decisionId: text('decision_id').notNull(),
   ruleId: text('rule_id'),
   layoutId: text('layout_id').notNull(),
-  shownAt: text('shown_at').notNull(),
+  shownAt: integer('shown_at', { mode: 'timestamp_ms' }).notNull(),
   score: real('score').notNull(),
-})
+}, (t) => ({
+  uniqueConstraint: uniqueIndex('display_history_unique').on(t.frameId, t.decisionId, t.shownAt),
+}))
 
 export const syncQueue = sqliteTable('sync_queue', {
   id: text('id').primaryKey(),
   entityType: text('entity_type').notNull(),
   entityId: text('entity_id').notNull(),
   operation: text('operation').notNull(),
-  payload: text('payload').notNull(),
-  createdAt: text('created_at').notNull(),
+  payload: text('payload', { mode: 'json' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   attempts: integer('attempts').notNull().default(0),
-  nextAttemptAt: text('next_attempt_at').notNull(),
+  nextAttemptAt: integer('next_attempt_at', { mode: 'timestamp_ms' }).notNull(),
   status: text('status').notNull().default('pending'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
 })
@@ -60,10 +62,10 @@ export const assets = sqliteTable('assets', {
   name: text('name').notNull(),
   mime: text('mime').notNull(),
   size: integer('size').notNull(),
-  hash: text('hash').notNull(),
+  hash: text('hash').notNull().unique(),
   version: integer('version').notNull().default(1),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   refCount: integer('ref_count').notNull().default(0),
   source: text('source').notNull().default('local'),
 })
@@ -72,5 +74,5 @@ export const syncCheckpoints = sqliteTable('sync_checkpoints', {
   id: text('id').primaryKey(),
   scope: text('scope').notNull(),
   cursor: text('cursor').notNull(),
-  updatedAt: text('updated_at').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })

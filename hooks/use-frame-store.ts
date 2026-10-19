@@ -19,7 +19,8 @@ export function useFrameStore(fallbackData: FrameStore, frameId?: string) {
   })
 
   async function call(url: string, method: string, body?: unknown): Promise<MutationResult> {
-    const res = await fetch(url, {
+    const framedUrl = frameId ? `${url}${url.includes('?') ? '&' : '?'}frame=${encodeURIComponent(frameId)}` : url
+    const res = await fetch(framedUrl, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),

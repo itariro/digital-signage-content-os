@@ -1,10 +1,7 @@
 import { getDatabaseMode } from './mode'
+import * as pgSchema from './schema.pg'
+import * as sqliteSchema from './schema.sqlite'
 
 export function getTables() {
-  if (getDatabaseMode() === 'sqlite') {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('./schema.sqlite') as typeof import('./schema.sqlite')
-  }
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('./schema.pg') as typeof import('./schema.pg')
+  return getDatabaseMode() === 'sqlite' ? sqliteSchema : pgSchema
 }

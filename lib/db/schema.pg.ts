@@ -60,3 +60,37 @@ export const databaseSchema = {
   contentSources,
   displayHistory,
 }
+
+export const assets = pgTable('assets', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  name: text('name').notNull(),
+  mime: text('mime').notNull(),
+  size: integer('size').notNull(),
+  hash: text('hash').notNull().unique(),
+  version: integer('version').notNull().default(1),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  refCount: integer('ref_count').notNull().default(0),
+  source: text('source').notNull().default('local'),
+})
+
+export const syncQueue = pgTable('sync_queue', {
+  id: text('id').primaryKey(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  operation: text('operation').notNull(),
+  payload: jsonb('payload').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull(),
+  status: text('status').notNull().default('pending'),
+  idempotencyKey: text('idempotency_key').notNull().unique(),
+})
+
+export const syncCheckpoints = pgTable('sync_checkpoints', {
+  id: text('id').primaryKey(),
+  scope: text('scope').notNull(),
+  cursor: text('cursor').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+})
