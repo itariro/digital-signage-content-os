@@ -279,7 +279,9 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
 
 async function persist(frameId: string, store: FrameStore) {
   const db = getDb()
-  await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1` }).where(eq(frameDocuments.identifier, frameId))
+  const crypto = await import('node:crypto')
+  const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
+  await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1`, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId))
 }
 
 export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {

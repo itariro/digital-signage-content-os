@@ -3,12 +3,7 @@ import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import { eq } from 'drizzle-orm'
 import { audit } from '@/lib/audit'
-
-function adminOk(request: NextRequest) {
-  const token = process.env.CONSOLE_ADMIN_TOKEN
-  if (!token) return true
-  return request.headers.get('x-admin-token') === token
-}
+import { adminOk } from '@/lib/admin'
 
 export const dynamic = 'force-dynamic'
 

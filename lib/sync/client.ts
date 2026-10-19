@@ -1,6 +1,5 @@
 import { getDatabaseMode } from '@/lib/db/mode'
 import { getPending, markInflight, markDone, markFailed, pendingCount } from './queue'
-import { nextRetryDelay } from '@/lib/kiosk/sync'
 import { API_VERSION } from './compat'
 
 export interface SyncConfig {
@@ -50,14 +49,14 @@ export async function pushPending(config: SyncConfig) {
   }
 }
 
-export async function pullRemote(config: SyncConfig, since?: string) {
+export async function pullRemote(config: SyncConfig, since?: string, retried = false) {
   const url = new URL(`${config.endpoint.replace(/\/$/, '')}/api/sync/pull`)
   url.searchParams.set('instanceId', config.instanceId)
   if (since) url.searchParams.set('since', since)
   url.searchParams.set('apiVersion', API_VERSION)
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${config.token}` } })
-  if (res.status === 410) {
-    return pullRemote(config, undefined)
+  if (res.status === 410 && !retried) {
+    return pullRemote(config, undefined, true)
   }
   if (!res.ok) throw new Error(`pull failed: ${res.status}`)
   const data = await res.json()

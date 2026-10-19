@@ -31,11 +31,12 @@ export async function GET(request: NextRequest) {
   let filtered = rows
   if (since) {
     const sinceDate = new Date(since)
-    if (!Number.isNaN(sinceDate.getTime())) {
-      filtered = rows.filter((r: any) => new Date(r.updatedAt).getTime() > sinceDate.getTime())
-    } else {
-      // invalid cursor -> full resync
+    if (Number.isNaN(sinceDate.getTime())) {
       filtered = rows
+    } else if (Date.now() - sinceDate.getTime() > 7 * 24 * 60 * 60 * 1000) {
+      return NextResponse.json({ changes: [], cursor: new Date().toISOString(), reset: true }, { status: 410 })
+    } else {
+      filtered = rows.filter((r: any) => new Date(r.updatedAt).getTime() > sinceDate.getTime())
     }
   }
 

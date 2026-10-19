@@ -20,6 +20,8 @@ export const frameTemplates = pgTable('frame_templates', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
   revision: integer('revision').notNull().default(1),
+  contentHash: text('content_hash'),
+  updatedBy: text('updated_by'),
 })
 
 export const contentSources = pgTable('content_sources', {

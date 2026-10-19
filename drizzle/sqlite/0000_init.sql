@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS frame_documents (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   revision INTEGER NOT NULL DEFAULT 1,
+  content_hash TEXT,
+  updated_by TEXT,
   resolution_width INTEGER NOT NULL DEFAULT 1920,
   resolution_height INTEGER NOT NULL DEFAULT 1080,
   screen_width_mm INTEGER,

@@ -6,12 +6,7 @@ import { getTables } from '@/lib/db/tables'
 import { eq } from 'drizzle-orm'
 import { hashToken } from '@/lib/sync/auth'
 import { audit } from '@/lib/audit'
-
-function adminOk(request: NextRequest) {
-  const token = process.env.CONSOLE_ADMIN_TOKEN
-  if (!token) return true // dev mode open
-  return request.headers.get('x-admin-token') === token
-}
+import { adminOk } from '@/lib/admin'
 
 const registerSchema = z.object({ name: z.string().min(1).max(120).optional() })
 

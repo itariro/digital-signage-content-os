@@ -8,6 +8,8 @@ export const frameDocuments = sqliteTable('frame_documents', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   revision: integer('revision').notNull().default(1),
+  contentHash: text('content_hash'),
+  updatedBy: text('updated_by'),
   resolutionWidth: integer('resolution_width').notNull().default(1920),
   resolutionHeight: integer('resolution_height').notNull().default(1080),
   screenWidthMm: integer('screen_width_mm'),

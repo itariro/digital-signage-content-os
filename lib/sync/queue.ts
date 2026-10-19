@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import { nanoid } from 'nanoid'
 import { eq } from 'drizzle-orm'
+import { nextRetryDelay } from '@/lib/kiosk/sync'
 import type { EnqueueInput } from './types'
 
 export async function enqueueChange(input: EnqueueInput) {
@@ -26,7 +27,9 @@ export async function getPending(limit = 50) {
   const db = getDb() as any
   const { syncQueue } = getTables() as any
   const rows = await db.select().from(syncQueue).where(eq(syncQueue.status, 'pending'))
-  return (rows as any[]).slice(0, limit)
+  const now = Date.now()
+  const eligible = (rows as any[]).filter((r) => new Date(r.nextAttemptAt).getTime() <= now)
+  return eligible.slice(0, limit)
 }
 
 export async function markInflight(ids: string[]) {
@@ -54,7 +57,8 @@ export async function markFailed(id: string, error: string) {
   const r = rows[0]
   if (!r) return
   const attempts = (r.attempts ?? 0) + 1
-  await db.update(syncQueue).set({ status: 'pending', attempts, nextAttemptAt: new Date(Date.now() + Math.min(60000, 1000 * Math.pow(2, attempts))) }).where(eq(syncQueue.id, id))
+  const delay = nextRetryDelay(attempts - 1)
+  await db.update(syncQueue).set({ status: 'pending', attempts, nextAttemptAt: new Date(Date.now() + delay) }).where(eq(syncQueue.id, id))
 }
 
 export async function pendingCount() {

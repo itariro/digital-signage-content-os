@@ -19,6 +19,17 @@ export function createSnapshot(dataDir?: string): string {
   const ts = new Date().toISOString().replace(/[:.]/g, '-')
   const src = path.join(dd, 'frame.db')
   const dst = path.join(dir, `frame-${ts}.db`)
+  // checkpoint WAL first if possible
+  try {
+    const Database = require('better-sqlite3')
+    const db = new Database(src)
+    db.pragma('wal_checkpoint(TRUNCATE)')
+    db.close()
+  } catch {}
   fs.copyFileSync(src, dst)
+  for (const ext of ['-wal', '-shm']) {
+    const s2 = src + ext
+    if (fs.existsSync(s2)) fs.copyFileSync(s2, dst + ext)
+  }
   return dst
 }

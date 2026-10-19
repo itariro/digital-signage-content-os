@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db'
+import { listAudit } from '@/lib/audit'
 import { getTables } from '@/lib/db/tables'
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +52,6 @@ export default async function ConsolePage() {
   )
 }
 
-import { listAudit } from '@/lib/audit'
 
 async function AuditList() {
   const rows = await listAudit(20).catch(() => [])
