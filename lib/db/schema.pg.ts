@@ -19,6 +19,7 @@ export const frameTemplates = pgTable('frame_templates', {
   data: jsonb('data').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  revision: integer('revision').notNull().default(1),
 })
 
 export const contentSources = pgTable('content_sources', {
@@ -93,4 +94,30 @@ export const syncCheckpoints = pgTable('sync_checkpoints', {
   scope: text('scope').notNull(),
   cursor: text('cursor').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+})
+
+
+export const syncConflicts = pgTable('sync_conflicts', {
+  id: text('id').primaryKey(),
+  instanceId: text('instance_id').notNull(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  localRevision: integer('local_revision').notNull(),
+  remoteRevision: integer('remote_revision').notNull(),
+  localPayload: jsonb('local_payload'),
+  remotePayload: jsonb('remote_payload'),
+  status: text('status').notNull().default('open'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+export const idempotencyKeys = pgTable('idempotency_keys', {
+  key: text('key').primaryKey(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+export const instances = pgTable('instances', {
+  id: text('id').primaryKey(),
+  deviceTokenHash: text('device_token_hash'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
 })

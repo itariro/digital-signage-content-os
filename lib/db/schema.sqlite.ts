@@ -7,6 +7,7 @@ export const frameDocuments = sqliteTable('frame_documents', {
   data: text('data', { mode: 'json' }).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  revision: integer('revision').notNull().default(1),
   resolutionWidth: integer('resolution_width').notNull().default(1920),
   resolutionHeight: integer('resolution_height').notNull().default(1080),
   screenWidthMm: integer('screen_width_mm'),
@@ -75,4 +76,30 @@ export const syncCheckpoints = sqliteTable('sync_checkpoints', {
   scope: text('scope').notNull(),
   cursor: text('cursor').notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+
+export const syncConflicts = sqliteTable('sync_conflicts', {
+  id: text('id').primaryKey(),
+  instanceId: text('instance_id').notNull(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  localRevision: integer('local_revision').notNull(),
+  remoteRevision: integer('remote_revision').notNull(),
+  localPayload: text('local_payload', { mode: 'json' }),
+  remotePayload: text('remote_payload', { mode: 'json' }),
+  status: text('status').notNull().default('open'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+export const idempotencyKeys = sqliteTable('idempotency_keys', {
+  key: text('key').primaryKey(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+export const instances = sqliteTable('instances', {
+  id: text('id').primaryKey(),
+  deviceTokenHash: text('device_token_hash'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }),
 })

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS frame_documents (
   data TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
   resolution_width INTEGER NOT NULL DEFAULT 1920,
   resolution_height INTEGER NOT NULL DEFAULT 1080,
   screen_width_mm INTEGER,
@@ -66,4 +67,27 @@ CREATE TABLE IF NOT EXISTS sync_checkpoints (
   scope TEXT NOT NULL,
   cursor TEXT NOT NULL,
   updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sync_conflicts (
+  id TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  local_revision INTEGER NOT NULL,
+  remote_revision INTEGER NOT NULL,
+  local_payload TEXT,
+  remote_payload TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  key TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS instances (
+  id TEXT PRIMARY KEY,
+  device_token_hash TEXT,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER
 );
