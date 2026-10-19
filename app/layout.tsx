@@ -1,3 +1,4 @@
+import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Bebas_Neue, Instrument_Serif, Inter, JetBrains_Mono, Outfit, Playfair_Display, Space_Grotesk } from 'next/font/google'
@@ -36,9 +37,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`dark bg-background ${fontVars}`}>
       <body className="font-sans antialiased">
-        {children}
-        <SwRegister />
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <ClerkProvider>
+          {children}
+          <SwRegister />
+          {process.env.NODE_ENV === 'production' && <Analytics />}
+        </ClerkProvider>
       </body>
     </html>
   )
