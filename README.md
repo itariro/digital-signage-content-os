@@ -505,6 +505,17 @@ When adding a new artwork provider or media theme:
 
 ## Deployment
 
+### Digital frame kiosk (CLI-first)
+
+The repository includes `install-kiosk.sh`, a bootstrap installer for Debian 12/13 thin clients. It installs the display stack, the kiosk user, and the management CLI, then deploys this application locally.
+
+- Default frame URL: `http://localhost:3000/frame/home`
+- The application runs as `dscos.service` on port 3000.
+- The kiosk browser launches after the configured local URL responds.
+- Overnight standby defaults to 22:00-06:00 (device local time) via systemd timers.
+- Management is performed with the `kiosk` CLI. See `docs/kiosk-cli.md`.
+
+
 This repository is connected to a Vercel project and can be deployed through Vercel or the linked v0 workflow. Configure the production database and environment variables in the deployment project before publishing.
 
 The application is suitable for deployment as:
