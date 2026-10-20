@@ -1,3 +1,4 @@
+import { auth } from '@clerk/nextjs/server'
 import { getDb } from '@/lib/db'
 import { listAudit } from '@/lib/audit'
 import { getTables } from '@/lib/db/tables'
@@ -5,6 +6,8 @@ import { getTables } from '@/lib/db/tables'
 export const dynamic = 'force-dynamic'
 
 export default async function ConsolePage() {
+  // Defense in depth: proxy.ts already redirects; this holds even if the matcher changes.
+  await auth.protect()
   const db = getDb() as any
   const tables = getTables() as any
   const instances = await db.select().from(tables.instances).catch(() => [])

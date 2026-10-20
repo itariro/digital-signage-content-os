@@ -6,6 +6,11 @@
 3. Register the instance with the console: `POST /api/instances` (admin token) → returns `instanceId` + `deviceToken`.
 4. Configure sync: set `SYNC_ENDPOINT`, `SYNC_TOKEN=<deviceToken>`, `INSTANCE_ID`, `SYNC_ENABLED=true`.
 
+## Console admin
+- `/console` requires a signed-in Clerk account; set `CONSOLE_ADMIN_ROLE` to additionally require that Clerk role.
+- Instance management APIs (`/api/instances` GET/POST, revoke, config push, delete) accept a Clerk session or the `x-admin-token: $CONSOLE_ADMIN_TOKEN` header.
+- `CONSOLE_ADMIN_TOKEN` unset means fail-closed in production (HTTP 500 `misconfigured`); in non-production it opens with audit actor `dev-admin`.
+
 ## Backup
 - Instance: copy `FRAME_DB_PATH` (+ `-wal`/`-shm`) and `FRAME_DATA_DIR/assets` while app stopped, or use snapshot helper.
 - Console: standard Postgres backup (pg_dump).

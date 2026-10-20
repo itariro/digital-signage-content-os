@@ -3,13 +3,18 @@ import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { auth } from '@clerk/nextjs/server'
 import { audit } from '@/lib/audit'
-import { adminOk } from '@/lib/admin'
+import { requireAdmin } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!adminOk(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  const gate = requireAdmin(request)
+  const { userId } = await auth()
+  if (!userId && !gate.ok) {
+    return NextResponse.json({ error: gate.reason }, { status: gate.reason === 'misconfigured' ? 500 : 401 })
+  }
   const { id } = await params
   const body = await request.json().catch(() => ({}))
   const parsed = z.record(z.string(), z.unknown()).safeParse(body)
@@ -21,6 +26,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!doc) return NextResponse.json({ error: 'instance not found' }, { status: 404 })
   const next = { ...doc.data, ...data }
   await db.update(tables.frameDocuments).set({ data: next, updatedAt: new Date() }).where(eq(tables.frameDocuments.identifier, id))
-  await audit('admin', 'push_config', 'instance', id, { keys: Object.keys(body) })
+  await audit(userId ?? (gate.ok ? gate.actor : 'unauthenticated'), 'push_config', 'instance', id, { keys: Object.keys(body) })
   return NextResponse.json({ ok: true })
 }
