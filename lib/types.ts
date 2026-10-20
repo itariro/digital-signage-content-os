@@ -18,6 +18,7 @@ export const WIDGET_TYPES = [
   'quote',
   'now-showing',
   'bob',
+  'sticker',
 ] as const
 
 export type WidgetType = (typeof WIDGET_TYPES)[number]
@@ -44,6 +45,16 @@ export type WidgetStyle = {
 
 export type WidgetProps = Record<string, string | number | boolean>
 
+export type StickerLayer = {
+  id: string
+  text: string
+  x: number
+  y: number
+  w: number
+  h: number
+  style: WidgetStyle
+}
+
 export type Widget = {
   id: string
   type: WidgetType
@@ -57,6 +68,7 @@ export type Widget = {
   groupId: string | null
   style: WidgetStyle
   props: WidgetProps
+  layers?: StickerLayer[]
 }
 
 export type Resolution = '1080x1920' | '1440x2560'

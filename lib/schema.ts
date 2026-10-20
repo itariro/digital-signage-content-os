@@ -21,20 +21,41 @@ export const widgetStyleSchema = z.object({
   shadow: z.boolean(),
 })
 
-export const widgetSchema = z.object({
+const stickerLayerSchema = z.object({
   id: z.string().min(1).max(40),
-  type: z.enum(WIDGET_TYPES),
-  template: z.string().min(1).max(40),
+  text: z.string().max(300),
   x: z.number().min(-4000).max(6000),
   y: z.number().min(-4000).max(6000),
-  w: z.number().min(10).max(4000),
-  h: z.number().min(10).max(4000),
-  locked: z.boolean(),
-  hidden: z.boolean(),
-  groupId: z.string().max(40).nullable(),
+  w: z.number().min(1).max(4000),
+  h: z.number().min(1).max(4000),
   style: widgetStyleSchema,
-  props: z.record(z.string().max(40), z.union([z.string().max(300), z.number(), z.boolean()])),
 })
+
+export const widgetSchema = z
+  .object({
+    id: z.string().min(1).max(40),
+    type: z.enum(WIDGET_TYPES),
+    template: z.string().min(1).max(40),
+    x: z.number().min(-4000).max(6000),
+    y: z.number().min(-4000).max(6000),
+    w: z.number().min(10).max(4000),
+    h: z.number().min(10).max(4000),
+    locked: z.boolean(),
+    hidden: z.boolean(),
+    groupId: z.string().max(40).nullable(),
+    style: widgetStyleSchema,
+    props: z.record(z.string().max(40), z.union([z.string().max(300), z.number(), z.boolean()])),
+    layers: z.array(stickerLayerSchema).max(12).optional(),
+  })
+  .superRefine((widget, ctx) => {
+    if (widget.type === 'sticker') {
+      if (!widget.layers || widget.layers.length === 0) {
+        ctx.addIssue({ code: 'custom', message: 'Sticker widgets require at least one layer', path: ['layers'] })
+      }
+    } else if (widget.layers) {
+      ctx.addIssue({ code: 'custom', message: 'Layers are only valid on sticker widgets', path: ['layers'] })
+    }
+  })
 
 export const layoutSettingsSchema = z.object({
   resolution: z.enum(['1080x1920', '1440x2560']),

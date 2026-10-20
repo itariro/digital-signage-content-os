@@ -41,7 +41,7 @@ export function WidgetBody({ widget, ctx }: { widget: Widget; ctx: WidgetContext
     <div
       className="h-full w-full"
       style={{
-        padding: hasSurface ? '7cqmin' : '1.5cqmin',
+        padding: widget.type === 'sticker' ? 0 : hasSurface ? '7cqmin' : '1.5cqmin',
         filter: s.shadow ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.35))' : undefined,
       }}
     >

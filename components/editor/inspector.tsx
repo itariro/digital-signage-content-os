@@ -52,6 +52,7 @@ export function Inspector({ editor, customFonts, albums, onOpenAlbums, onSavePre
     <div className="flex min-h-0 flex-col">
       <SelectionHeader editor={editor} selection={selection} onSavePreset={onSavePreset} />
       {selection.length === 1 && <TemplateSection editor={editor} widget={selection[0]} />}
+      {selection.length === 1 && selection[0].type === 'sticker' && <StickerLayersSection editor={editor} widget={selection[0]} />}
       {selection.length === 1 && <ContentSection editor={editor} widget={selection[0]} />}
       {selection.length > 1 && <ArrangeSection editor={editor} selection={selection} />}
       <StyleSections editor={editor} selection={selection} customFonts={customFonts} />
@@ -125,6 +126,7 @@ function SelectionHeader({
 
 function TemplateSection({ editor, widget }: { editor: EditorApi; widget: Widget }) {
   const def = getDefinition(widget.type)
+  if (def.templates.length <= 1) return null
   return (
     <Section title="Design template">
       <div className="grid grid-cols-2 gap-2">
@@ -344,6 +346,73 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
         <SliderField label="Text outline" value={s.textStroke} min={0} max={12} suffix="px" onCommit={commit} onChange={slide('textStroke')} />
       </Section>
     </>
+  )
+}
+
+function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: Widget }) {
+  const layers = widget.layers ?? []
+  const updateLayer = (id: string, patch: Partial<NonNullable<Widget['layers']>[number]>, record = true) => {
+    editor.updateWidgets(
+      [widget.id],
+      (w) => ({
+        ...w,
+        layers: (w.layers ?? []).map((layer) => (layer.id === id ? { ...layer, ...patch } : layer)),
+      }),
+      record,
+    )
+  }
+  const updateLayerStyle = (id: string, patch: Partial<Widget['style']>, record = true) => {
+    editor.updateWidgets(
+      [widget.id],
+      (w) => ({
+        ...w,
+        layers: (w.layers ?? []).map((layer) =>
+          layer.id === id ? { ...layer, style: { ...layer.style, ...patch } } : layer,
+        ),
+      }),
+      record,
+    )
+  }
+
+  return (
+    <Section title="Sticker layers">
+      {layers.length === 0 && <p className="text-xs text-muted-foreground">No layers.</p>}
+      {layers.map((layer, index) => (
+        <div key={layer.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+          <label className="flex flex-col gap-1.5 text-sm text-foreground">
+            Layer {index + 1} text
+            <input
+              type="text"
+              maxLength={300}
+              value={layer.text}
+              onFocus={() => editor.checkpoint()}
+              onChange={(e) => updateLayer(layer.id, { text: e.target.value }, false)}
+              className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none focus-visible:border-primary"
+            />
+          </label>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-foreground">Text color</span>
+            <input
+              type="color"
+              value={layer.style.color}
+              onFocus={() => editor.checkpoint()}
+              onChange={(e) => updateLayerStyle(layer.id, { color: e.target.value }, false)}
+              className="h-8 w-12 cursor-pointer rounded-md border border-border bg-secondary"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-foreground">Accent</span>
+            <input
+              type="color"
+              value={layer.style.accent}
+              onFocus={() => editor.checkpoint()}
+              onChange={(e) => updateLayerStyle(layer.id, { accent: e.target.value }, false)}
+              className="h-8 w-12 cursor-pointer rounded-md border border-border bg-secondary"
+            />
+          </div>
+        </div>
+      ))}
+    </Section>
   )
 }
 

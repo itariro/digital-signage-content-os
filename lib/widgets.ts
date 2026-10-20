@@ -16,6 +16,7 @@ import {
   Timer,
   GalleryHorizontalEnd,
   Smile,
+  Sticker,
   type LucideIcon,
 } from 'lucide-react'
 import type { Widget, WidgetStyle, WidgetType, WidgetProps } from './types'
@@ -41,6 +42,7 @@ export type WidgetDefinition = {
   props: WidgetProps
   fields: PropField[]
   style?: Partial<WidgetStyle>
+  layers?: import('./types').StickerLayer[]
 }
 
 export const DEFAULT_STYLE: WidgetStyle = {
@@ -480,6 +482,31 @@ export const WIDGETS: WidgetDefinition[] = [
       { key: 'animate', label: 'Animate', kind: 'toggle' },
     ],
   },
+  {
+    type: 'sticker',
+    label: 'Text sticker',
+    description: 'Layered text composition',
+    category: 'Decor',
+    icon: Sticker,
+    size: { w: 800, h: 400 },
+    minSize: { w: 200, h: 100 },
+    lockAspect: true,
+    templates: [{ id: 'default', label: 'Sticker' }],
+    props: {},
+    fields: [],
+    style: { bgOpacity: 0, shadow: false },
+    layers: [
+      {
+        id: 'layer-1',
+        text: 'Your text',
+        x: 40,
+        y: 120,
+        w: 920,
+        h: 260,
+        style: { ...DEFAULT_STYLE, fontFamily: 'bebas', fontWeight: 400, color: '#ffffff', accent: '#7cc4ff' },
+      },
+    ],
+  },
 ]
 
 export const STYLE_THEMES: { id: string; name: string; style: Partial<WidgetStyle> }[] = [
@@ -490,8 +517,10 @@ export const STYLE_THEMES: { id: string; name: string; style: Partial<WidgetStyl
   { id: 'ink', name: 'Ink', style: { color: '#0b0c10', accent: '#3a5bd9', bg: '#ffffff', stroke: '#0b0c10' } },
 ]
 
-export function getDefinition(type: WidgetType) {
-  return WIDGETS.find((w) => w.type === type) ?? WIDGETS[0]
+export function getDefinition(type: WidgetType): WidgetDefinition {
+  const def = WIDGETS.find((w) => w.type === type)
+  if (!def) throw new Error(`Missing widget definition for type "${type}"`)
+  return def
 }
 
 export function createWidget(type: WidgetType, center?: { x: number; y: number }): Widget {
@@ -511,6 +540,7 @@ export function createWidget(type: WidgetType, center?: { x: number; y: number }
     groupId: null,
     style: { ...DEFAULT_STYLE, ...def.style },
     props: { ...def.props },
+    layers: def.layers ? structuredClone(def.layers) : undefined,
   }
 }
 

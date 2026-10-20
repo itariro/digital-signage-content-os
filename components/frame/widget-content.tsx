@@ -22,10 +22,13 @@ import {
 } from 'lucide-react'
 import type { ActiveSlide, DisplayDecision, LayoutSettings, WeatherData, Widget } from '@/lib/types'
 import { themeMeta } from '@/lib/albums'
+import { fontStack } from '@/lib/fonts'
 import { BOB_FALLBACK_EXPRESSION, BOB_PLACEHOLDER, bobAsset, isBobExpression } from '@/lib/bob'
+import { STICKER_SPACE, stickerFit } from '@/lib/text-stickers'
 import {
   daysBetween,
   formatTime,
+  hexToRgba,
   moonPath,
   moonPhase,
   parseDateOnly,
@@ -161,6 +164,8 @@ export function WidgetContent({ widget, ctx }: { widget: Widget; ctx: WidgetCont
       return <IconWidget widget={widget} />
     case 'bob':
       return <BobWidget widget={widget} ctx={ctx} />
+    case 'sticker':
+      return <StickerWidget widget={widget} />
   }
 }
 
@@ -542,6 +547,74 @@ function TextWidget({ widget }: { widget: Widget }) {
       ) : (
         <span style={{ fontSize: fit(text, 80, 190) }}>{text}</span>
       )}
+    </div>
+  )
+}
+
+function StickerWidget({ widget }: { widget: Widget }) {
+  const layers = widget.layers ?? []
+  const fit = stickerFit(widget.w, widget.h)
+  return (
+    <div className="relative h-full w-full">
+      <div
+        style={{
+          position: 'absolute',
+          left: fit.offsetX,
+          top: fit.offsetY,
+          width: STICKER_SPACE.w,
+          height: STICKER_SPACE.h,
+          transform: `scale(${fit.scale})`,
+          transformOrigin: 'top left',
+          overflow: 'hidden',
+        }}
+      >
+        {layers.map((layer) => {
+          const s = layer.style
+          const bg = s.bgOpacity > 0 ? hexToRgba(s.bg, s.bgOpacity / 100) : 'transparent'
+          return (
+            <div
+              key={layer.id}
+              style={{
+                position: 'absolute',
+                left: layer.x,
+                top: layer.y,
+                width: layer.w,
+                height: layer.h,
+                color: s.color,
+                fontFamily: fontStack(s.fontFamily),
+                fontWeight: s.fontWeight,
+                letterSpacing: `${s.letterSpacing / 100}em`,
+                textAlign: s.align === 'start' ? 'left' : s.align === 'end' ? 'right' : 'center',
+                background: bg,
+                backdropFilter: s.blur > 0 ? `blur(${s.blur}px) saturate(1.4)` : undefined,
+                WebkitBackdropFilter: s.blur > 0 ? `blur(${s.blur}px) saturate(1.4)` : undefined,
+                border: s.strokeWidth > 0 ? `${s.strokeWidth}px solid ${s.stroke}` : undefined,
+                borderRadius: s.radius,
+                opacity: s.opacity / 100,
+                WebkitTextStroke: s.textStroke > 0 ? `${s.textStroke}px ${s.stroke}` : undefined,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: s.align === 'start' ? 'flex-start' : s.align === 'end' ? 'flex-end' : 'center',
+                overflow: 'hidden',
+                padding: s.bgOpacity > 0 || s.strokeWidth > 0 ? '4%' : '1%',
+                filter: s.shadow ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.35))' : undefined,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: `${Math.max(12, layer.h * 0.72)}px`,
+                  lineHeight: 1.05,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  width: '100%',
+                }}
+              >
+                {layer.text}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
