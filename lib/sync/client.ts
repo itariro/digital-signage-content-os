@@ -1,5 +1,5 @@
 import { getDatabaseMode } from '@/lib/db/mode'
-import { getPending, markInflight, markDone, markFailed, pendingCount } from './queue'
+import { getPending, markInflight, markDone, markFailed, markConflict, conflictCount, pendingCount } from './queue'
 import { API_VERSION } from './compat'
 
 export interface SyncConfig {
@@ -26,6 +26,7 @@ export async function pushPending(config: SyncConfig) {
     entityId: p.entityId,
     operation: p.operation,
     payload: p.payload,
+    baseRevision: p.baseRevision ?? undefined,
   }))
   try {
     const res = await fetch(`${config.endpoint.replace(/\/$/, '')}/api/sync/push`, {
@@ -40,10 +41,17 @@ export async function pushPending(config: SyncConfig) {
     await markDone(doneIds)
     for (const c of data.conflicts ?? []) {
       const item = pending.find((p: any) => p.idempotencyKey === c.idempotencyKey)
-      if (item) await markFailed(item.id, `conflict: remote revision ${c.remoteRevision}`)
+      // Terminal 'conflict' state: kept for visibility, retried only after
+      // resolution — never markFailed, which would retry forever with a key
+      // the server will keep refusing.
+      if (item) await markConflict(item.id, `conflict: remote revision ${c.remoteRevision}`)
     }
-  } catch (e: any) {
-    lastError = String(e?.message ?? e)
+    for (const r of data.rejected ?? []) {
+      const item = pending.find((p: any) => p.idempotencyKey === r.idempotencyKey)
+      if (item) await markConflict(item.id, `rejected: ${r.reason}`)
+    }
+  } catch (e: unknown) {
+    lastError = e instanceof Error ? e.message : String(e)
     for (const p of pending) await markFailed(p.id, lastError)
     throw e
   }

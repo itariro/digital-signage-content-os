@@ -13,6 +13,7 @@ export interface EnqueueInput {
   operation: 'upsert' | 'delete'
   payload: unknown
   idempotencyKey: string
+  baseRevision?: number
 }
 
 export interface PushRequest {

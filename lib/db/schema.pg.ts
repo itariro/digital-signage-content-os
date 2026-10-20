@@ -92,6 +92,7 @@ export const syncQueue = pgTable('sync_queue', {
   nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull(),
   status: text('status').notNull().default('pending'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
+  baseRevision: integer('base_revision'),
 })
 
 export const syncCheckpoints = pgTable('sync_checkpoints', {

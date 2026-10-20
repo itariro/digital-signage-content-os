@@ -277,11 +277,12 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
   return resolved
 }
 
-async function persist(frameId: string, store: FrameStore) {
+async function persist(frameId: string, store: FrameStore): Promise<number> {
   const db = getDb()
   const crypto = await import('node:crypto')
   const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
-  await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1`, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId))
+  const [row] = await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1`, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId)).returning({ revision: frameDocuments.revision })
+  return Number(row?.revision ?? 0)
 }
 
 export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
@@ -290,13 +291,15 @@ export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameI
     const current = await readStore(frameId)
     if (!current) throw new Error(`Store not found for frame "${frameId}"`)
     const next = normalize(fn(current) ?? current)
-    await persist(frameId, next)
+    const newRevision = await persist(frameId, next)
     storeCache.set(frameId, next)
     // Enqueue synchronization work in instance mode (durable local queue).
+    // baseRevision is the doc revision this edit builds on (mutations are
+    // serialized per frame, so the pre-persist revision was newRevision - 1).
     if (process.env.FRAME_MODE === 'instance') {
       try {
         const { enqueueChange } = await import('./sync/queue')
-        await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16) })
+        await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16), baseRevision: newRevision ? newRevision - 1 : undefined })
       } catch {
         // Sync queue failure must not block local writes.
       }

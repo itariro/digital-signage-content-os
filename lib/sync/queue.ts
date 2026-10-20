@@ -20,6 +20,7 @@ export async function enqueueChange(input: EnqueueInput) {
     nextAttemptAt: now,
     status: 'pending',
     idempotencyKey: input.idempotencyKey,
+    baseRevision: input.baseRevision ?? null,
   })
 }
 
@@ -59,6 +60,23 @@ export async function markFailed(id: string, error: string) {
   const attempts = (r.attempts ?? 0) + 1
   const delay = nextRetryDelay(attempts - 1)
   await db.update(syncQueue).set({ status: 'pending', attempts, nextAttemptAt: new Date(Date.now() + delay) }).where(eq(syncQueue.id, id))
+}
+
+/**
+ * Terminal state for rejected/conflicted changes: the row is KEPT (the local
+ * edit is never silently dropped) and leaves the retry loop until resolution.
+ */
+export async function markConflict(id: string, _error: string) {
+  const db = getDb() as any
+  const { syncQueue } = getTables() as any
+  await db.update(syncQueue).set({ status: 'conflict' }).where(eq(syncQueue.id, id))
+}
+
+export async function conflictCount() {
+  const db = getDb() as any
+  const { syncQueue } = getTables() as any
+  const rows = await db.select().from(syncQueue).where(eq(syncQueue.status, 'conflict'))
+  return (rows as any[]).length
 }
 
 export async function pendingCount() {

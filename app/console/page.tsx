@@ -48,10 +48,40 @@ export default async function ConsolePage() {
         </table>
       </div>
       <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Sync conflicts</h2>
+        <ConflictList />
+      </section>
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold">Audit log</h2>
         <AuditList />
       </section>
     </main>
+  )
+}
+
+async function ConflictList() {
+  const { listConflicts } = await import('@/lib/sync/conflicts')
+  const rows = ((await listConflicts().catch(() => [])) as any[]).filter((c) => c.status === 'open')
+  if (!rows.length) return <p className="text-xs text-muted-foreground">No open conflicts.</p>
+  return (
+    <ul className="space-y-2">
+      {rows.map((c: any) => (
+        <li key={c.id} className="rounded border p-2 text-xs space-y-1">
+          <div>
+            <span className="font-mono">{c.entityType}/{c.entityId}</span> — instance <span className="font-mono">{c.instanceId}</span>:
+            local rev {c.localRevision} vs remote rev {c.remoteRevision}
+          </div>
+          <div className="flex gap-2">
+            <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+              <button name="resolution" value="remote" className="rounded border px-2 py-1 hover:bg-muted">Accept console version</button>
+            </form>
+            <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+              <button name="resolution" value="local" className="rounded border px-2 py-1 hover:bg-muted">Apply instance version</button>
+            </form>
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 

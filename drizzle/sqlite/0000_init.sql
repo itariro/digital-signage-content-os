@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS sync_queue (
   attempts INTEGER NOT NULL DEFAULT 0,
   next_attempt_at INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
-  idempotency_key TEXT NOT NULL UNIQUE
+  idempotency_key TEXT NOT NULL UNIQUE,
+  base_revision INTEGER
 );
 CREATE TABLE IF NOT EXISTS assets (
   id TEXT PRIMARY KEY,
@@ -103,3 +104,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details TEXT,
   created_at INTEGER NOT NULL
 );
+
+-- additive columns (runner ignores duplicate-column on re-run)
+ALTER TABLE sync_queue ADD COLUMN base_revision INTEGER;
