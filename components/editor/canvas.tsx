@@ -11,7 +11,7 @@ import { FrameScene, surfaceStyle } from '@/components/frame/frame-scene'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { cn } from '@/lib/utils'
 
-export type DropPayload = { kind: 'widget'; type: Widget['type'] } | { kind: 'preset'; id: string } | { kind: 'combo'; id: string }
+export type DropPayload = { kind: 'widget'; type: Widget['type'] } | { kind: 'preset'; id: string } | { kind: 'combo'; id: string } | { kind: 'sticker'; id: string }
 
 export const DRAG_MIME = 'application/x-frame-item'
 

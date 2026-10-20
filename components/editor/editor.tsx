@@ -14,6 +14,7 @@ import { SchedulePanel } from './schedule-panel'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { googleFontHref } from '@/lib/fonts'
 import { BUILTIN_COMBOS, createWidget, getDefinition, instantiateGroup, normalizeGroup } from '@/lib/widgets'
+import { BUILTIN_STICKERS, createStickerWidget } from '@/lib/text-stickers'
 import { useEditor } from '@/hooks/use-editor'
 import { useFrameStore, useWeather } from '@/hooks/use-frame-store'
 import { useNow } from '@/hooks/use-now'
@@ -270,6 +271,11 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
     const clamp = { x: Math.min(FRAME_WIDTH, Math.max(0, point.x)), y: Math.min(FRAME_HEIGHT, Math.max(0, point.y)) }
     if (payload.kind === 'widget') {
       editor.addWidgets([createWidget(payload.type, clamp)])
+      return
+    }
+    if (payload.kind === 'sticker') {
+      const template = BUILTIN_STICKERS.find((s) => s.id === payload.id)
+      if (template) editor.addWidgets([createStickerWidget(template, clamp)])
       return
     }
     const source =

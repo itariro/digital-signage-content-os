@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { Trash2 } from 'lucide-react'
 import type { Preset } from '@/lib/types'
 import { BUILTIN_COMBOS, WIDGETS, createWidget } from '@/lib/widgets'
+import { BUILTIN_STICKERS, createStickerWidget } from '@/lib/text-stickers'
 import { DRAG_MIME, type DropPayload } from './canvas'
 import { WidgetPreview } from './widget-preview'
 
@@ -76,6 +77,30 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelPro
               </span>
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Text stickers</h3>
+        <div className="flex flex-col gap-2">
+          {BUILTIN_STICKERS.map((sticker) => {
+            const widgets = [createStickerWidget(sticker)]
+            return (
+              <button
+                key={sticker.id}
+                type="button"
+                {...dragProps({ kind: 'sticker', id: sticker.id })}
+                onClick={() => onAdd({ kind: 'sticker', id: sticker.id })}
+                className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
+              >
+                <WidgetPreview widgets={widgets} width={96} height={72} className="shrink-0" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium text-foreground">{sticker.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">{sticker.description}</span>
+                </span>
+              </button>
+            )
+          })}
         </div>
       </section>
 
