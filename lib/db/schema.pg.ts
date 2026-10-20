@@ -11,6 +11,9 @@ export const frameDocuments = pgTable('frame_documents', {
   resolutionHeight: integer('resolution_height').notNull().default(1080),
   screenWidthMm: integer('screen_width_mm'),
   screenHeightMm: integer('screen_height_mm'),
+  revision: integer('revision').notNull().default(1),
+  contentHash: text('content_hash'),
+  updatedBy: text('updated_by'),
 })
 
 export const frameTemplates = pgTable('frame_templates', {
@@ -89,6 +92,7 @@ export const syncQueue = pgTable('sync_queue', {
   nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull(),
   status: text('status').notNull().default('pending'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
+  baseRevision: integer('base_revision'),
 })
 
 export const syncCheckpoints = pgTable('sync_checkpoints', {

@@ -15,6 +15,20 @@
       "when": 1791513346040,
       "tag": "0001_overjoyed_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792519470152,
+      "tag": "0002_minor_warstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792527869274,
+      "tag": "0003_lonely_falcon",
+      "breakpoints": true
     }
   ]
 }

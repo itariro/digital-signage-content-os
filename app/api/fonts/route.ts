@@ -2,9 +2,16 @@ import { NextResponse } from 'next/server'
 import { fontInputSchema } from '@/lib/schema'
 import { googleFontHref } from '@/lib/fonts'
 import { mutateStore } from '@/lib/store'
+import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export async function POST(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
+  const frameId = frameIdParam(request.url)
   const parsed = fontInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid font' }, { status: 400 })
@@ -23,7 +30,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
+  const frameId = frameIdParam(request.url)
   const parsed = fontInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid font' }, { status: 400 })
   const store = await mutateStore((s) => {

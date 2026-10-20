@@ -3,6 +3,8 @@ import { getDecision, FrameNotFoundError } from '@/lib/engine/state'
 import { readStore } from '@/lib/store'
 import { safeParseExperiences } from '@/lib/schema'
 import { formatZonedInputValue, resolveTimezone } from '@/lib/zoned-time'
+import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +12,7 @@ const FRAME_ID = /^[a-zA-Z0-9_-]{1,64}$/
 
 /** The frame's current wall time, so the editor pre-fills in frame-local time. */
 export async function GET(req: NextRequest) {
-  const frameId = req.nextUrl.searchParams.get('frame') || 'home'
+  const frameId = frameIdParam(req.nextUrl) ?? 'home'
   if (!FRAME_ID.test(frameId)) {
     return NextResponse.json({ error: 'Invalid frame ID' }, { status: 400 })
   }
@@ -29,7 +31,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const frameId = req.nextUrl.searchParams.get('frame') || 'home'
+  const operator = await requireHostedOperator(req)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
+  const frameId = frameIdParam(req.nextUrl) ?? 'home'
 
   if (!FRAME_ID.test(frameId)) {
     return NextResponse.json({ error: 'Invalid frame ID' }, { status: 400 })

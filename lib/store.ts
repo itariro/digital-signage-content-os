@@ -8,8 +8,11 @@ import { defaultSlideshow } from './albums'
 import { normalizeFrameNotifications } from './notifications'
 import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
+import { getDatabaseMode } from './db/mode'
 import { getTables } from './db/tables'
-const { frameDocuments } = getTables() as any
+import { remoteEntityId } from './sync/ids'
+// Call-time table access: no mode freeze at import time.
+function frameDocumentsTable() { return getTables().frameDocuments }
 import { createTtlCache } from './ttl-cache'
 
 export const DEFAULT_FRAME_ID = 'home'
@@ -194,12 +197,14 @@ export function normalize(store: FrameStore): FrameStore {
   const experiences = store.experiences ?? { enabled: false, rules: [], settings: { schoolHolidays: [] } }
   const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
   const albums = store.albums ?? [seedPhotoAlbum()]
+  const layouts = store.layouts ?? []
 
   // Prune experience rules referencing deleted layouts (never mutate the input).
-  const layoutIds = new Set(store.layouts.map(l => l.id))
-  const prunedRules = experiences.rules.filter(r => layoutIds.has(r.then.layoutId))
-  if (prunedRules.length < experiences.rules.length) {
-    console.log(`[normalize] Pruned ${experiences.rules.length - prunedRules.length} experience rules referencing deleted layouts`)
+  const layoutIds = new Set(layouts.map(l => l.id))
+  const allRules = experiences.rules ?? []
+  const prunedRules = allRules.filter(r => layoutIds.has(r.then.layoutId))
+  if (prunedRules.length < allRules.length) {
+    console.log(`[normalize] Pruned ${allRules.length - prunedRules.length} experience rules referencing deleted layouts`)
   }
   // Legacy stores can hold values the schema now rejects (score/durationMs out
   // of bounds). Clamp on read so an old save still loads instead of bricking
@@ -217,7 +222,7 @@ export function normalize(store: FrameStore): FrameStore {
     ...store,
     experiences: { ...experiences, rules },
     albums,
-    layouts: store.layouts.map((l) => ({
+    layouts: layouts.map((l) => ({
       ...l,
       settings: {
         ...DEFAULT_SETTINGS,
@@ -229,7 +234,7 @@ export function normalize(store: FrameStore): FrameStore {
       ...DEFAULT_SCHEDULE,
       ...schedule,
       night: { ...DEFAULT_SCHEDULE.night, ...schedule.night },
-      rules: (schedule.rules ?? []).filter((r) => store.layouts.some((l) => l.id === r.layoutId)),
+      rules: (schedule.rules ?? []).filter((r) => layouts.some((l) => l.id === r.layoutId)),
     },
     notifications: normalizeFrameNotifications(store.notifications),
   }
@@ -237,6 +242,11 @@ export function normalize(store: FrameStore): FrameStore {
 
 const STORE_CACHE_TTL_MS = 5_000
 const storeCache = createTtlCache<FrameStore>(STORE_CACHE_TTL_MS)
+
+/** Drop cached frame stores (used when the underlying database is reset). */
+export function resetStoreCache() {
+  storeCache.clear()
+}
 const queues = new Map<string, Promise<unknown>>()
 
 export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore | null> {
@@ -244,6 +254,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
   if (cached) return cached
 
   const db = getDb()
+  const frameDocuments = frameDocumentsTable()
   const [document] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, frameId)).limit(1)
   if (document) {
     const store = normalize(document.data as FrameStore)
@@ -277,28 +288,60 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
   return resolved
 }
 
-async function persist(frameId: string, store: FrameStore) {
+async function createDoc(frameId: string, store: FrameStore, revision?: number): Promise<number> {
   const db = getDb()
-  const crypto = await import('node:crypto')
-  const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
-  await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1`, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId))
+  const frameDocuments = frameDocumentsTable()
+  const now = new Date()
+  await db.insert(frameDocuments).values({
+    id: nanoid(12), identifier: frameId, name: frameId, data: store,
+    createdAt: now, updatedAt: now, revision: revision ?? 1,
+  })
+  return revision ?? 1
 }
 
-export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
+async function persist(frameId: string, store: FrameStore, revision?: number): Promise<number> {
+  const db = getDb()
+  const frameDocuments = frameDocumentsTable()
+  const crypto = await import('node:crypto')
+  const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
+  const nextRevision = revision !== undefined ? revision : sql`${frameDocuments.revision} + 1`
+  const [row] = await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: nextRevision, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId)).returning({ revision: frameDocuments.revision })
+  return Number(row?.revision ?? 0)
+}
+
+export function mutateStore(
+  fn: (store: FrameStore) => FrameStore | void,
+  frameId = DEFAULT_FRAME_ID,
+  opts?: { source?: 'remote'; revision?: number },
+): Promise<FrameStore> {
   const queue = queues.get(frameId) ?? Promise.resolve()
   const run = queue.then(async () => {
     const current = await readStore(frameId)
-    if (!current) throw new Error(`Store not found for frame "${frameId}"`)
-    const next = normalize(fn(current) ?? current)
-    await persist(frameId, next)
+    if (!current && opts?.source !== 'remote') throw new Error(`Store not found for frame "${frameId}"`)
+    // A remote-applied frame the device does not have yet is created from
+    // the console payload (final review C-2/C-3: registered frames arrive
+    // via pull before any local edit exists).
+    const applied = current ? fn(current) ?? current : fn(undefined as never)
+    if (!applied) throw new Error(`Remote create requires the payload as the new store for frame "${frameId}"`)
+    const next = normalize(applied)
+    const newRevision = current
+      ? await persist(frameId, next, opts?.revision)
+      : await createDoc(frameId, next, opts?.revision)
     storeCache.set(frameId, next)
-    // Enqueue synchronization work in instance mode (durable local queue).
-    if (process.env.FRAME_MODE === 'instance') {
+    // Enqueue synchronization work in local-first (sqlite) mode — resolved
+    // via getDatabaseMode so sync is never silently off when FRAME_MODE is
+    // unset but the mode resolves to sqlite.
+    // Remote applies are by definition already known to the console — no
+    // re-enqueue (that echo loop was churning revisions on every pull).
+    // baseRevision is the doc revision this edit builds on (mutations are
+    // serialized per frame, so the pre-persist revision was newRevision - 1).
+    if (getDatabaseMode() === 'sqlite' && opts?.source !== 'remote') {
       try {
         const { enqueueChange } = await import('./sync/queue')
-        await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16) })
-      } catch {
-        // Sync queue failure must not block local writes.
+        await enqueueChange({ entityType: 'frame_document', entityId: remoteEntityId(frameId), operation: 'upsert', payload: next, idempotencyKey: nanoid(16), baseRevision: newRevision ? newRevision - 1 : undefined })
+      } catch (e: unknown) {
+        // Sync queue failure must not block local writes — but it must be loud.
+        console.error('sync enqueue failed for frame', frameId, e)
       }
     }
     return next

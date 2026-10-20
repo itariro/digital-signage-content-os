@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb } from '@/lib/db'
-import { getTables } from '@/lib/db/tables'
-import { eq } from 'drizzle-orm'
 import { audit } from '@/lib/audit'
-import { adminOk } from '@/lib/admin'
+import { resolveActor } from '@/lib/http-auth'
+import { revokeInstance } from '@/lib/console/service'
 
 export const dynamic = 'force-dynamic'
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!adminOk(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  const outcome = await resolveActor(request)
+  if (!outcome.ok) {
+    return NextResponse.json({ error: outcome.reason }, { status: outcome.reason === 'misconfigured' ? 500 : 401 })
+  }
   const { id } = await params
-  const db = getDb() as any
-  const tables = getTables() as any
-  await db.delete(tables.instances).where(eq(tables.instances.id, id))
-  await audit('admin', 'revoke_instance', 'instance', id, {})
+  await revokeInstance(id)
+  await audit(outcome.actor, 'revoke_instance', 'instance', id, {})
   return NextResponse.json({ ok: true })
 }

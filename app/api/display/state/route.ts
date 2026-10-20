@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDecision, FrameNotFoundError } from '@/lib/engine/state'
+import { frameIdParam } from '@/lib/frames/request'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const frameId = req.nextUrl.searchParams.get('frame') || 'home'
+  const frameId = frameIdParam(req.nextUrl) ?? 'home'
 
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(frameId)) {
     return NextResponse.json({ error: 'Invalid frame ID' }, { status: 400 })

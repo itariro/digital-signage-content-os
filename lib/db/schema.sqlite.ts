@@ -57,6 +57,7 @@ export const syncQueue = sqliteTable('sync_queue', {
   nextAttemptAt: integer('next_attempt_at', { mode: 'timestamp_ms' }).notNull(),
   status: text('status').notNull().default('pending'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
+  baseRevision: integer('base_revision'),
 })
 
 export const assets = sqliteTable('assets', {

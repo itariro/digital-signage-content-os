@@ -10,14 +10,7 @@ export function Hero() {
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-40 -left-40 h-[40rem] w-[40rem] rounded-full bg-primary/20 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-[30rem] w-[30rem] rounded-full bg-accent/10 blur-3xl" />
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)',
-            backgroundSize: '64px 64px',
-          }}
-        />
+        <div className="absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:64px_64px]" />
       </div>
 
       <header className="relative z-10 flex items-center justify-between px-6 py-5 lg:px-12">
@@ -25,7 +18,7 @@ export function Hero() {
           <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Frame className="size-4" aria-hidden />
           </span>
-          <span className="text-lg font-semibold tracking-tight" style={{ fontFamily: 'var(--font-bebas)' }}>Frame Studio</span>
+          <span className="text-lg font-semibold tracking-tight [font-family:var(--font-bebas)]">Frame Studio</span>
         </div>
         <div className="flex items-center gap-3">
           <Show when="signed-out">
@@ -46,7 +39,7 @@ export function Hero() {
 
       <section className="relative z-10 mx-auto flex max-w-6xl flex-col items-start gap-8 px-6 pt-20 lg:px-12 lg:pt-32">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Digital signage, authored</p>
-        <h1 className="text-5xl font-bold leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl" style={{ fontFamily: 'var(--font-bebas)' }}>
+        <h1 className="text-5xl font-bold leading-[0.95] tracking-tight [font-family:var(--font-bebas)] sm:text-7xl lg:text-8xl">
           Build the screen <br />
           <span className="italic text-primary">your space deserves.</span>
         </h1>

@@ -3,10 +3,10 @@ import { desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
-const { frameDocuments } = getTables() as any
 import { readStore } from '@/lib/store'
 import type { FrameStore } from '@/lib/types'
 import { resolveDisplay, clockParts } from '@/lib/schedule'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,10 +14,22 @@ function validId(value: unknown) {
   return typeof value === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(value)
 }
 
+// A provisioned kiosk (INSTANCE_ID set) manages EXACTLY ONE frame: 'home'
+// (user design resolution). Multi-frame lives on the console — one instance
+// per screen. Refuse any local frame other than home.
+function singleFrameViolation(): NextResponse | null {
+  if (!process.env.INSTANCE_ID) return null
+  return NextResponse.json(
+    { error: 'A provisioned instance manages only the home frame; onboard another screen as its own instance' },
+    { status: 400 },
+  )
+}
+
 export async function GET() {
+  const frameDocuments = getTables().frameDocuments
   const documents = await getDb().select().from(frameDocuments).orderBy(desc(frameDocuments.updatedAt))
   const now = new Date()
-  return NextResponse.json(await Promise.all(documents.map(async (document: any) => {
+  return NextResponse.json(await Promise.all(documents.map(async (document) => {
     const store = document.data as FrameStore
     const display = resolveDisplay(store, clockParts(now))
     return {
@@ -36,13 +48,21 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const body = await request.json().catch(() => null)
   if (!body || !validId(body.id) || typeof body.name !== 'string' || !body.name.trim()) {
     return NextResponse.json({ error: 'Frame ID and name are required' }, { status: 400 })
   }
   const db = getDb()
+  const frameDocuments = getTables().frameDocuments
   const now = new Date()
   const identifier = body.id.trim()
+  const violation = singleFrameViolation()
+  if (violation && identifier !== 'home') return violation
   const [existing] = await db.select({ id: frameDocuments.id }).from(frameDocuments).where(eq(frameDocuments.identifier, identifier)).limit(1)
   if (existing) return NextResponse.json({ error: 'Frame ID already exists' }, { status: 409 })
   const homeStore = await readStore()
@@ -59,9 +79,17 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const body = await request.json().catch(() => null)
   if (!body || !validId(body.id)) return NextResponse.json({ error: 'Valid frame ID is required' }, { status: 400 })
+  const patchViolation = singleFrameViolation()
+  if (patchViolation && body.id !== 'home') return patchViolation
   const db = getDb()
+  const frameDocuments = getTables().frameDocuments
   const [document] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, body.id)).limit(1)
   if (!document) return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
   const updates: Record<string, unknown> = { updatedAt: new Date() }
@@ -80,8 +108,18 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const id = new URL(request.url).searchParams.get('id')
   if (!id || !validId(id) || id === 'home') return NextResponse.json({ error: 'The home frame cannot be removed' }, { status: 400 })
+  const deleteViolation = singleFrameViolation()
+  if (deleteViolation) return deleteViolation
+  const frameDocuments = getTables().frameDocuments
   const result = await getDb().delete(frameDocuments).where(eq(frameDocuments.identifier, id))
-  return NextResponse.json({ ok: true, deleted: (result as any).changes ?? (result as any).rowCount ?? 0 })
+  // dialect difference: sqlite reports `changes`, pg reports `rowCount`
+  const r = result as unknown as { changes?: number; rowCount?: number }
+  return NextResponse.json({ ok: true, deleted: r.changes ?? r.rowCount ?? 0 })
 }

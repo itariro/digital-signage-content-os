@@ -11,7 +11,7 @@ describe('runMigrations', () => {
     const { runMigrations } = await import('@/lib/db/migrate')
     await runMigrations()
     const { getSqliteRaw } = await import('@/lib/db/sqlite')
-    const db = getSqliteRaw() as any
+    const db = getSqliteRaw()
     const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
     const names = rows.map((r: any) => r.name)
     expect(names).toContain('frame_documents')

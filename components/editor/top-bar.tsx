@@ -9,6 +9,7 @@ import { FrameSwitcher } from './frame-switcher'
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
 
 type TopBarProps = {
+  singleFrame?: boolean
   editor: EditorApi
   isActive: boolean
   saving: boolean
@@ -37,7 +38,7 @@ export function ThemeToggle() {
   )
 }
 
-export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }: TopBarProps) {
+export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, singleFrame = false }: TopBarProps) {
   const { state, dirty } = editor
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 lg:px-4">
@@ -70,7 +71,7 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
         )}
       </div>
 
-      <FrameSwitcher />
+      <FrameSwitcher singleFrame={singleFrame} />
 
       <div className="flex items-center gap-0.5">
         <IconButton label="Undo (⌘Z)" onClick={editor.undo} disabled={state.past.length === 0}>

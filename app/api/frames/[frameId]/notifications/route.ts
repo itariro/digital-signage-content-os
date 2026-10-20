@@ -3,12 +3,18 @@ import { nanoid } from 'nanoid'
 import { mutateStore } from '@/lib/store'
 import { BOB_EVENT_KEY_PREFIX, normalizeFrameNotifications } from '@/lib/notifications'
 import type { FrameNotification } from '@/lib/types'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export const dynamic = 'force-dynamic'
 
 const FRAME_ID = /^[a-zA-Z0-9_-]{1,64}$/
 
 export async function POST(request: Request, { params }: { params: Promise<{ frameId: string }> }) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const { frameId } = await params
   if (!FRAME_ID.test(frameId)) return NextResponse.json({ error: 'Invalid frame id' }, { status: 400 })
 
@@ -51,6 +57,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ fra
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ frameId: string }> }) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const { frameId } = await params
   if (!FRAME_ID.test(frameId)) return NextResponse.json({ error: 'Invalid frame id' }, { status: 400 })
   const id = new URL(request.url).searchParams.get('id')

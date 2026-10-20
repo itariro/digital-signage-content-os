@@ -53,7 +53,7 @@ function isTyping(target: EventTarget | null) {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
 
-export function Editor({ initialStore, frameId }: { initialStore: FrameStore; frameId?: string }) {
+export function Editor({ initialStore, frameId, singleFrame = false }: { initialStore: FrameStore; frameId?: string; singleFrame?: boolean }) {
   const { store, call } = useFrameStore(initialStore, frameId)
   const editor = useEditor(initialStore.layouts.find((l) => l.id === initialStore.activeId) ?? initialStore.layouts[0])
   const { state, dirty } = editor
@@ -392,6 +392,7 @@ export function Editor({ initialStore, frameId }: { initialStore: FrameStore; fr
       ))}
       <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
         <TopBar
+          singleFrame={singleFrame}
           editor={editor}
           isActive={store.activeId === state.layoutId}
           saving={saving}

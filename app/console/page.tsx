@@ -1,15 +1,13 @@
-import { getDb } from '@/lib/db'
+import { auth } from '@clerk/nextjs/server'
 import { listAudit } from '@/lib/audit'
-import { getTables } from '@/lib/db/tables'
+import { listInstanceCards } from '@/lib/console/service'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ConsolePage() {
-  const db = getDb() as any
-  const tables = getTables() as any
-  const instances = await db.select().from(tables.instances).catch(() => [])
-  const frames = await db.select().from(tables.frameDocuments).catch(() => [])
-  const frameMap = new Map(frames.map((f: any) => [f.identifier, f]))
+  // Defense in depth: proxy.ts already redirects; this holds even if the matcher changes.
+  await auth.protect()
+  const instances = await listInstanceCards().catch(() => [])
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <h1 className="text-2xl font-bold">Frame Console</h1>
@@ -26,8 +24,8 @@ export default async function ConsolePage() {
             </tr>
           </thead>
           <tbody>
-            {instances.map((i: any) => {
-              const f = frameMap.get(i.id) as any
+            {instances.map((i) => {
+              const f = i.frame
               return (
                 <tr key={i.id} className="border-t">
                   <td className="p-2 font-mono text-xs">{i.id}</td>
@@ -45,10 +43,51 @@ export default async function ConsolePage() {
         </table>
       </div>
       <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Sync conflicts</h2>
+        <ConflictList />
+      </section>
+      <section className="space-y-2">
         <h2 className="text-lg font-semibold">Audit log</h2>
         <AuditList />
       </section>
     </main>
+  )
+}
+
+async function ConflictList() {
+  const { listConflicts } = await import('@/lib/sync/conflicts')
+  const rows = (await listConflicts().catch(() => [])).filter((c) => c.status === 'open' || c.status === 'rejected')
+  if (!rows.length) return <p className="text-xs text-muted-foreground">No open conflicts.</p>
+  return (
+    <ul className="space-y-2">
+      {rows.map((c) => (
+        <li key={c.id} className="rounded border p-2 text-xs space-y-1">
+          <div>
+            <span className="font-mono">{c.entityType}/{c.entityId}</span> — instance <span className="font-mono">{c.instanceId}</span>:
+            {c.status === 'rejected'
+              ? <span className="ml-1 rounded bg-destructive/15 px-1.5 py-0.5 text-destructive">write rejected (not this instance&apos;s frame)</span>
+              : <> local rev {c.localRevision} vs remote rev {c.remoteRevision}</>}
+          </div>
+          <div className="flex gap-2">
+            {c.status === 'open' && (
+              <>
+                <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+                  <button name="resolution" value="remote" className="rounded border px-2 py-1 hover:bg-muted">Accept console version</button>
+                </form>
+                <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+                  <button name="resolution" value="local" className="rounded border px-2 py-1 hover:bg-muted">Apply instance version</button>
+                </form>
+              </>
+            )}
+            {c.status === 'rejected' && (
+              <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+                <button name="resolution" value="discard" className="rounded border px-2 py-1 hover:bg-muted">Discard stray write</button>
+              </form>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -57,7 +96,7 @@ async function AuditList() {
   const rows = await listAudit(20).catch(() => [])
   return (
     <ul className="space-y-1 text-xs">
-      {rows.map((r: any) => (
+      {rows.map((r) => (
         <li key={r.id} className="rounded border p-2">
           <span className="font-mono">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</span> — <strong>{r.actor}</strong> {r.action} {r.targetType}/{r.targetId}
         </li>

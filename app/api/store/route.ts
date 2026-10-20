@@ -1,11 +1,12 @@
 import { NextResponse, after } from 'next/server'
 import { readStore } from '@/lib/store'
 import { tickBobEngine } from '@/lib/bob-bridge'
+import { frameIdParam } from '@/lib/frames/request'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? 'home'
+  const frameId = frameIdParam(request.url) ?? 'home'
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(frameId)) {
     return NextResponse.json({ error: 'Invalid frame id' }, { status: 400 })
   }
