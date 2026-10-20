@@ -16,6 +16,27 @@ export function getSyncState() {
   return { lastSyncAt, lastError, running }
 }
 
+async function loadCheckpoint(instanceId: string): Promise<string | undefined> {
+  const { getDb } = await import('@/lib/db')
+  const { getTables } = await import('@/lib/db/tables')
+  const { eq } = await import('drizzle-orm')
+  const db = getDb() as any
+  const { syncCheckpoints } = getTables() as any
+  const [row] = await db.select().from(syncCheckpoints).where(eq(syncCheckpoints.id, instanceId))
+  return row?.cursor ?? undefined
+}
+
+async function saveCheckpoint(instanceId: string, cursor: string) {
+  const { getDb } = await import('@/lib/db')
+  const { getTables } = await import('@/lib/db/tables')
+  const db = getDb() as any
+  const { syncCheckpoints } = getTables() as any
+  const now = new Date()
+  await db.insert(syncCheckpoints)
+    .values({ id: instanceId, scope: 'pull', cursor, updatedAt: now })
+    .onConflictDoUpdate({ target: syncCheckpoints.id, set: { cursor, updatedAt: now } })
+}
+
 export async function pushPending(config: SyncConfig) {
   const pending = await getPending()
   if (!pending.length) return
@@ -87,12 +108,14 @@ export async function runSyncCycle(config: SyncConfig, checkpoint?: string) {
   running = true
   try {
     await pushPending(config)
-    const cursor = await pullRemote(config, checkpoint)
+    const since = checkpoint ?? await loadCheckpoint(config.instanceId)
+    const cursor = await pullRemote(config, since)
+    if (cursor) await saveCheckpoint(config.instanceId, cursor)
     lastSyncAt = new Date().toISOString()
     lastError = null
     return cursor
-  } catch (e: any) {
-    lastError = String(e?.message ?? e)
+  } catch (e: unknown) {
+    lastError = e instanceof Error ? e.message : String(e)
     throw e
   } finally {
     running = false
