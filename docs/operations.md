@@ -12,6 +12,16 @@
 - `CONSOLE_ADMIN_TOKEN` unset means fail-closed in production (HTTP 500 `misconfigured`); in non-production it opens with audit actor `dev-admin`.
 - Asset upload/delete/list require a credential (Clerk session, admin token, or device bearer). Asset files are served without credentials (frames embed them) but content types are derived from bytes and sanitized: unsanctioned types download as `application/octet-stream`, SVG renders as `text/plain`, everything carries `X-Content-Type-Options: nosniff`. Limits: 10 MiB/file, `ASSET_MAX_COUNT`, `ASSET_MAX_TOTAL_BYTES`.
 
+## Service worker (kiosk displays)
+- The worker (`/sw.js`, cache `frame-v2`) never caches `/api/*`; navigations
+  are network-first with an offline shell fallback; static assets
+  stale-while-revalidate.
+- Displays stuck on an old cache recover automatically: on activate the
+  worker deletes every non-current cache. To force recovery remotely, restart
+  the kiosk app so `/sw.js` re-registers; for a hard reset run in the kiosk
+  console: `navigator.serviceWorker.getRegistrations().then(rs =>
+  rs.forEach(r => r.unregister()))`, then reload.
+
 ## Backup
 - Instance: copy `FRAME_DB_PATH` (+ `-wal`/`-shm`) and `FRAME_DATA_DIR/assets` while app stopped, or use snapshot helper.
 - Console: standard Postgres backup (pg_dump).
