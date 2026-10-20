@@ -6,6 +6,7 @@ import type { EditorApi } from '@/hooks/use-editor'
 import { IconButton } from './controls'
 import { cn } from '@/lib/utils'
 import { FrameSwitcher } from './frame-switcher'
+import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
 
 type TopBarProps = {
   editor: EditorApi
@@ -103,6 +104,11 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport }
         {dirty ? 'Save' : 'Saved'}
         {dirty && !saving && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-card" aria-label="Unsaved changes" />}
       </button>
+      <div className="ml-2 flex items-center gap-2">
+        <Show when="signed-in">
+          <UserButton />
+        </Show>
+      </div>
     </header>
   )
 }

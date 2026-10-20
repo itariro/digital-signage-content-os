@@ -5,6 +5,7 @@ import { mutateStore } from '@/lib/store'
 import { defaultSlideshow } from '@/lib/albums'
 
 export async function POST(request: Request) {
+  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
   const parsed = albumCreateSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid album' }, { status: 400 })
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
       createdAt: now,
       updatedAt: now,
     })
-  }).catch((e: Error) => e)
+  }, frameId).catch((e: Error) => e)
   if (store instanceof Error) return NextResponse.json({ error: store.message }, { status: 400 })
   return NextResponse.json({ store, id })
 }

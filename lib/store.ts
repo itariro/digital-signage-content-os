@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { nanoid } from 'nanoid'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Widget } from './types'
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
@@ -8,7 +8,8 @@ import { defaultSlideshow } from './albums'
 import { normalizeFrameNotifications } from './notifications'
 import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
-import { frameDocuments } from './db/schema'
+import { getTables } from './db/tables'
+const { frameDocuments } = getTables() as any
 import { createTtlCache } from './ttl-cache'
 
 export const DEFAULT_FRAME_ID = 'home'
@@ -278,7 +279,9 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
 
 async function persist(frameId: string, store: FrameStore) {
   const db = getDb()
-  await db.update(frameDocuments).set({ data: store, updatedAt: new Date() }).where(eq(frameDocuments.identifier, frameId))
+  const crypto = await import('node:crypto')
+  const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
+  await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1`, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId))
 }
 
 export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
@@ -289,6 +292,15 @@ export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameI
     const next = normalize(fn(current) ?? current)
     await persist(frameId, next)
     storeCache.set(frameId, next)
+    // Enqueue synchronization work in instance mode (durable local queue).
+    if (process.env.FRAME_MODE === 'instance') {
+      try {
+        const { enqueueChange } = await import('./sync/queue')
+        await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16) })
+      } catch {
+        // Sync queue failure must not block local writes.
+      }
+    }
     return next
   })
   queues.set(frameId, run.catch(() => undefined))

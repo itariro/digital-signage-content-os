@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getDb } from '@/lib/db'
-import { frameDocuments } from '@/lib/db/schema'
+import { getTables } from '@/lib/db/tables'
+const { frameDocuments } = getTables() as any
 import { readStore } from '@/lib/store'
 import type { FrameStore } from '@/lib/types'
 import { resolveDisplay, clockParts } from '@/lib/schedule'
@@ -16,7 +17,7 @@ function validId(value: unknown) {
 export async function GET() {
   const documents = await getDb().select().from(frameDocuments).orderBy(desc(frameDocuments.updatedAt))
   const now = new Date()
-  return NextResponse.json(await Promise.all(documents.map(async (document) => {
+  return NextResponse.json(await Promise.all(documents.map(async (document: any) => {
     const store = document.data as FrameStore
     const display = resolveDisplay(store, clockParts(now))
     return {
@@ -82,5 +83,5 @@ export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get('id')
   if (!id || !validId(id) || id === 'home') return NextResponse.json({ error: 'The home frame cannot be removed' }, { status: 400 })
   const result = await getDb().delete(frameDocuments).where(eq(frameDocuments.identifier, id))
-  return NextResponse.json({ ok: true, deleted: result.rowCount ?? 0 })
+  return NextResponse.json({ ok: true, deleted: (result as any).changes ?? (result as any).rowCount ?? 0 })
 }

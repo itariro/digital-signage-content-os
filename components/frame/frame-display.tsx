@@ -43,9 +43,17 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
     refreshWhenHidden: false,
   })
   const store = data ?? initialStore
+  const { data: decisionData } = useSWR<{ decision?: { layoutId?: string | null } }>(`/api/display/state?frame=${encodeURIComponent(frameId)}`, fetcher, {
+    refreshInterval: 3_000,
+    dedupingInterval: 1_000,
+    revalidateOnFocus: false,
+  })
   const now = useNow()
   const scale = useViewportScale()
-  const { layout, night } = resolveDisplay(store, clockParts(now ?? new Date()))
+  const decisionLayout = decisionData?.decision?.layoutId ? store.layouts.find((l) => l.id === decisionData.decision?.layoutId) : undefined
+  const resolved = resolveDisplay(store, clockParts(now ?? new Date()))
+  const layout = decisionLayout ?? resolved.layout
+  const night = resolved.night
   const weather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
 
   return (

@@ -53,8 +53,8 @@ function isTyping(target: EventTarget | null) {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
 
-export function Editor({ initialStore }: { initialStore: FrameStore }) {
-  const { store, call } = useFrameStore(initialStore)
+export function Editor({ initialStore, frameId }: { initialStore: FrameStore; frameId?: string }) {
+  const { store, call } = useFrameStore(initialStore, frameId)
   const editor = useEditor(initialStore.layouts.find((l) => l.id === initialStore.activeId) ?? initialStore.layouts[0])
   const { state, dirty } = editor
   const now = useNow()

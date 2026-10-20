@@ -11,14 +11,16 @@ const fetcher = async (url: string, { signal }: { signal?: AbortSignal } = {}) =
 
 type MutationResult = { store: FrameStore; id?: string }
 
-export function useFrameStore(fallbackData: FrameStore) {
-  const { data, mutate } = useSWR<FrameStore>('/api/store', fetcher, {
+export function useFrameStore(fallbackData: FrameStore, frameId?: string) {
+  const url = frameId ? `/api/store?frame=${encodeURIComponent(frameId)}` : '/api/store'
+  const { data, mutate } = useSWR<FrameStore>(url, fetcher, {
     fallbackData,
     revalidateOnFocus: false,
   })
 
   async function call(url: string, method: string, body?: unknown): Promise<MutationResult> {
-    const res = await fetch(url, {
+    const framedUrl = frameId ? `${url}${url.includes('?') ? '&' : '?'}frame=${encodeURIComponent(frameId)}` : url
+    const res = await fetch(framedUrl, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),

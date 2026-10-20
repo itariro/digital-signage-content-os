@@ -1,7 +1,10 @@
+import { ClerkProvider } from '@clerk/nextjs';
+import { shadcn } from '@clerk/ui/themes'
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Bebas_Neue, Instrument_Serif, Inter, JetBrains_Mono, Outfit, Playfair_Display, Space_Grotesk } from 'next/font/google'
 import './globals.css'
+import { SwRegister } from '@/components/sw-register'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
@@ -35,8 +38,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`dark bg-background ${fontVars}`}>
       <body className="font-sans antialiased">
-        {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <ClerkProvider appearance={{ theme: shadcn }}>
+          {children}
+          <SwRegister />
+          {process.env.NODE_ENV === 'production' && <Analytics />}
+        </ClerkProvider>
       </body>
     </html>
   )

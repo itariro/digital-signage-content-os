@@ -595,3 +595,25 @@ Before opening a change for review:
 ---
 
 Digital Signage Content OS is intended to make building, managing, and displaying rich ambient content as direct as editing a layout and opening a frame URL.
+
+## Local-first foundation (Stage 2)
+
+Frame can run as a local instance:
+
+- Set `FRAME_MODE=instance` to use a local SQLite database (`FRAME_DATA_DIR/frame.db`, WAL mode) instead of Postgres.
+- Default mode is `console` (Postgres) for backward compatibility with hosted deployments.
+- Instance data directory defaults to `.data/` (override with `FRAME_DATA_DIR`).
+- Assets are managed via `/api/assets` (upload, list, get, delete) with hash-based dedup and path-traversal protection.
+- The editor accepts `?frame=<id>` to load a specific frame's store.
+- Display consumes Bob engine decisions (`/api/display/state`) and falls back to schedule rules.
+- A service worker caches the app shell for offline viewing.
+- Backups: `lib/backup` provides snapshot + rotation helpers.
+- Migrations run automatically on startup via `instrumentation.ts`.
+
+Environment variables:
+
+```env
+FRAME_MODE=instance          # instance | console
+FRAME_DATA_DIR=/var/lib/frame # data + db + assets + backups
+FRAME_DB_PATH=/var/lib/frame/frame.db
+```

@@ -14,7 +14,8 @@ function validZone(tz: string | null) {
 }
 
 export async function GET(request: Request) {
-  const store = await readStore()
+  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const store = await readStore(frameId)
   if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
   const timeZone = validZone(new URL(request.url).searchParams.get('tz'))
   const { layout, rule, night } = resolveDisplay(store, clockParts(new Date(), timeZone))
@@ -26,10 +27,11 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
   const parsed = z.object({ id: z.string().min(1).max(40) }).safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
   const store = await mutateStore((s) => {
     if (s.layouts.some((l) => l.id === parsed.data.id)) s.activeId = parsed.data.id
-  })
+  }, frameId)
   return NextResponse.json({ store })
 }

@@ -12,7 +12,11 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
+    "@clerk/nextjs": "^7.9.17",
+    "@clerk/ui": "^1.40.2",
+    "@types/better-sqlite3": "^9.6.0",
     "@vercel/analytics": "1.6.1",
+    "better-sqlite3": "^13.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.3",
