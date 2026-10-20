@@ -70,7 +70,9 @@ export function restoreLatestBackup(dir = backupDir(), dst = dbFilePath()): bool
     .map((f) => ({ name: f, mtime: fs.statSync(path.join(dir, f)).mtimeMs, path: path.join(dir, f) }))
   const newest = dbs.sort((a, b) => b.mtime - a.mtime)[0]
   if (!newest) return false
-  for (const s of siblingsOf(dst)) { try { fs.unlinkSync(s) } catch {} }
+  for (const s of siblingsOf(dst)) {
+    try { fs.unlinkSync(s) } catch (e: unknown) { console.error('stale wal removal failed:', s, e) }
+  }
   fs.copyFileSync(newest.path, dst)
   if (fs.existsSync(newest.path + '-wal')) fs.copyFileSync(newest.path + '-wal', dst + '-wal')
   return true
@@ -88,7 +90,10 @@ export function createSnapshot(dataDir?: string, src = dbFilePath()): string {
     const db = new Database(src)
     db.pragma('wal_checkpoint(TRUNCATE)')
     db.close()
-  } catch {}
+  } catch (e: unknown) {
+    // best effort: a foreign/locked handle may not allow checkpointing
+    console.error('wal checkpoint before snapshot skipped:', e)
+  }
   fs.copyFileSync(src, dst)
   for (const s of siblingsOf(src)) fs.copyFileSync(s, dst + s.slice(src.length))
   return dst

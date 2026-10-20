@@ -32,8 +32,7 @@ export function getDb(): Database {
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
-function tables() { return getTables() }
-function dh() { return tables().displayHistory }
+
 
 export async function queryHistory(
   frameId: string,
@@ -43,7 +42,7 @@ export async function queryHistory(
   const db = getDb()
   const windowStart = new Date(now.getTime() - windowMs)
   const retentionStart = new Date(now.getTime() - RETENTION_MS)
-  const D = dh()
+  const D = getTables().displayHistory
 
   const [recentRows, seenRows, latestRows] = await Promise.all([
     db.select({ layoutId: D.layoutId, ruleId: D.ruleId, shownAt: D.shownAt }).from(D)
@@ -78,7 +77,7 @@ export async function recordDecision(
   const db = getDb()
   const shownAtMinute = truncateToMinute(shownAt)
   const cutoff = retentionCutoff(new Date(), RETENTION_MS)
-  const D = dh()
+  const D = getTables().displayHistory
   const values = {
     frameId,
     decisionId: decision.id,
@@ -111,6 +110,6 @@ export async function recordDecision(
 export async function pruneHistory(frameId: string): Promise<void> {
   const db = getDb()
   const cutoff = retentionCutoff(new Date(), RETENTION_MS)
-  const D = dh()
+  const D = getTables().displayHistory
   await db.delete(D).where(and(eq(D.frameId, frameId), lt(D.shownAt, cutoff)))
 }

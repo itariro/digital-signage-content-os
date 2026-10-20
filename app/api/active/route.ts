@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { mutateStore, readStore } from '@/lib/store'
 import { clockParts, resolveDisplay } from '@/lib/schedule'
+import { frameIdParam } from '@/lib/frames/request'
 
 function validZone(tz: string | null) {
   if (!tz) return undefined
@@ -14,7 +15,7 @@ function validZone(tz: string | null) {
 }
 
 export async function GET(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const frameId = frameIdParam(request.url)
   const store = await readStore(frameId)
   if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
   const timeZone = validZone(new URL(request.url).searchParams.get('tz'))
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const frameId = frameIdParam(request.url)
   const parsed = z.object({ id: z.string().min(1).max(40) }).safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
   const store = await mutateStore((s) => {

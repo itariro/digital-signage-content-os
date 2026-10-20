@@ -1,18 +1,13 @@
 import { auth } from '@clerk/nextjs/server'
-import { getDb } from '@/lib/db'
 import { listAudit } from '@/lib/audit'
-import { getTables } from '@/lib/db/tables'
+import { listInstanceCards } from '@/lib/console/service'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ConsolePage() {
   // Defense in depth: proxy.ts already redirects; this holds even if the matcher changes.
   await auth.protect()
-  const db = getDb()
-  const tables = getTables()
-  const instances = await db.select().from(tables.instances).catch(() => [])
-  const frames = await db.select().from(tables.frameDocuments).catch(() => [])
-  const frameMap = new Map(frames.map((f) => [f.identifier, f]))
+  const instances = await listInstanceCards().catch(() => [])
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <h1 className="text-2xl font-bold">Frame Console</h1>
@@ -30,7 +25,7 @@ export default async function ConsolePage() {
           </thead>
           <tbody>
             {instances.map((i) => {
-              const f = frameMap.get(i.id)
+              const f = i.frame
               return (
                 <tr key={i.id} className="border-t">
                   <td className="p-2 font-mono text-xs">{i.id}</td>

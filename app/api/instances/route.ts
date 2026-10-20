@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { nanoid } from 'nanoid'
 import { auth } from '@clerk/nextjs/server'
-import { getDb } from '@/lib/db'
-import { getTables } from '@/lib/db/tables'
-import { eq } from 'drizzle-orm'
-import { hashToken } from '@/lib/sync/auth'
 import { audit } from '@/lib/audit'
 import { requireAdmin } from '@/lib/authz'
+import { listInstanceCards, registerInstance } from '@/lib/console/service'
 
 const registerSchema = z.object({ name: z.string().min(1).max(120).optional() })
 
@@ -23,18 +19,7 @@ export async function GET(request: NextRequest) {
   const { userId } = await auth()
   const gate = requireAdmin(request)
   if (!userId && !gate.ok) return gateFailure(gate)
-  const db = getDb()
-  const tables = getTables()
-  const instances = await db.select().from(tables.instances)
-  // enrich with frame doc info
-  const frames = await db.select().from(tables.frameDocuments)
-  const frameMap = new Map(frames.map((f) => [f.identifier, f]))
-  const enriched = instances.map((i) => ({
-    ...i,
-    deviceTokenHash: undefined,
-    frame: (() => { const f = frameMap.get(i.id); return f ? { identifier: f.identifier, name: f.name, updatedAt: f.updatedAt, revision: f.revision } : null })(),
-  }))
-  return NextResponse.json({ instances: enriched })
+  return NextResponse.json({ instances: await listInstanceCards() })
 }
 
 export async function POST(request: NextRequest) {
@@ -45,25 +30,7 @@ export async function POST(request: NextRequest) {
   const actor = userId ?? (gate.ok ? gate.actor : 'unauthenticated')
   const parsed = registerSchema.safeParse(await request.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'invalid body' }, { status: 400 })
-  const db = getDb()
-  const tables = getTables()
-  const id = nanoid(12)
-  const token = nanoid(32)
-  await db.insert(tables.instances).values({
-    id,
-    deviceTokenHash: hashToken(token),
-    createdAt: new Date(),
-  })
-  // ensure a frame document exists for this instance
-  const existing = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, id))
-  if (!existing.length) {
-    const { seed } = await import('@/lib/store')
-    const store = seed()
-    const now = new Date()
-    await db.insert(tables.frameDocuments).values({
-      id, identifier: id, name: parsed.data.name ?? `Frame ${id}`, data: store, createdAt: now, updatedAt: now, revision: 1, resolutionWidth: 1920, resolutionHeight: 1080,
-    })
-  }
-  await audit(actor, 'register_instance', 'instance', id, { name: parsed.data.name })
-  return NextResponse.json({ instanceId: id, deviceToken: token }, { status: 201 })
+  const { instanceId, deviceToken } = await registerInstance(parsed.data.name)
+  await audit(actor, 'register_instance', 'instance', instanceId, { name: parsed.data.name })
+  return NextResponse.json({ instanceId, deviceToken }, { status: 201 })
 }

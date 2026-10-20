@@ -3,9 +3,10 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { presetInputSchema } from '@/lib/schema'
 import { mutateStore } from '@/lib/store'
+import { frameIdParam } from '@/lib/frames/request'
 
 export async function POST(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const frameId = frameIdParam(request.url)
   const parsed = presetInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid widget' }, { status: 400 })
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const frameId = frameIdParam(request.url)
   const parsed = z.object({ id: z.string().min(1).max(40) }).safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
   const store = await mutateStore((s) => {

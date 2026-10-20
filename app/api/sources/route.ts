@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
+import { frameIdParam } from '@/lib/frames/request'
 
 const sourceSchema = z.object({
   frameId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/).default('home'),
@@ -15,7 +16,7 @@ const sourceSchema = z.object({
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const frameId = new URL(request.url).searchParams.get('frame') ?? 'home'
+  const frameId = frameIdParam(request.url) ?? 'home'
   const contentSources = getTables().contentSources
   const rows = await getDb().select().from(contentSources).where(eq(contentSources.frameId, frameId))
   return NextResponse.json(rows)

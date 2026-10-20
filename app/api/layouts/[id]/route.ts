@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { layoutInputSchema } from '@/lib/schema'
 import { mutateStore } from '@/lib/store'
+import { frameIdParam } from '@/lib/frames/request'
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const frameId = frameIdParam(request.url)
   const parsed = layoutInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid layout' }, { status: 400 })
@@ -22,7 +23,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const frameId = new URL(request.url).searchParams.get('frame') ?? undefined
+  const frameId = frameIdParam(request.url)
   let blocked = false
   const store = await mutateStore((s) => {
     if (s.layouts.length <= 1) {

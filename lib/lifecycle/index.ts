@@ -73,12 +73,16 @@ export async function shutdownInstance() {
   try {
     const { stopSyncWorker } = await import('@/lib/sync/worker')
     stopSyncWorker()
-  } catch {}
+  } catch (e: unknown) {
+    console.error('sync worker stop failed:', e)
+  }
   if (getDatabaseMode() === 'sqlite') {
     try {
       const { getSqliteRaw } = await import('@/lib/db/sqlite')
       const db = getSqliteRaw()
       db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
-    } catch {}
+    } catch (e: unknown) {
+      console.error('shutdown wal checkpoint failed:', e)
+    }
   }
 }
