@@ -8,6 +8,7 @@ import { defaultSlideshow } from './albums'
 import { normalizeFrameNotifications } from './notifications'
 import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
+import { getDatabaseMode } from './db/mode'
 import { getTables } from './db/tables'
 const { frameDocuments } = getTables() as any
 import { createTtlCache } from './ttl-cache'
@@ -198,9 +199,10 @@ export function normalize(store: FrameStore): FrameStore {
 
   // Prune experience rules referencing deleted layouts (never mutate the input).
   const layoutIds = new Set(layouts.map(l => l.id))
-  const prunedRules = experiences.rules.filter(r => layoutIds.has(r.then.layoutId))
-  if (prunedRules.length < experiences.rules.length) {
-    console.log(`[normalize] Pruned ${experiences.rules.length - prunedRules.length} experience rules referencing deleted layouts`)
+  const allRules = experiences.rules ?? []
+  const prunedRules = allRules.filter(r => layoutIds.has(r.then.layoutId))
+  if (prunedRules.length < allRules.length) {
+    console.log(`[normalize] Pruned ${allRules.length - prunedRules.length} experience rules referencing deleted layouts`)
   }
   // Legacy stores can hold values the schema now rejects (score/durationMs out
   // of bounds). Clamp on read so an old save still loads instead of bricking
@@ -306,12 +308,14 @@ export function mutateStore(
     // bump); a bump would re-open the echo the next push would re-send.
     const newRevision = await persist(frameId, next, opts?.revision)
     storeCache.set(frameId, next)
-    // Enqueue synchronization work in instance mode (durable local queue).
+    // Enqueue synchronization work in local-first (sqlite) mode — resolved
+    // via getDatabaseMode so sync is never silently off when FRAME_MODE is
+    // unset but the mode resolves to sqlite.
     // Remote applies are by definition already known to the console — no
     // re-enqueue (that echo loop was churning revisions on every pull).
     // baseRevision is the doc revision this edit builds on (mutations are
     // serialized per frame, so the pre-persist revision was newRevision - 1).
-    if (process.env.FRAME_MODE === 'instance' && opts?.source !== 'remote') {
+    if (getDatabaseMode() === 'sqlite' && opts?.source !== 'remote') {
       try {
         const { enqueueChange } = await import('./sync/queue')
         await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16), baseRevision: newRevision ? newRevision - 1 : undefined })
