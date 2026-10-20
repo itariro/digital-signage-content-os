@@ -194,9 +194,10 @@ export function normalize(store: FrameStore): FrameStore {
   const experiences = store.experiences ?? { enabled: false, rules: [], settings: { schoolHolidays: [] } }
   const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
   const albums = store.albums ?? [seedPhotoAlbum()]
+  const layouts = store.layouts ?? []
 
   // Prune experience rules referencing deleted layouts (never mutate the input).
-  const layoutIds = new Set(store.layouts.map(l => l.id))
+  const layoutIds = new Set(layouts.map(l => l.id))
   const prunedRules = experiences.rules.filter(r => layoutIds.has(r.then.layoutId))
   if (prunedRules.length < experiences.rules.length) {
     console.log(`[normalize] Pruned ${experiences.rules.length - prunedRules.length} experience rules referencing deleted layouts`)
@@ -217,7 +218,7 @@ export function normalize(store: FrameStore): FrameStore {
     ...store,
     experiences: { ...experiences, rules },
     albums,
-    layouts: store.layouts.map((l) => ({
+    layouts: layouts.map((l) => ({
       ...l,
       settings: {
         ...DEFAULT_SETTINGS,
@@ -229,7 +230,7 @@ export function normalize(store: FrameStore): FrameStore {
       ...DEFAULT_SCHEDULE,
       ...schedule,
       night: { ...DEFAULT_SCHEDULE.night, ...schedule.night },
-      rules: (schedule.rules ?? []).filter((r) => store.layouts.some((l) => l.id === r.layoutId)),
+      rules: (schedule.rules ?? []).filter((r) => layouts.some((l) => l.id === r.layoutId)),
     },
     notifications: normalizeFrameNotifications(store.notifications),
   }
@@ -237,6 +238,11 @@ export function normalize(store: FrameStore): FrameStore {
 
 const STORE_CACHE_TTL_MS = 5_000
 const storeCache = createTtlCache<FrameStore>(STORE_CACHE_TTL_MS)
+
+/** Drop cached frame stores (used when the underlying database is reset). */
+export function resetStoreCache() {
+  storeCache.clear()
+}
 const queues = new Map<string, Promise<unknown>>()
 
 export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore | null> {
@@ -277,26 +283,35 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
   return resolved
 }
 
-async function persist(frameId: string, store: FrameStore): Promise<number> {
+async function persist(frameId: string, store: FrameStore, revision?: number): Promise<number> {
   const db = getDb()
   const crypto = await import('node:crypto')
   const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
-  const [row] = await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: sql`${frameDocuments.revision} + 1`, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId)).returning({ revision: frameDocuments.revision })
+  const nextRevision = revision !== undefined ? revision : sql`${frameDocuments.revision} + 1`
+  const [row] = await db.update(frameDocuments).set({ data: store, updatedAt: new Date(), revision: nextRevision, contentHash: hash, updatedBy: 'instance' }).where(eq(frameDocuments.identifier, frameId)).returning({ revision: frameDocuments.revision })
   return Number(row?.revision ?? 0)
 }
 
-export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameId = DEFAULT_FRAME_ID): Promise<FrameStore> {
+export function mutateStore(
+  fn: (store: FrameStore) => FrameStore | void,
+  frameId = DEFAULT_FRAME_ID,
+  opts?: { source?: 'remote'; revision?: number },
+): Promise<FrameStore> {
   const queue = queues.get(frameId) ?? Promise.resolve()
   const run = queue.then(async () => {
     const current = await readStore(frameId)
     if (!current) throw new Error(`Store not found for frame "${frameId}"`)
     const next = normalize(fn(current) ?? current)
-    const newRevision = await persist(frameId, next)
+    // Remote-applied writes carry the console revision (authoritative, no
+    // bump); a bump would re-open the echo the next push would re-send.
+    const newRevision = await persist(frameId, next, opts?.revision)
     storeCache.set(frameId, next)
     // Enqueue synchronization work in instance mode (durable local queue).
+    // Remote applies are by definition already known to the console — no
+    // re-enqueue (that echo loop was churning revisions on every pull).
     // baseRevision is the doc revision this edit builds on (mutations are
     // serialized per frame, so the pre-persist revision was newRevision - 1).
-    if (process.env.FRAME_MODE === 'instance') {
+    if (process.env.FRAME_MODE === 'instance' && opts?.source !== 'remote') {
       try {
         const { enqueueChange } = await import('./sync/queue')
         await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16), baseRevision: newRevision ? newRevision - 1 : undefined })

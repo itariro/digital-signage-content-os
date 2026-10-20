@@ -71,8 +71,13 @@ export async function pullRemote(config: SyncConfig, since?: string, retried = f
   const { mutateStore } = await import('@/lib/store')
   for (const c of data.changes ?? []) {
     if (c.entityType === 'frame_document' && c.operation === 'upsert') {
-      await mutateStore(() => c.payload as any, c.entityId)
+      await mutateStore(() => c.payload as any, c.entityId, { source: 'remote', revision: c.revision })
     }
+  }
+  // Console-resolved conflicts retire the instance's terminal queue rows.
+  for (const rc of data.resolvedConflicts ?? []) {
+    const { discardConflictsFor } = await import('./queue')
+    await discardConflictsFor(rc.entityId)
   }
   return data.cursor as string
 }

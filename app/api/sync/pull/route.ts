@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
   const outcome = await handlePull(instanceId, since)
   if (outcome.expired) {
-    return NextResponse.json({ changes: [], cursor: outcome.cursor, reset: true }, { status: 410 })
+    return NextResponse.json({ changes: [], cursor: outcome.cursor, reset: true, resolvedConflicts: [] }, { status: 410 })
   }
-  return NextResponse.json({ changes: outcome.changes, cursor: outcome.cursor })
+  return NextResponse.json({ changes: outcome.changes, cursor: outcome.cursor, resolvedConflicts: outcome.resolvedConflicts })
 }

@@ -22,6 +22,7 @@ export interface PullOutcome {
   changes: Array<{ entityType: string; entityId: string; operation: 'upsert'; payload: unknown; revision: number; updatedAt: string }>
   cursor: string
   expired?: boolean
+  resolvedConflicts: Array<{ entityId: string; resolution: string }>
 }
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
@@ -116,7 +117,7 @@ export async function handlePull(authedInstanceId: string, since?: string): Prom
     const parsed = new Date(since)
     if (!Number.isNaN(parsed.getTime())) {
       if (Date.now() - parsed.getTime() > SEVEN_DAYS_MS) {
-        return { changes: [], cursor: new Date().toISOString(), expired: true }
+        return { changes: [], cursor: new Date().toISOString(), expired: true, resolvedConflicts: [] }
       }
       sinceDate = parsed
     }
@@ -141,5 +142,15 @@ export async function handlePull(authedInstanceId: string, since?: string): Prom
   const latest = changes.reduce((acc: number, c) => Math.max(acc, new Date(c.updatedAt).getTime()), 0)
   const cursor = latest ? new Date(latest).toISOString() : new Date().toISOString()
 
-  return { changes, cursor }
+  let resolvedConflicts: PullOutcome['resolvedConflicts'] = []
+  try {
+    const resolved = await db.select().from(tables.syncConflicts).where(eq(tables.syncConflicts.instanceId, authedInstanceId))
+    resolvedConflicts = (resolved as any[])
+      .filter((c) => c.status === 'local' || c.status === 'remote')
+      .map((c) => ({ entityId: c.entityId, resolution: c.status }))
+  } catch (e: unknown) {
+    console.error('resolved conflict scan failed:', e)
+  }
+
+  return { changes, cursor, resolvedConflicts }
 }

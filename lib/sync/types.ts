@@ -48,6 +48,7 @@ export interface PullResponse {
   changes: PullChange[]
   cursor: string
   reset?: boolean
+  resolvedConflicts?: Array<{ entityId: string; resolution: string }>
 }
 
 export interface SyncStatus {

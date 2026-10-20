@@ -1,7 +1,7 @@
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import { nanoid } from 'nanoid'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { nextRetryDelay } from '@/lib/kiosk/sync'
 import type { EnqueueInput } from './types'
 
@@ -79,6 +79,16 @@ export async function failedCount() {
   const { syncQueue } = getTables() as any
   const rows = await db.select().from(syncQueue).where(eq(syncQueue.status, 'failed'))
   return (rows as any[]).length
+}
+
+/** Discard terminal conflict rows for an entity whose conflict was resolved on the console. */
+export async function discardConflictsFor(entityId: string) {
+  const db = getDb() as any
+  const { syncQueue } = getTables() as any
+  const rows = await db.select().from(syncQueue).where(and(eq(syncQueue.entityId, entityId), eq(syncQueue.status, 'conflict')))
+  for (const r of rows as any[]) {
+    await db.delete(syncQueue).where(eq(syncQueue.id, r.id))
+  }
 }
 
 /**
