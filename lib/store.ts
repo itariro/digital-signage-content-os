@@ -300,8 +300,9 @@ export function mutateStore(fn: (store: FrameStore) => FrameStore | void, frameI
       try {
         const { enqueueChange } = await import('./sync/queue')
         await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16), baseRevision: newRevision ? newRevision - 1 : undefined })
-      } catch {
-        // Sync queue failure must not block local writes.
+      } catch (e: unknown) {
+        // Sync queue failure must not block local writes — but it must be loud.
+        console.error('sync enqueue failed for frame', frameId, e)
       }
     }
     return next
