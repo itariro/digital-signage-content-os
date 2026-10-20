@@ -10,6 +10,7 @@ import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
 import { getDatabaseMode } from './db/mode'
 import { getTables } from './db/tables'
+import { remoteEntityId } from './sync/ids'
 // Call-time table access: no mode freeze at import time.
 function FD() { return getTables().frameDocuments }
 import { createTtlCache } from './ttl-cache'
@@ -287,6 +288,17 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
   return resolved
 }
 
+async function createDoc(frameId: string, store: FrameStore, revision?: number): Promise<number> {
+  const db = getDb()
+  const frameDocuments = FD()
+  const now = new Date()
+  await db.insert(frameDocuments).values({
+    id: nanoid(12), identifier: frameId, name: frameId, data: store,
+    createdAt: now, updatedAt: now, revision: revision ?? 1,
+  })
+  return revision ?? 1
+}
+
 async function persist(frameId: string, store: FrameStore, revision?: number): Promise<number> {
   const db = getDb()
   const frameDocuments = FD()
@@ -305,11 +317,16 @@ export function mutateStore(
   const queue = queues.get(frameId) ?? Promise.resolve()
   const run = queue.then(async () => {
     const current = await readStore(frameId)
-    if (!current) throw new Error(`Store not found for frame "${frameId}"`)
-    const next = normalize(fn(current) ?? current)
-    // Remote-applied writes carry the console revision (authoritative, no
-    // bump); a bump would re-open the echo the next push would re-send.
-    const newRevision = await persist(frameId, next, opts?.revision)
+    if (!current && opts?.source !== 'remote') throw new Error(`Store not found for frame "${frameId}"`)
+    // A remote-applied frame the device does not have yet is created from
+    // the console payload (final review C-2/C-3: registered frames arrive
+    // via pull before any local edit exists).
+    const applied = current ? fn(current) ?? current : fn(undefined as never)
+    if (!applied) throw new Error(`Remote create requires the payload as the new store for frame "${frameId}"`)
+    const next = normalize(applied)
+    const newRevision = current
+      ? await persist(frameId, next, opts?.revision)
+      : await createDoc(frameId, next, opts?.revision)
     storeCache.set(frameId, next)
     // Enqueue synchronization work in local-first (sqlite) mode — resolved
     // via getDatabaseMode so sync is never silently off when FRAME_MODE is
@@ -321,7 +338,7 @@ export function mutateStore(
     if (getDatabaseMode() === 'sqlite' && opts?.source !== 'remote') {
       try {
         const { enqueueChange } = await import('./sync/queue')
-        await enqueueChange({ entityType: 'frame_document', entityId: frameId, operation: 'upsert', payload: next, idempotencyKey: nanoid(16), baseRevision: newRevision ? newRevision - 1 : undefined })
+        await enqueueChange({ entityType: 'frame_document', entityId: remoteEntityId(frameId), operation: 'upsert', payload: next, idempotencyKey: nanoid(16), baseRevision: newRevision ? newRevision - 1 : undefined })
       } catch (e: unknown) {
         // Sync queue failure must not block local writes — but it must be loud.
         console.error('sync enqueue failed for frame', frameId, e)

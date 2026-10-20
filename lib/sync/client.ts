@@ -1,6 +1,7 @@
 import { getDatabaseMode } from '@/lib/db/mode'
 import { getPending, markInflight, markDone, markFailed, markConflict, conflictCount, pendingCount } from './queue'
 import { API_VERSION } from './compat'
+import { localFrameId } from './ids'
 
 export interface SyncConfig {
   endpoint: string
@@ -92,7 +93,7 @@ export async function pullRemote(config: SyncConfig, since?: string, retried = f
   const { mutateStore } = await import('@/lib/store')
   for (const c of data.changes ?? []) {
     if (c.entityType === 'frame_document' && c.operation === 'upsert') {
-      await mutateStore(() => c.payload as import('@/lib/types').FrameStore, c.entityId, { source: 'remote', revision: c.revision })
+      await mutateStore(() => c.payload as import('@/lib/types').FrameStore, localFrameId(c.entityId), { source: 'remote', revision: c.revision })
     }
   }
   // Console-resolved conflicts retire the instance's terminal queue rows.
