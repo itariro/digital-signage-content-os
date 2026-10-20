@@ -11,7 +11,10 @@ const globalForDb = globalThis as unknown as { framePool?: Pool }
 
 function getPool() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not configured')
-  return (globalForDb.framePool ??= new Pool({ connectionString: process.env.DATABASE_URL, max: 5 }))
+  // Normalize sslmode to avoid pg-connection-string v3 deprecation warning:
+  // 'require'/'prefer'/'verify-ca' are currently aliases for 'verify-full'.
+  const url = process.env.DATABASE_URL.replace(/sslmode=(require|prefer|verify-ca)/g, 'sslmode=verify-full')
+  return (globalForDb.framePool ??= new Pool({ connectionString: url, max: 5 }))
 }
 
 export function getDb() {
