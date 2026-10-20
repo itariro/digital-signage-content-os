@@ -10,6 +10,7 @@
 - `/console` requires a signed-in Clerk account; set `CONSOLE_ADMIN_ROLE` to additionally require that Clerk role.
 - Instance management APIs (`/api/instances` GET/POST, revoke, config push, delete) accept a Clerk session or the `x-admin-token: $CONSOLE_ADMIN_TOKEN` header.
 - `CONSOLE_ADMIN_TOKEN` unset means fail-closed in production (HTTP 500 `misconfigured`); in non-production it opens with audit actor `dev-admin`.
+- Asset upload/delete/list require a credential (Clerk session, admin token, or device bearer). Asset files are served without credentials (frames embed them) but content types are derived from bytes and sanitized: unsanctioned types download as `application/octet-stream`, SVG renders as `text/plain`, everything carries `X-Content-Type-Options: nosniff`. Limits: 10 MiB/file, `ASSET_MAX_COUNT`, `ASSET_MAX_TOTAL_BYTES`.
 
 ## Backup
 - Instance: copy `FRAME_DB_PATH` (+ `-wal`/`-shm`) and `FRAME_DATA_DIR/assets` while app stopped, or use snapshot helper.
