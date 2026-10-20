@@ -10,7 +10,8 @@ import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
 import { getDatabaseMode } from './db/mode'
 import { getTables } from './db/tables'
-const { frameDocuments } = getTables() as any
+// Call-time table access: no mode freeze at import time.
+function FD() { return getTables().frameDocuments }
 import { createTtlCache } from './ttl-cache'
 
 export const DEFAULT_FRAME_ID = 'home'
@@ -252,6 +253,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
   if (cached) return cached
 
   const db = getDb()
+  const frameDocuments = FD()
   const [document] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, frameId)).limit(1)
   if (document) {
     const store = normalize(document.data as FrameStore)
@@ -287,6 +289,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
 
 async function persist(frameId: string, store: FrameStore, revision?: number): Promise<number> {
   const db = getDb()
+  const frameDocuments = FD()
   const crypto = await import('node:crypto')
   const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
   const nextRevision = revision !== undefined ? revision : sql`${frameDocuments.revision} + 1`

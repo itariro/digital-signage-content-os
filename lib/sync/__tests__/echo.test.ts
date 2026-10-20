@@ -28,8 +28,8 @@ async function freshDb() {
 async function docRow() {
   const { getDb } = await import('@/lib/db')
   const { getTables } = await import('@/lib/db/tables')
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
   const [row] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, 'home'))
   return row
 }
@@ -52,8 +52,8 @@ describe('pull echo suppression', () => {
     await mutateStore((s) => { s.customFonts.push('seed') }, 'home')
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
-    const db = getDb() as any
-    const tables = getTables() as any
+    const db = getDb()
+    const tables = getTables()
     // stand in for a console-side advance (config push landed rev 42)
     await db.update(tables.frameDocuments).set({ revision: 42 }).where(eq(tables.frameDocuments.identifier, 'home'))
     // drain the seed edit's queue row: this test isolates the pull path
@@ -101,8 +101,8 @@ describe('resolved conflicts clear instance queue rows', () => {
     const { resolveConflict, listConflicts } = await import('@/lib/sync/conflicts')
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
-    const db = getDb() as any
-    const tables = getTables() as any
+    const db = getDb()
+    const tables = getTables()
 
     await db.insert(tables.frameDocuments).values({
       id: 'home', identifier: 'home', name: 'home', data: { customFonts: ['console'] },

@@ -30,7 +30,7 @@ suite('frame_documents sync columns on postgres', () => {
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
     const { eq } = await import('drizzle-orm')
-    const tables = getTables() as any
+    const tables = getTables()
     const [row] = await getDb().select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, 'home'))
     // created at default revision 1, two persists bump it to 3
     expect(row.revision).toBe(3)
@@ -43,7 +43,7 @@ suite('frame_documents sync columns on postgres', () => {
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
     const { eq } = await import('drizzle-orm')
-    const tables = getTables() as any
+    const tables = getTables()
 
     // 'home' now sits at revision 3; a push declaring baseRevision 1 must conflict.
     const outcome = await handlePush('home', [{
@@ -57,7 +57,7 @@ suite('frame_documents sync columns on postgres', () => {
     const [row] = await getDb().select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, 'home'))
     expect(row.revision).toBe(3)
 
-    const db = getDb() as any
+    const db = getDb()
     await db.delete(tables.syncConflicts)
     await db.delete(tables.idempotencyKeys)
   }, 60_000)

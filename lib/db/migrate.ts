@@ -6,7 +6,7 @@ import path from 'node:path'
 export async function runMigrations() {
   if (getDatabaseMode() !== 'sqlite') return
   const { getSqliteRaw } = await import('./sqlite')
-  const raw = getSqliteRaw() as any
+  const raw = getSqliteRaw()
   const ddlPath = path.join(process.cwd(), 'drizzle/sqlite/0000_init.sql')
   const ddl = fs.readFileSync(ddlPath, 'utf8')
 
@@ -15,7 +15,7 @@ export async function runMigrations() {
   // for databases created before _migrations existed (statements replay
   // against a schema that already has them).
   raw.exec('CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)')
-  const recorded = new Set((raw.prepare('SELECT name FROM _migrations').all() as any[]).map((r) => r.name))
+  const recorded = new Set((raw.prepare('SELECT name FROM _migrations').all() as { name: string }[]).map((r) => r.name))
 
   const statements = ddl
     .split(/;\s*(?:\r?\n|$)/)

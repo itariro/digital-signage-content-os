@@ -16,8 +16,8 @@ export async function authenticateInstance(request: Request): Promise<string | n
   if (process.env.SYNC_SECRET && token === process.env.SYNC_SECRET) {
     return 'dev-instance'
   }
-  const db = getDb() as any
-  const { instances } = getTables() as any
+  const db = getDb()
+  const { instances } = getTables()
   const hash = hashToken(token)
   const rows = await db.select().from(instances).where(eq(instances.deviceTokenHash, hash))
   return rows[0]?.id ?? null

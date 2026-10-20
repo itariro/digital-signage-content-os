@@ -15,8 +15,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ error: gate.reason }, { status: gate.reason === 'misconfigured' ? 500 : 401 })
   }
   const { id } = await params
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
   await db.delete(tables.instances).where(eq(tables.instances.id, id))
   await audit(userId ?? (gate.ok ? gate.actor : 'unauthenticated'), 'revoke_instance', 'instance', id, {})
   return NextResponse.json({ ok: true })

@@ -28,8 +28,8 @@ describe('conflict protocol (server)', () => {
     const { handlePush } = await import('@/lib/sync/server')
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
-    const db = getDb() as any
-    const tables = getTables() as any
+    const db = getDb()
+    const tables = getTables()
     const now = new Date()
     await db.insert(tables.frameDocuments).values({
       id: 'f1', identifier: 'f1', name: 'f1', data: { rev: 'console-side' },
@@ -60,8 +60,8 @@ describe('conflict protocol (server)', () => {
     const { handlePush } = await import('@/lib/sync/server')
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
-    const db = getDb() as any
-    const tables = getTables() as any
+    const db = getDb()
+    const tables = getTables()
     const now = new Date()
     await db.insert(tables.frameDocuments).values({
       id: 'f1', identifier: 'f1', name: 'f1', data: { rev: 0 },
@@ -151,8 +151,8 @@ describe('conflict protocol (client + queue)', () => {
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
     const { eq } = await import('drizzle-orm')
-    const db = getDb() as any
-    const tables = getTables() as any
+    const db = getDb()
+    const tables = getTables()
     const now = new Date()
     await db.insert(tables.frameDocuments).values({
       id: 'f9', identifier: 'f9', name: 'f9', data: { rev: 'console' },
@@ -169,7 +169,7 @@ describe('conflict protocol (client + queue)', () => {
     // remote wins first: doc untouched
     await resolveConflict(conflicts[0].id, 'remote')
     let [doc] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, 'f9'))
-    expect(doc.data.rev).toBe('console')
+    expect((doc.data as any).rev).toBe('console')
     expect(doc.revision).toBe(2)
     const rowsAfter = await db.select().from(tables.syncConflicts)
     expect(rowsAfter[0].status).toBe('remote')
@@ -184,7 +184,7 @@ describe('conflict protocol (client + queue)', () => {
     const c2 = (await listConflicts())[0]
     await resolveConflict(c2.id, 'local', 'tester')
     ;[doc] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, 'f9'))
-    expect(doc.data.rev).toBe('instance2')
+    expect((doc.data as any).rev).toBe('instance2')
     expect(doc.revision).toBe(3)
     expect(doc.updatedBy).toBe('tester')
   })

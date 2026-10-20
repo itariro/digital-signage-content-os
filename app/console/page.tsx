@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic'
 export default async function ConsolePage() {
   // Defense in depth: proxy.ts already redirects; this holds even if the matcher changes.
   await auth.protect()
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
   const instances = await db.select().from(tables.instances).catch(() => [])
   const frames = await db.select().from(tables.frameDocuments).catch(() => [])
-  const frameMap = new Map(frames.map((f: any) => [f.identifier, f]))
+  const frameMap = new Map(frames.map((f) => [f.identifier, f]))
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <h1 className="text-2xl font-bold">Frame Console</h1>
@@ -29,8 +29,8 @@ export default async function ConsolePage() {
             </tr>
           </thead>
           <tbody>
-            {instances.map((i: any) => {
-              const f = frameMap.get(i.id) as any
+            {instances.map((i) => {
+              const f = frameMap.get(i.id)
               return (
                 <tr key={i.id} className="border-t">
                   <td className="p-2 font-mono text-xs">{i.id}</td>
@@ -61,11 +61,11 @@ export default async function ConsolePage() {
 
 async function ConflictList() {
   const { listConflicts } = await import('@/lib/sync/conflicts')
-  const rows = ((await listConflicts().catch(() => [])) as any[]).filter((c) => c.status === 'open')
+  const rows = (await listConflicts().catch(() => [])).filter((c) => c.status === 'open')
   if (!rows.length) return <p className="text-xs text-muted-foreground">No open conflicts.</p>
   return (
     <ul className="space-y-2">
-      {rows.map((c: any) => (
+      {rows.map((c) => (
         <li key={c.id} className="rounded border p-2 text-xs space-y-1">
           <div>
             <span className="font-mono">{c.entityType}/{c.entityId}</span> — instance <span className="font-mono">{c.instanceId}</span>:
@@ -90,7 +90,7 @@ async function AuditList() {
   const rows = await listAudit(20).catch(() => [])
   return (
     <ul className="space-y-1 text-xs">
-      {rows.map((r: any) => (
+      {rows.map((r) => (
         <li key={r.id} className="rounded border p-2">
           <span className="font-mono">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</span> — <strong>{r.actor}</strong> {r.action} {r.targetType}/{r.targetId}
         </li>

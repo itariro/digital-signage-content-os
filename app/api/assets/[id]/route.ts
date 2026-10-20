@@ -39,15 +39,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!asset) return NextResponse.json({ error: 'not found' }, { status: 404 })
   if (asset.refCount > 0) return NextResponse.json({ error: 'asset in use' }, { status: 409 })
   // scan frame documents for references
-  const db = getDb() as any
-  const { frameDocuments: fd } = getTables() as any
+  const db = getDb()
+  const { frameDocuments: fd } = getTables()
   const docs = await db.select().from(fd)
-  const referenced = (docs as any[]).some((d) => {
+  const referenced = docs.some((d) => {
     const json = JSON.stringify(d.data ?? '')
     return json.includes(asset.id) || json.includes(asset.name)
   })
   if (referenced) return NextResponse.json({ error: 'asset in use' }, { status: 409 })
-  const { assets } = getTables() as any
+  const { assets } = getTables()
   await db.delete(assets).where(eq(assets.id, id))
   const filePath = safeAssetPath(DATA_DIR, asset.name)
   try {

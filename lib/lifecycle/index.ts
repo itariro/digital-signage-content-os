@@ -3,9 +3,10 @@ import { getDatabaseMode } from '@/lib/db/mode'
 async function checkIntegrity(): Promise<boolean> {
   try {
     const { getSqliteRaw } = await import('@/lib/db/sqlite')
-    const db = getSqliteRaw() as any
-    const row = db.prepare('PRAGMA integrity_check').get()
-    return Boolean(row) && Object.values(row)[0] === 'ok'
+    const db = getSqliteRaw()
+    const row = db.prepare('PRAGMA integrity_check').get() as Record<string, unknown> | undefined
+    if (!row) return false
+    return Object.values(row)[0] === 'ok'
   } catch (e: unknown) {
     console.error('sqlite integrity check errored:', e)
     return false
@@ -76,7 +77,7 @@ export async function shutdownInstance() {
   if (getDatabaseMode() === 'sqlite') {
     try {
       const { getSqliteRaw } = await import('@/lib/db/sqlite')
-      const db = getSqliteRaw() as any
+      const db = getSqliteRaw()
       db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     } catch {}
   }

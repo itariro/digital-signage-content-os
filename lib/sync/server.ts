@@ -42,8 +42,8 @@ export function canWriteEntity(authedInstanceId: string, entityId: string): bool
 }
 
 export async function handlePush(authedInstanceId: string, changes: PushChange[]): Promise<PushOutcome> {
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
   const accepted: string[] = []
   const conflicts: PushOutcome['conflicts'] = []
   const rejected: PushOutcome['rejected'] = []
@@ -88,7 +88,7 @@ export async function handlePush(authedInstanceId: string, changes: PushChange[]
         await db.update(tables.frameDocuments).set({ data: c.payload, updatedAt: now, revision: remoteRev + 1 }).where(eq(tables.frameDocuments.identifier, c.entityId))
       } else {
         await db.insert(tables.frameDocuments).values({
-          id: c.entityId, identifier: c.entityId, name: (c.payload as any)?.name ?? c.entityId,
+          id: c.entityId, identifier: c.entityId, name: (c.payload as { name?: string } | undefined)?.name ?? c.entityId,
           data: c.payload, createdAt: now, updatedAt: now, revision: 1,
         })
       }
@@ -109,8 +109,8 @@ export async function handlePush(authedInstanceId: string, changes: PushChange[]
  * guarantee completeness and signals `expired` so the client does a full resync.
  */
 export async function handlePull(authedInstanceId: string, since?: string): Promise<PullOutcome> {
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
 
   let sinceDate: Date | null = null
   if (since) {
@@ -130,7 +130,7 @@ export async function handlePull(authedInstanceId: string, since?: string): Prom
     ? await db.select().from(tables.frameDocuments).where(and(...conditions))
     : await db.select().from(tables.frameDocuments)
 
-  const changes = (rows as any[]).map((r) => ({
+  const changes = rows.map((r) => ({
     entityType: 'frame_document',
     entityId: r.identifier,
     operation: 'upsert' as const,
@@ -145,7 +145,7 @@ export async function handlePull(authedInstanceId: string, since?: string): Prom
   let resolvedConflicts: PullOutcome['resolvedConflicts'] = []
   try {
     const resolved = await db.select().from(tables.syncConflicts).where(eq(tables.syncConflicts.instanceId, authedInstanceId))
-    resolvedConflicts = (resolved as any[])
+    resolvedConflicts = resolved
       .filter((c) => c.status === 'local' || c.status === 'remote')
       .map((c) => ({ entityId: c.entityId, resolution: c.status }))
   } catch (e: unknown) {

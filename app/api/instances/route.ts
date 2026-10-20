@@ -23,16 +23,16 @@ export async function GET(request: NextRequest) {
   const { userId } = await auth()
   const gate = requireAdmin(request)
   if (!userId && !gate.ok) return gateFailure(gate)
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
   const instances = await db.select().from(tables.instances)
   // enrich with frame doc info
   const frames = await db.select().from(tables.frameDocuments)
-  const frameMap = new Map(frames.map((f: any) => [f.identifier, f]))
-  const enriched = instances.map((i: any) => ({
+  const frameMap = new Map(frames.map((f) => [f.identifier, f]))
+  const enriched = instances.map((i) => ({
     ...i,
     deviceTokenHash: undefined,
-    frame: frameMap.get(i.id) ? { identifier: (frameMap.get(i.id) as any).identifier, name: (frameMap.get(i.id) as any).name, updatedAt: (frameMap.get(i.id) as any).updatedAt, revision: (frameMap.get(i.id) as any).revision } : null,
+    frame: (() => { const f = frameMap.get(i.id); return f ? { identifier: f.identifier, name: f.name, updatedAt: f.updatedAt, revision: f.revision } : null })(),
   }))
   return NextResponse.json({ instances: enriched })
 }
@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
   const actor = userId ?? (gate.ok ? gate.actor : 'unauthenticated')
   const parsed = registerSchema.safeParse(await request.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'invalid body' }, { status: 400 })
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
   const id = nanoid(12)
   const token = nanoid(32)
   await db.insert(tables.instances).values({

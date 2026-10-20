@@ -19,11 +19,11 @@ function denied(outcome: { ok: false; reason: string }) {
 export async function GET(req: NextRequest) {
   const outcome = await resolveActor(req)
   if (!outcome.ok) return denied(outcome)
-  const db = getDb() as any
-  const { assets } = getTables() as any
+  const db = getDb()
+  const { assets } = getTables()
   const type = req.nextUrl.searchParams.get('type')
   const rows = await db.select().from(assets)
-  const filtered = type ? rows.filter((r: any) => r.type === type) : rows
+  const filtered = type ? rows.filter((r) => r.type === type) : rows
   return NextResponse.json({ assets: filtered })
 }
 
@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
   if (!derived) return NextResponse.json({ error: 'unsupported media type' }, { status: 415 })
 
   const hash = hashBuffer(buf)
-  const db = getDb() as any
-  const { assets } = getTables() as any
+  const db = getDb()
+  const { assets } = getTables()
   const existing = await db.select().from(assets).where(eq(assets.hash, hash))
   const rows = await db.select({ id: assets.id, size: assets.size }).from(assets)
   if (!existing.length) {
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'asset quota exceeded' }, { status: 507 })
     }
     const maxTotal = Number(process.env.ASSET_MAX_TOTAL_BYTES ?? 512 * 1024 * 1024)
-    const total = (rows as any[]).reduce((sum, r) => sum + (r.size ?? 0), 0)
+    const total = rows.reduce((sum, r) => sum + (r.size ?? 0), 0)
     if (total + buf.length > maxTotal) {
       return NextResponse.json({ error: 'asset storage quota exceeded' }, { status: 507 })
     }

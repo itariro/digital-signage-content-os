@@ -22,8 +22,8 @@ async function setStatus(id: string, status: string, nextAttemptAt?: Date) {
   const { getDb } = await import('@/lib/db')
   const { getTables } = await import('@/lib/db/tables')
   const { eq } = await import('drizzle-orm')
-  const db = getDb() as any
-  const { syncQueue } = getTables() as any
+  const db = getDb()
+  const { syncQueue } = getTables()
   await db.update(syncQueue).set(nextAttemptAt ? { status, nextAttemptAt } : { status }).where(eq(syncQueue.id, id))
 }
 
@@ -31,8 +31,8 @@ async function rowOf(id: string) {
   const { getDb } = await import('@/lib/db')
   const { getTables } = await import('@/lib/db/tables')
   const { eq } = await import('drizzle-orm')
-  const db = getDb() as any
-  const { syncQueue } = getTables() as any
+  const db = getDb()
+  const { syncQueue } = getTables()
   const [row] = await db.select().from(syncQueue).where(eq(syncQueue.id, id))
   return row
 }

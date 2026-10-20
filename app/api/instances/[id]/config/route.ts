@@ -37,8 +37,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'invalid config patch' }, { status: 400 })
   }
 
-  const db = getDb() as any
-  const tables = getTables() as any
+  const db = getDb()
+  const tables = getTables()
   const [doc] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, id))
   if (!doc) return NextResponse.json({ error: 'instance not found' }, { status: 404 })
 

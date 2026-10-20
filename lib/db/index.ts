@@ -1,9 +1,11 @@
 import { and, desc, eq, gte, lt } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/node-postgres'
+import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { getDatabaseMode } from './mode'
+import { getTables, type Tables } from './tables'
+import * as sqliteSchema from './schema.sqlite'
 import { getSqliteDb } from './sqlite'
-import { getTables } from './tables'
 import { retentionCutoff, truncateToMinute } from './history-utils'
 import type { HistorySummary } from '../engine/types'
 
@@ -17,16 +19,20 @@ function getPool() {
   return (globalForDb.framePool ??= new Pool({ connectionString: url, max: 5 }))
 }
 
-export function getDb() {
-  if (getDatabaseMode() === 'sqlite') return getSqliteDb() as any
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const schema = getTables()
-  return drizzle(getPool(), { schema: schema as any })
+/**
+ * Mode-dispatched database handle. See lib/db/tables.ts: one canonical
+ * driver shape describes both dialects; the boundary cast lives in getDb.
+ */
+export type Database = NodePgDatabase<Tables>
+
+export function getDb(): Database {
+  if (getDatabaseMode() === 'sqlite') return getSqliteDb() as unknown as Database
+  return drizzlePg(getPool(), { schema: getTables() }) as unknown as Database
 }
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
-function tables() { return getTables() as any }
+function tables() { return getTables() }
 function dh() { return tables().displayHistory }
 
 export async function queryHistory(
@@ -51,8 +57,8 @@ export async function queryHistory(
   ])
 
   return {
-    recent: recentRows.map((r: any) => ({ layoutId: r.layoutId, ruleId: r.ruleId, shownAt: r.shownAt })),
-    seenLayouts: new Set(seenRows.map((r: any) => r.layoutId)),
+    recent: recentRows.map((r) => ({ layoutId: r.layoutId, ruleId: r.ruleId, shownAt: r.shownAt })),
+    seenLayouts: new Set(seenRows.map((r) => r.layoutId)),
     latestLayoutId: latestRows[0]?.layoutId ?? null,
   }
 }
@@ -73,32 +79,29 @@ export async function recordDecision(
   const shownAtMinute = truncateToMinute(shownAt)
   const cutoff = retentionCutoff(new Date(), RETENTION_MS)
   const D = dh()
-  const isSqlite = getDatabaseMode() === 'sqlite'
-  if (isSqlite) {
-    db.transaction((tx: any) => {
+  const values = {
+    frameId,
+    decisionId: decision.id,
+    layoutId: decision.layoutId,
+    ruleId: decision.ruleId,
+    shownAt: shownAtMinute,
+    score: decision.score,
+  }
+  if (getDatabaseMode() === 'sqlite') {
+    // better-sqlite3 transactions are SYNC-only: statements .run() inside
+    // the callback (awaiting would escape the BEGIN..COMMIT scope).
+    const D = sqliteSchema.displayHistory
+    const sdb = getSqliteDb()
+    sdb.transaction((tx) => {
       tx.delete(D).where(and(eq(D.frameId, frameId), lt(D.shownAt, cutoff))).run()
-      tx.insert(D).values({
-        frameId,
-        decisionId: decision.id,
-        layoutId: decision.layoutId,
-        ruleId: decision.ruleId,
-        shownAt: shownAtMinute,
-        score: decision.score,
-      }).onConflictDoNothing({
+      tx.insert(D).values(values).onConflictDoNothing({
         target: [D.frameId, D.decisionId, D.shownAt],
       }).run()
     })
   } else {
-    await db.transaction(async (tx: any) => {
+    await db.transaction(async (tx) => {
       await tx.delete(D).where(and(eq(D.frameId, frameId), lt(D.shownAt, cutoff)))
-      await tx.insert(D).values({
-        frameId,
-        decisionId: decision.id,
-        layoutId: decision.layoutId,
-        ruleId: decision.ruleId,
-        shownAt: shownAtMinute,
-        score: decision.score,
-      }).onConflictDoNothing({
+      await tx.insert(D).values(values).onConflictDoNothing({
         target: [D.frameId, D.decisionId, D.shownAt],
       })
     })

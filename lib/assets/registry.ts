@@ -6,8 +6,8 @@ import { eq, sql } from 'drizzle-orm'
 export interface AssetInput { type: string; name: string; mime: string; size: number; hash: string; source?: string }
 
 export async function registerAsset(input: AssetInput) {
-  const db = getDb() as any
-  const { assets } = getTables() as any
+  const db = getDb()
+  const { assets } = getTables()
   const existing = await db.select().from(assets).where(eq(assets.hash, input.hash))
   if (existing.length) return existing[0]
   const now = new Date()
@@ -22,14 +22,14 @@ export async function registerAsset(input: AssetInput) {
 }
 
 export async function getAsset(id: string) {
-  const db = getDb() as any
-  const { assets } = getTables() as any
+  const db = getDb()
+  const { assets } = getTables()
   const rows = await db.select().from(assets).where(eq(assets.id, id))
   return rows[0] ?? null
 }
 
 export async function adjustRefCount(id: string, delta: number) {
-  const db = getDb() as any
-  const { assets } = getTables() as any
+  const db = getDb()
+  const { assets } = getTables()
   await db.update(assets).set({ refCount: sql`max(0, ref_count + ${delta})`, updatedAt: new Date() }).where(eq(assets.id, id))
 }

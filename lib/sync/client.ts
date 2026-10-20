@@ -20,8 +20,8 @@ async function loadCheckpoint(instanceId: string): Promise<string | undefined> {
   const { getDb } = await import('@/lib/db')
   const { getTables } = await import('@/lib/db/tables')
   const { eq } = await import('drizzle-orm')
-  const db = getDb() as any
-  const { syncCheckpoints } = getTables() as any
+  const db = getDb()
+  const { syncCheckpoints } = getTables()
   const [row] = await db.select().from(syncCheckpoints).where(eq(syncCheckpoints.id, instanceId))
   return row?.cursor ?? undefined
 }
@@ -29,8 +29,8 @@ async function loadCheckpoint(instanceId: string): Promise<string | undefined> {
 async function saveCheckpoint(instanceId: string, cursor: string) {
   const { getDb } = await import('@/lib/db')
   const { getTables } = await import('@/lib/db/tables')
-  const db = getDb() as any
-  const { syncCheckpoints } = getTables() as any
+  const db = getDb()
+  const { syncCheckpoints } = getTables()
   const now = new Date()
   await db.insert(syncCheckpoints)
     .values({ id: instanceId, scope: 'pull', cursor, updatedAt: now })
@@ -40,8 +40,8 @@ async function saveCheckpoint(instanceId: string, cursor: string) {
 export async function pushPending(config: SyncConfig) {
   const pending = await getPending()
   if (!pending.length) return
-  await markInflight(pending.map((p: any) => p.id))
-  const changes = pending.map((p: any) => ({
+  await markInflight(pending.map((p) => p.id))
+  const changes = pending.map((p) => ({
     idempotencyKey: p.idempotencyKey,
     entityType: p.entityType,
     entityId: p.entityId,
@@ -58,17 +58,17 @@ export async function pushPending(config: SyncConfig) {
     if (!res.ok) throw new Error(`push failed: ${res.status}`)
     const data = await res.json()
     const accepted = new Set(data.accepted ?? [])
-    const doneIds = pending.filter((p: any) => accepted.has(p.idempotencyKey)).map((p: any) => p.id)
+    const doneIds = pending.filter((p) => accepted.has(p.idempotencyKey)).map((p) => p.id)
     await markDone(doneIds)
     for (const c of data.conflicts ?? []) {
-      const item = pending.find((p: any) => p.idempotencyKey === c.idempotencyKey)
+      const item = pending.find((p) => p.idempotencyKey === c.idempotencyKey)
       // Terminal 'conflict' state: kept for visibility, retried only after
       // resolution — never markFailed, which would retry forever with a key
       // the server will keep refusing.
       if (item) await markConflict(item.id, `conflict: remote revision ${c.remoteRevision}`)
     }
     for (const r of data.rejected ?? []) {
-      const item = pending.find((p: any) => p.idempotencyKey === r.idempotencyKey)
+      const item = pending.find((p) => p.idempotencyKey === r.idempotencyKey)
       if (item) await markConflict(item.id, `rejected: ${r.reason}`)
     }
   } catch (e: unknown) {
@@ -92,7 +92,7 @@ export async function pullRemote(config: SyncConfig, since?: string, retried = f
   const { mutateStore } = await import('@/lib/store')
   for (const c of data.changes ?? []) {
     if (c.entityType === 'frame_document' && c.operation === 'upsert') {
-      await mutateStore(() => c.payload as any, c.entityId, { source: 'remote', revision: c.revision })
+      await mutateStore(() => c.payload as import('@/lib/types').FrameStore, c.entityId, { source: 'remote', revision: c.revision })
     }
   }
   // Console-resolved conflicts retire the instance's terminal queue rows.

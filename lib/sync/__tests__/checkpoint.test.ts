@@ -40,8 +40,8 @@ afterEach(() => { globalThis.fetch = ORIGINAL_FETCH })
 async function checkpointRow(instanceId: string) {
   const { getDb } = await import('@/lib/db')
   const { getTables } = await import('@/lib/db/tables')
-  const db = getDb() as any
-  const { syncCheckpoints } = getTables() as any
+  const db = getDb()
+  const { syncCheckpoints } = getTables()
   const [row] = await db.select().from(syncCheckpoints).where(eq(syncCheckpoints.id, instanceId))
   return row
 }

@@ -12,8 +12,8 @@ export async function recordConflict(input: {
   localPayload?: unknown
   remotePayload?: unknown
 }) {
-  const db = getDb() as any
-  const { syncConflicts } = getTables() as any
+  const db = getDb()
+  const { syncConflicts } = getTables()
   const row = {
     id: nanoid(12),
     instanceId: input.instanceId,
@@ -31,8 +31,8 @@ export async function recordConflict(input: {
 }
 
 export async function listConflicts(instanceId?: string) {
-  const db = getDb() as any
-  const { syncConflicts } = getTables() as any
+  const db = getDb()
+  const { syncConflicts } = getTables()
   if (instanceId) {
     return db.select().from(syncConflicts).where(eq(syncConflicts.instanceId, instanceId))
   }
@@ -40,15 +40,15 @@ export async function listConflicts(instanceId?: string) {
 }
 
 export async function resolveConflict(id: string, resolution: 'local' | 'remote', appliedBy?: string) {
-  const db = getDb() as any
-  const { syncConflicts } = getTables() as any
+  const db = getDb()
+  const { syncConflicts } = getTables()
   const rows = await db.select().from(syncConflicts).where(eq(syncConflicts.id, id))
   const conflict = rows[0]
   if (!conflict || conflict.status !== 'open') return null
   if (resolution === 'local') {
     // The instance's version wins: write its payload as the authoritative
     // document content and bump the revision so peers pull it.
-    const { frameDocuments } = getTables() as any
+    const { frameDocuments } = getTables()
     const [doc] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, conflict.entityId))
     if (doc) {
       await db.update(frameDocuments)

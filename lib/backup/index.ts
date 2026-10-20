@@ -32,7 +32,7 @@ export function snapshotIfPopulated(dataDir?: string, dbPath = dbFilePath()): st
   try {
     const Database = require('better-sqlite3')
     const probe = new Database(dbPath, { readonly: true })
-    const row = probe.prepare("SELECT count(*) c FROM sqlite_master WHERE type='table' AND name != '_migrations'").get() as any
+    const row = probe.prepare("SELECT count(*) c FROM sqlite_master WHERE type='table' AND name != '_migrations'").get() as { c: number } | undefined
     populated = (row?.c ?? 0) > 0
     probe.close()
   } catch {

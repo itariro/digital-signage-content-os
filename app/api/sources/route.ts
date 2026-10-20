@@ -4,7 +4,6 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
-const { contentSources } = getTables() as any
 
 const sourceSchema = z.object({
   frameId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/).default('home'),
@@ -17,6 +16,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   const frameId = new URL(request.url).searchParams.get('frame') ?? 'home'
+  const contentSources = getTables().contentSources
   const rows = await getDb().select().from(contentSources).where(eq(contentSources.frameId, frameId))
   return NextResponse.json(rows)
 }
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid source' }, { status: 400 })
   const now = new Date()
   const source = { id: nanoid(12), ...parsed.data, createdAt: now, updatedAt: now }
+  const contentSources = getTables().contentSources
   await getDb().insert(contentSources).values(source)
   return NextResponse.json(source, { status: 201 })
 }
