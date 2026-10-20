@@ -3,8 +3,14 @@ import { fontInputSchema } from '@/lib/schema'
 import { googleFontHref } from '@/lib/fonts'
 import { mutateStore } from '@/lib/store'
 import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export async function POST(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const frameId = frameIdParam(request.url)
   const parsed = fontInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
@@ -24,6 +30,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const frameId = frameIdParam(request.url)
   const parsed = fontInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid font' }, { status: 400 })

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { mutateStore, readStore } from '@/lib/store'
 import { clockParts, resolveDisplay } from '@/lib/schedule'
 import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 function validZone(tz: string | null) {
   if (!tz) return undefined
@@ -28,6 +29,11 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const frameId = frameIdParam(request.url)
   const parsed = z.object({ id: z.string().min(1).max(40) }).safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })

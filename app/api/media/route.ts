@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { isAllowedArtworkHost } from '@/lib/albums'
 import { MEDIA_DIR, MEDIA_TYPES } from '@/lib/media'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 const MAX_BYTES = 10 * 1024 * 1024
 
@@ -21,6 +22,11 @@ async function save(name: string, bytes: Buffer) {
 }
 
 export async function POST(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const parsed = inputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid image' }, { status: 400 })
 

@@ -2,8 +2,14 @@ import { NextResponse } from 'next/server'
 import { layoutInputSchema } from '@/lib/schema'
 import { mutateStore } from '@/lib/store'
 import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const { id } = await params
   const frameId = frameIdParam(request.url)
   const parsed = layoutInputSchema.safeParse(await request.json().catch(() => null))
@@ -22,6 +28,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const { id } = await params
   const frameId = frameIdParam(request.url)
   let blocked = false

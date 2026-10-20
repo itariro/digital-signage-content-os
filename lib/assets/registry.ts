@@ -1,7 +1,7 @@
 import { getTables } from '@/lib/db/tables'
 import { getDb } from '@/lib/db'
 import { nanoid } from 'nanoid'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 export interface AssetInput { type: string; name: string; mime: string; size: number; hash: string; source?: string }
 
@@ -31,5 +31,11 @@ export async function getAsset(id: string) {
 export async function adjustRefCount(id: string, delta: number) {
   const db = getDb()
   const { assets } = getTables()
-  await db.update(assets).set({ refCount: sql`max(0, ref_count + ${delta})`, updatedAt: new Date() }).where(eq(assets.id, id))
+  const [row] = await db.select({ refCount: assets.refCount }).from(assets).where(eq(assets.id, id))
+  if (!row) return
+  // computed in JS: `max(0, ...)` is a scalar in sqlite but an AGGREGATE in
+  // postgres (final review M4/I-3) — the same statement meant different
+  // things per dialect.
+  const refCount = Math.max(0, (row.refCount ?? 0) + delta)
+  await db.update(assets).set({ refCount, updatedAt: new Date() }).where(eq(assets.id, id))
 }

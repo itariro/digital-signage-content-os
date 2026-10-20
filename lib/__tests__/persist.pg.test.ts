@@ -3,22 +3,33 @@ import { describe, it, expect, beforeAll } from 'vitest'
 // C4: console-mode persist() writes revision/contentHash/updatedBy — the PG
 // frame_documents table must carry them or conflict detection is dead in PG.
 // Gated on DATABASE_URL; the throwaway cluster is bootstrapped from drizzle/.
+const env = process.env as Record<string, string | undefined>
 const hasDb = Boolean(process.env.DATABASE_URL)
 const suite = hasDb ? describe : describe.skip
-const env = process.env as Record<string, string | undefined>
 
 suite('frame_documents sync columns on postgres', () => {
   beforeAll(async () => {
     const fs = await import('node:fs')
     const { Client } = await import('pg')
-    const client = new Client({ connectionString: process.env.DATABASE_URL })
-    await client.connect()
-    await client.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;')
+    // Dedicated database (final review I-5): the suite must never DROP SCHEMA
+    // on whatever DATABASE_URL the operator/CI happens to export.
+    const baseUrl = process.env.DATABASE_URL!
+    const admin = new Client({ connectionString: baseUrl })
+    await admin.connect()
+    await admin.query('DROP DATABASE IF EXISTS frame_persist')
+    await admin.query('CREATE DATABASE frame_persist')
+    await admin.end()
+    const target = new URL(baseUrl)
+    const connUrl = `${target.protocol}//${target.username ? target.username + '@' : ''}${target.host}/frame_persist`
+    const conn = new Client({ connectionString: connUrl })
+    await conn.connect()
     const files = fs.readdirSync('drizzle').filter((n) => n.endsWith('.sql')).sort()
     for (const f of files) {
-      await client.query(fs.readFileSync(`drizzle/${f}`, 'utf8'))
+      await conn.query(fs.readFileSync(`drizzle/${f}`, 'utf8'))
     }
-    await client.end()
+    await conn.end()
+    // the app's pg pool is created on first console-mode getDb(), after this
+    process.env.DATABASE_URL = connUrl
     env.FRAME_MODE = 'console'
   }, 60_000)
 

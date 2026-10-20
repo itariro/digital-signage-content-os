@@ -1,4 +1,5 @@
 import { requireAdmin } from '@/lib/authz'
+import { getDatabaseMode } from '@/lib/db/mode'
 import type { OrganizationCustomRoleKey } from '@clerk/shared/types'
 
 export type ActorResult = { ok: true; actor: string } | { ok: false; reason: 'misconfigured' | 'unauthorized' }
@@ -40,3 +41,17 @@ export function actorResponse(outcome: ActorResult & { ok: false }) {
   const { status, error } = actorFailure(outcome)
   return Response.json({ error }, { status })
 }
+
+/**
+ * The same app doubles as the hosted console (postgres mode) and the local
+ * kiosk (sqlite). Editor/asset write APIs are world-open only on the kiosk
+ * (LAN device); on a hosted console they require an operator credential
+ * (final review I-6). Returns null when no check applies (local mode).
+ */
+export async function requireHostedOperator(request: Request): Promise<ActorResult | null> {
+  if (getDatabaseMode() !== 'postgres') return null
+  return resolveActor(request)
+}
+
+export const hostedDenied = (outcome: { ok: false; reason: string }) =>
+  ({ status: outcome.reason === 'misconfigured' ? 500 : 401, error: outcome.reason })

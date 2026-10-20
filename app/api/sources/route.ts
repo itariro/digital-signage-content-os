@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 const sourceSchema = z.object({
   frameId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/).default('home'),
@@ -23,6 +24,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const parsed = sourceSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid source' }, { status: 400 })
   const now = new Date()

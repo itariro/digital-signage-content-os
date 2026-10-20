@@ -4,6 +4,7 @@ import { readStore } from '@/lib/store'
 import { safeParseExperiences } from '@/lib/schema'
 import { formatZonedInputValue, resolveTimezone } from '@/lib/zoned-time'
 import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const operator = await requireHostedOperator(req)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const frameId = frameIdParam(req.nextUrl) ?? 'home'
 
   if (!FRAME_ID.test(frameId)) {

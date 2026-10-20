@@ -3,8 +3,14 @@ import { nanoid } from 'nanoid'
 import { layoutInputSchema } from '@/lib/schema'
 import { mutateStore } from '@/lib/store'
 import { frameIdParam } from '@/lib/frames/request'
+import { requireHostedOperator } from '@/lib/http-auth'
 
 export async function POST(request: Request) {
+  const operator = await requireHostedOperator(request)
+  if (operator && !operator.ok) {
+    return NextResponse.json({ error: operator.reason }, { status: operator.reason === 'misconfigured' ? 500 : 401 })
+  }
+
   const frameId = frameIdParam(request.url)
   const parsed = layoutInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {

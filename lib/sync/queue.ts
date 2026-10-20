@@ -1,7 +1,7 @@
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import { nanoid } from 'nanoid'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { nextRetryDelay } from '@/lib/kiosk/sync'
 import type { EnqueueInput } from './types'
 
@@ -32,7 +32,7 @@ const MAX_ATTEMPTS = Number(process.env.SYNC_MAX_ATTEMPTS ?? 10)
 export async function getPending(limit = 50) {
   const db = getDb()
   const { syncQueue } = getTables()
-  const rows = await db.select().from(syncQueue).where(inArray(syncQueue.status, ['pending', 'inflight']))
+  const rows = await db.select().from(syncQueue).where(inArray(syncQueue.status, ['pending', 'inflight'])).orderBy(asc(syncQueue.createdAt))
   const now = Date.now()
   const eligible = rows.filter((r) => new Date(r.nextAttemptAt).getTime() <= now)
   return eligible.slice(0, limit)

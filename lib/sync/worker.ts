@@ -9,9 +9,9 @@ export function startSyncWorker(config: SyncConfig, intervalMinutes: number) {
   if (timer) return
   const ms = Math.max(1, intervalMinutes) * 60 * 1000
   timer = setInterval(() => {
-    runSyncCycle(config).catch(() => {})
+    runSyncCycle(config).catch((e: unknown) => console.error('sync cycle failed:', e))
   }, ms)
-  runSyncCycle(config).catch(() => {})
+  runSyncCycle(config).catch((e: unknown) => console.error('initial sync cycle failed:', e))
 }
 
 export function stopSyncWorker() {
