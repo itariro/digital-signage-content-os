@@ -1,5 +1,6 @@
 import { and, eq, gt } from 'drizzle-orm'
-import { getDb } from '@/lib/db'
+import { getDb, type Database } from '@/lib/db'
+import { getDatabaseMode } from '@/lib/db/mode'
 import { getTables } from '@/lib/db/tables'
 import { recordConflict } from './conflicts'
 
@@ -33,12 +34,15 @@ function isDevBypass(authedInstanceId: string): boolean {
 }
 
 /**
- * An instance may only touch the frame document registered for it: the
- * registration flow creates `frame_documents.identifier === instances.id`.
+ * A kiosk instance manages EXACTLY ONE frame: its own document, keyed by the
+ * instance id (the local home frame is translated to this id at the sync
+ * boundary, lib/sync/ids.ts). Multi-frame lives on the console side — one
+ * instance per screen. Stray writes are rejected AND recorded (below) so no
+ * queue row can park invisibly.
  */
 export function canWriteEntity(authedInstanceId: string, entityId: string): boolean {
   if (isDevBypass(authedInstanceId)) return true
-  return authedInstanceId === entityId
+  return entityId === authedInstanceId
 }
 
 export async function handlePush(authedInstanceId: string, changes: PushChange[]): Promise<PushOutcome> {
@@ -53,6 +57,23 @@ export async function handlePush(authedInstanceId: string, changes: PushChange[]
     // is NOT burned, so a legitimate owner can still use it later.
     if (!canWriteEntity(authedInstanceId, c.entityId)) {
       rejected.push({ idempotencyKey: c.idempotencyKey, entityId: c.entityId, reason: 'not_owned' })
+      // Surface rejections too (C-3): otherwise a queue row parks in
+      // 'conflict' with nothing visible on the console to explain it.
+      if (c.entityType === 'frame_document') {
+        const open = await db.select().from(tables.syncConflicts).where(eq(tables.syncConflicts.entityId, c.entityId))
+        if (!open.some((r) => r.instanceId === authedInstanceId && (r.status === 'open' || r.status === 'rejected'))) {
+          await recordConflict({
+            instanceId: authedInstanceId,
+            entityType: c.entityType,
+            entityId: c.entityId,
+            localRevision: c.baseRevision ?? 0,
+            remoteRevision: 0,
+            localPayload: c.payload,
+            remotePayload: null,
+            status: 'rejected',
+          })
+        }
+      }
       continue
     }
 
@@ -62,13 +83,16 @@ export async function handlePush(authedInstanceId: string, changes: PushChange[]
       continue
     }
 
+    let remote: (typeof tables.frameDocuments.$inferSelect) | undefined
+    let remoteRev = 0
     if (c.entityType === 'frame_document' && c.operation === 'upsert') {
-      const [remote] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, c.entityId))
-      const remoteRev: number = remote?.revision ?? 0
-      // Interim rule until the baseRevision protocol lands (Task 6): clients
-      // that do not declare a baseRevision push authoritatively; divergence
-      // is only detectable when baseRevision is provided.
-      if (remote && c.baseRevision !== undefined && remoteRev > c.baseRevision) {
+      const [row] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, c.entityId))
+      remote = row
+      remoteRev = row?.revision ?? 0
+      // Conflict only on genuine divergence: the client declares the revision
+      // its edit builds on and the console must not have moved beyond it.
+      // Clients without a baseRevision push authoritatively (legacy/dev).
+      if (row && c.baseRevision !== undefined && remoteRev > c.baseRevision) {
         const cf = await recordConflict({
           instanceId: authedInstanceId,
           entityType: c.entityType,
@@ -76,28 +100,49 @@ export async function handlePush(authedInstanceId: string, changes: PushChange[]
           localRevision: c.baseRevision,
           remoteRevision: remoteRev,
           localPayload: c.payload,
-          remotePayload: remote.data,
+          remotePayload: row.data,
         })
         conflicts.push({ idempotencyKey: c.idempotencyKey, entityType: c.entityType, entityId: c.entityId, localRevision: cf.localRevision, remoteRevision: cf.remoteRevision })
         // Do not store the key for conflicted changes: the client must retry
         // after resolving; burning the key would silently drop the change.
         continue
       }
-      const now = new Date()
-      if (remote) {
-        await db.update(tables.frameDocuments).set({ data: c.payload, updatedAt: now, revision: remoteRev + 1 }).where(eq(tables.frameDocuments.identifier, c.entityId))
-      } else {
-        await db.insert(tables.frameDocuments).values({
-          id: c.entityId, identifier: c.entityId, name: (c.payload as { name?: string } | undefined)?.name ?? c.entityId,
-          data: c.payload, createdAt: now, updatedAt: now, revision: 1,
-        })
-      }
-    } else if (c.entityType === 'frame_document' && c.operation === 'delete') {
-      await db.delete(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, c.entityId))
     }
 
-    await db.insert(tables.idempotencyKeys).values({ key: c.idempotencyKey, createdAt: new Date() })
-    accepted.push(c.idempotencyKey)
+    const now = new Date()
+    // Doc write and idempotency-key insert commit together: a crash between
+    // them previously left the change applied but the key unburned, so the
+    // client's retry (same baseRevision) saw a bumped remote revision and
+    // recorded a FALSE conflict (final review I-4). On Postgres that pairing
+    // runs in a transaction; better-sqlite3 cannot suspend a transaction
+    // across awaits, so the local-dev console commits statements as they go
+    // (acceptable there: the console IS the app process).
+    const apply = async (exec: Database) => {
+      if (c.entityType === 'frame_document' && c.operation === 'upsert') {
+        if (remote) {
+          await exec.update(tables.frameDocuments).set({ data: c.payload, updatedAt: now, revision: remoteRev + 1 }).where(eq(tables.frameDocuments.identifier, c.entityId))
+        } else {
+          await exec.insert(tables.frameDocuments).values({
+            id: c.entityId, identifier: c.entityId, name: (c.payload as { name?: string } | undefined)?.name ?? c.entityId,
+            data: c.payload, createdAt: now, updatedAt: now, revision: 1,
+          })
+        }
+      } else if (c.entityType === 'frame_document' && c.operation === 'delete') {
+        await exec.delete(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, c.entityId))
+      }
+      await exec.insert(tables.idempotencyKeys).values({ key: c.idempotencyKey, createdAt: new Date() })
+    }
+    try {
+      if (getDatabaseMode() === 'postgres') {
+        await db.transaction(async (tx) => apply(tx))
+      } else {
+        await apply(db)
+      }
+      accepted.push(c.idempotencyKey)
+    } catch (e: unknown) {
+      console.error('sync apply failed for change', c.idempotencyKey, e)
+      rejected.push({ idempotencyKey: c.idempotencyKey, entityId: c.entityId, reason: 'apply_error' })
+    }
   }
 
   return { accepted, conflicts, rejected }
@@ -146,7 +191,7 @@ export async function handlePull(authedInstanceId: string, since?: string): Prom
   try {
     const resolved = await db.select().from(tables.syncConflicts).where(eq(tables.syncConflicts.instanceId, authedInstanceId))
     resolvedConflicts = resolved
-      .filter((c) => c.status === 'local' || c.status === 'remote')
+      .filter((c) => c.status === 'local' || c.status === 'remote' || c.status === 'discarded')
       .map((c) => ({ entityId: c.entityId, resolution: c.status }))
   } catch (e: unknown) {
     console.error('resolved conflict scan failed:', e)

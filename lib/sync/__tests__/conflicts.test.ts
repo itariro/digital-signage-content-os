@@ -190,6 +190,121 @@ describe('conflict protocol (client + queue)', () => {
   })
 })
 
+describe('single-frame ownership and rejection visibility (C-3)', () => {
+  it('a provisioned kiosk may only push its OWN document (entityId === instanceId)', async () => {
+    await freshDb()
+    const { handlePush } = await import('@/lib/sync/server')
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const { eq } = await import('drizzle-orm')
+    const db = getDb() as any
+    const tables = getTables() as any
+    const now = new Date()
+    await db.insert(tables.frameDocuments).values({
+      id: 'mf-1', identifier: 'mf-1', name: 'mf-1', data: { v: 0 },
+      createdAt: now, updatedAt: now, revision: 1,
+    })
+    // its own document: accepted
+    const own = await handlePush('mf-1', [{
+      idempotencyKey: 'mf-own', entityType: 'frame_document', entityId: 'mf-1',
+      operation: 'upsert', payload: { v: 'self' }, baseRevision: 1,
+    }])
+    expect(own.accepted).toEqual(['mf-own'])
+    // a second frame in the same namespace: now REJECTED (single-frame model)
+    const second = await handlePush('mf-1', [{
+      idempotencyKey: 'mf-2nd', entityType: 'frame_document', entityId: 'mf-1-kitchen',
+      operation: 'upsert', payload: { v: 'kitchen' }, baseRevision: 0,
+    }])
+    expect(second.rejected.map((r) => r.idempotencyKey)).toEqual(['mf-2nd'])
+    const [kitchen] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, 'mf-1-kitchen'))
+    expect(kitchen).toBeUndefined()
+  })
+
+  it('a foreign entity rejection records a visible rejected conflict (deduped)', async () => {
+    await freshDb()
+    const { handlePush } = await import('@/lib/sync/server')
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const db = getDb() as any
+    const tables = getTables() as any
+    const change = (key: string) => [{
+      idempotencyKey: key, entityType: 'frame_document', entityId: 'other-inst',
+      operation: 'upsert' as const, payload: { v: 1 }, baseRevision: 0,
+    }]
+    const out = await handlePush('mf-2', change('rf-1'))
+    expect(out.rejected.length).toBe(1)
+    const rows = await db.select().from(tables.syncConflicts)
+    const rejectedRows = (rows as any[]).filter((r) => r.status === 'rejected' && r.entityId === 'other-inst')
+    expect(rejectedRows.length).toBe(1)
+    // repeated rejection of the same entity/instance does not pile up rows
+    await handlePush('mf-2', change('rf-2'))
+    const rows2 = await db.select().from(tables.syncConflicts)
+    expect((rows2 as any[]).filter((r) => r.status === 'rejected' && r.entityId === 'other-inst').length).toBe(1)
+  })
+
+  it('resolve discarded clears the instance queue row via pull (rejected not registerable)', async () => {
+    await freshDb()
+    const { handlePush, handlePull } = await import('@/lib/sync/server')
+    const { resolveConflict, listConflicts } = await import('@/lib/sync/conflicts')
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const db = getDb() as any
+    const tables = getTables() as any
+
+    await handlePush('mf-3', [{
+      idempotencyKey: 'rc-1', entityType: 'frame_document', entityId: 'other-lounge',
+      operation: 'upsert', payload: { v: 'other' }, baseRevision: 0,
+    }])
+    const conflicts = await listConflicts()
+    const rej = (conflicts as any[]).find((c) => c.status === 'rejected')
+    expect(rej).toBeTruthy()
+
+    // rejected writes are NOT registerable on a single-frame kiosk
+    const badResolve = await resolveConflict(rej.id, 'local')
+    expect(badResolve).toBeNull()
+
+    // operator discards the stray write
+    const resolved = await resolveConflict(rej.id, 'discard')
+    expect(resolved?.status).toBe('discarded')
+
+    // delivered as resolved so the instance retires its parked row
+    const pulled = await handlePull('mf-3')
+    expect(pulled.resolvedConflicts.some((r) => r.entityId === rej.entityId && r.resolution === 'discarded')).toBe(true)
+    void db; void tables
+  })
+
+  it('resolve remote re-touches the console doc so pull re-delivers it (I-1)', async () => {
+    await freshDb()
+    const { handlePush, handlePull } = await import('@/lib/sync/server')
+    const { resolveConflict, listConflicts } = await import('@/lib/sync/conflicts')
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const { eq } = await import('drizzle-orm')
+    const db = getDb() as any
+    const tables = getTables() as any
+    const old = new Date(Date.now() - 60_000)
+    await db.insert(tables.frameDocuments).values({
+      id: 'mf-4', identifier: 'mf-4', name: 'mf-4', data: { v: 'console' },
+      createdAt: old, updatedAt: old, revision: 3,
+    })
+    await handlePush('mf-4', [{
+      idempotencyKey: 'rm-1', entityType: 'frame_document', entityId: 'mf-4',
+      operation: 'upsert', payload: { v: 'stale-local' }, baseRevision: 1,
+    }])
+    const conflicts = await listConflicts()
+    const cf = (conflicts as any[]).find((c) => c.status === 'open')!
+    await resolveConflict(cf.id, 'remote')
+
+    // the instance had already pulled up to 'old'; the console doc must be
+    // re-delivered after the touch so the kiosk converges on console content
+    const pulled = await handlePull('mf-4', old.toISOString())
+    expect(pulled.changes.length).toBe(1)
+    const [doc] = await db.select().from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, 'mf-4'))
+    expect((doc.data as any).v).toBe('console') // content kept
+    expect(doc.revision).toBe(3) // revision kept
+  })
+})
+
 describe('legacy instance DB upgrade', () => {
   it('runMigrations adds base_revision to a pre-existing sync_queue table', async () => {
     env.FRAME_DB_PATH = ':memory:'

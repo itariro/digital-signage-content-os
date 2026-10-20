@@ -12,7 +12,7 @@ import { getDatabaseMode } from './db/mode'
 import { getTables } from './db/tables'
 import { remoteEntityId } from './sync/ids'
 // Call-time table access: no mode freeze at import time.
-function FD() { return getTables().frameDocuments }
+function frameDocumentsTable() { return getTables().frameDocuments }
 import { createTtlCache } from './ttl-cache'
 
 export const DEFAULT_FRAME_ID = 'home'
@@ -254,7 +254,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
   if (cached) return cached
 
   const db = getDb()
-  const frameDocuments = FD()
+  const frameDocuments = frameDocumentsTable()
   const [document] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, frameId)).limit(1)
   if (document) {
     const store = normalize(document.data as FrameStore)
@@ -290,7 +290,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
 
 async function createDoc(frameId: string, store: FrameStore, revision?: number): Promise<number> {
   const db = getDb()
-  const frameDocuments = FD()
+  const frameDocuments = frameDocumentsTable()
   const now = new Date()
   await db.insert(frameDocuments).values({
     id: nanoid(12), identifier: frameId, name: frameId, data: store,
@@ -301,7 +301,7 @@ async function createDoc(frameId: string, store: FrameStore, revision?: number):
 
 async function persist(frameId: string, store: FrameStore, revision?: number): Promise<number> {
   const db = getDb()
-  const frameDocuments = FD()
+  const frameDocuments = frameDocumentsTable()
   const crypto = await import('node:crypto')
   const hash = crypto.createHash('sha256').update(JSON.stringify(store)).digest('hex')
   const nextRevision = revision !== undefined ? revision : sql`${frameDocuments.revision} + 1`

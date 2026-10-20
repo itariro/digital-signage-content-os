@@ -56,7 +56,7 @@ export default async function ConsolePage() {
 
 async function ConflictList() {
   const { listConflicts } = await import('@/lib/sync/conflicts')
-  const rows = (await listConflicts().catch(() => [])).filter((c) => c.status === 'open')
+  const rows = (await listConflicts().catch(() => [])).filter((c) => c.status === 'open' || c.status === 'rejected')
   if (!rows.length) return <p className="text-xs text-muted-foreground">No open conflicts.</p>
   return (
     <ul className="space-y-2">
@@ -64,15 +64,26 @@ async function ConflictList() {
         <li key={c.id} className="rounded border p-2 text-xs space-y-1">
           <div>
             <span className="font-mono">{c.entityType}/{c.entityId}</span> — instance <span className="font-mono">{c.instanceId}</span>:
-            local rev {c.localRevision} vs remote rev {c.remoteRevision}
+            {c.status === 'rejected'
+              ? <span className="ml-1 rounded bg-destructive/15 px-1.5 py-0.5 text-destructive">write rejected (not this instance&apos;s frame)</span>
+              : <> local rev {c.localRevision} vs remote rev {c.remoteRevision}</>}
           </div>
           <div className="flex gap-2">
-            <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
-              <button name="resolution" value="remote" className="rounded border px-2 py-1 hover:bg-muted">Accept console version</button>
-            </form>
-            <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
-              <button name="resolution" value="local" className="rounded border px-2 py-1 hover:bg-muted">Apply instance version</button>
-            </form>
+            {c.status === 'open' && (
+              <>
+                <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+                  <button name="resolution" value="remote" className="rounded border px-2 py-1 hover:bg-muted">Accept console version</button>
+                </form>
+                <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+                  <button name="resolution" value="local" className="rounded border px-2 py-1 hover:bg-muted">Apply instance version</button>
+                </form>
+              </>
+            )}
+            {c.status === 'rejected' && (
+              <form method="post" action={`/api/sync/conflicts/${c.id}/resolve`}>
+                <button name="resolution" value="discard" className="rounded border px-2 py-1 hover:bg-muted">Discard stray write</button>
+              </form>
+            )}
           </div>
         </li>
       ))}
