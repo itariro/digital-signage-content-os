@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getDb } from '@/lib/db'
-import { getTables } from '@/lib/db/tables'
 import { checkCompatibility, API_VERSION } from '@/lib/sync/compat'
 import { authenticateInstance } from '@/lib/sync/auth'
+import { handlePull } from '@/lib/sync/server'
 
+// instanceId in the query is accepted for backward compatibility but ignored:
+// the requested scope derives from the authenticated bearer token.
 const querySchema = z.object({
-  instanceId: z.string().min(1).max(64),
+  instanceId: z.string().min(1).max(64).optional(),
   since: z.string().optional(),
   apiVersion: z.string().min(1).max(20).default(API_VERSION),
 })
@@ -25,33 +26,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'incompatible api version' }, { status: 426 })
   }
 
-  const db = getDb() as any
-  const tables = getTables() as any
-  const rows = await db.select().from(tables.frameDocuments)
-  let filtered = rows
-  if (since) {
-    const sinceDate = new Date(since)
-    if (Number.isNaN(sinceDate.getTime())) {
-      filtered = rows
-    } else if (Date.now() - sinceDate.getTime() > 7 * 24 * 60 * 60 * 1000) {
-      return NextResponse.json({ changes: [], cursor: new Date().toISOString(), reset: true }, { status: 410 })
-    } else {
-      filtered = rows.filter((r: any) => new Date(r.updatedAt).getTime() > sinceDate.getTime())
-    }
+  const outcome = await handlePull(instanceId, since)
+  if (outcome.expired) {
+    return NextResponse.json({ changes: [], cursor: outcome.cursor, reset: true }, { status: 410 })
   }
-
-  const changes = filtered.map((r: any) => ({
-    entityType: 'frame_document',
-    entityId: r.identifier,
-    operation: 'upsert',
-    payload: r.data,
-    revision: r.revision ?? 1,
-    updatedAt: new Date(r.updatedAt).toISOString(),
-  }))
-
-  const cursor = changes.length
-    ? changes.reduce((a: string, c: any) => (new Date(c.updatedAt).getTime() > new Date(a).getTime() ? c.updatedAt : a), since || new Date(0).toISOString())
-    : (since || new Date().toISOString())
-
-  return NextResponse.json({ changes, cursor })
+  return NextResponse.json({ changes: outcome.changes, cursor: outcome.cursor })
 }
