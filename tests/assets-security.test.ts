@@ -11,6 +11,11 @@ const PNG2 = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1
 const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
 
 beforeAll(() => {
+  // upload/list/delete tests exercise the console-side routes on sqlite; pin
+  // the mode so a shared DATABASE_URL in the environment can't switch them
+  // onto an unprepared postgres schema.
+  delete env.FRAME_MODE
+  delete env.DATABASE_URL
   env.FRAME_DB_PATH = ':memory:'
   env.FRAME_DATA_DIR = '/tmp/scratchpad/assets-adata'
 })

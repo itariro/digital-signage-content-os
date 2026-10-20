@@ -11,6 +11,9 @@ export const frameDocuments = pgTable('frame_documents', {
   resolutionHeight: integer('resolution_height').notNull().default(1080),
   screenWidthMm: integer('screen_width_mm'),
   screenHeightMm: integer('screen_height_mm'),
+  revision: integer('revision').notNull().default(1),
+  contentHash: text('content_hash'),
+  updatedBy: text('updated_by'),
 })
 
 export const frameTemplates = pgTable('frame_templates', {

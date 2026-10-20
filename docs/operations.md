@@ -34,3 +34,5 @@
 - Run `npx tsx scripts/migrate-pg-to-sqlite.ts` with `DATABASE_URL` and `FRAME_DB_PATH`.
 EOF
 echo done
+## Postgres schema (console)
+- Apply migrations with `npx drizzle-kit migrate` (drizzle/0000..0002). Do not rely on `drizzle-kit push`: until 0002 the migration set was missing 8 console tables and the frame_documents sync columns (revision/content_hash/updated_by).

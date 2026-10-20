@@ -5,6 +5,9 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 const env = process.env as Record<string, string | undefined>
 
 beforeAll(() => {
+  // /api/sync/run only exists on instances (sqlite); with DATABASE_URL set in
+  // the environment, FRAME_MODE must explicitly pin instance mode.
+  env.FRAME_MODE = 'instance'
   env.FRAME_DB_PATH = ':memory:'
   env.FRAME_DATA_DIR = '/tmp/scratchpad/run-adata'
 })
