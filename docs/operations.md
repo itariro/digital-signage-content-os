@@ -23,6 +23,11 @@
   rs.forEach(r => r.unregister()))`, then reload.
 
 ## Backup
+- Instance snapshots run automatically at startup before any migration
+  (rotation keeps `BACKUP_MAX`, default 10, in `$FRAME_DATA_DIR/backups`).
+  A corrupt database is restored from the latest snapshot at boot; with no
+  backup available startup fails loudly instead of serving a broken db.
+- Periodic cron: `0 * * * * cd /app && FRAME_DATA_DIR=/var/lib/frame npx tsx scripts/snapshot.ts`
 - Instance: copy `FRAME_DB_PATH` (+ `-wal`/`-shm`) and `FRAME_DATA_DIR/assets` while app stopped, or use snapshot helper.
 - Console: standard Postgres backup (pg_dump).
 
