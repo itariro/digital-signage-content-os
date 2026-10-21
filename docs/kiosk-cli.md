@@ -18,7 +18,7 @@ One command on a fresh Debian 12/13 machine:
 curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo bash
 ```
 
-The raw URL serves `install.sh` from `main`, so this one-liner works only after this branch merges to `main`.
+The raw URL serves `install.sh` from `main`, so the one-liner needs this change merged first.
 
 `install.sh` downloads the app source into `/opt/dscos` and runs
 `install-kiosk.sh`. Pass installer options after `-s --`:
@@ -27,8 +27,14 @@ The raw URL serves `install.sh` from `main`, so this one-liner works only after 
 curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo bash -s -- --rotate right --tz Australia/Melbourne --yes
 ```
 
-Pin a branch or tag with `KIOSK_REF=v1.0`, placed before `bash` in the
-pipeline. Re-running reuses `/opt/dscos`; delete that directory (or set a
+Pin a branch or tag by setting `KIOSK_REF` on `sudo`, between `sudo` and `bash`.
+Setting it before `sudo` does not work, because `sudo` strips the variable:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo KIOSK_REF=v1.0 bash
+```
+
+Re-running reuses `/opt/dscos`; delete that directory (or set a
 new `KIOSK_REF`) to refresh the source.
 
 From an existing checkout, run the installer directly:
