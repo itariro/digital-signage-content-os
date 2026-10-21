@@ -509,6 +509,14 @@ When adding a new artwork provider or media theme:
 
 The repository includes `install-kiosk.sh`, a bootstrap installer for Debian 12/13 thin clients. It installs the display stack, the kiosk user, and the management CLI, then deploys this application locally.
 
+Set up a frame with one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo bash
+```
+
+`install.sh` fetches the app source to `/opt/dscos` and runs `install-kiosk.sh`; installer options pass through `sudo bash -s --`. From a checkout you can still run `sudo bash install-kiosk.sh` directly.
+
 - Default frame URL: `http://localhost:3000/frame/home`
 - The application runs as `dscos.service` on port 3000.
 - The kiosk browser launches after the configured local URL responds.
