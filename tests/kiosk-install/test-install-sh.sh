@@ -109,7 +109,16 @@ out=$(run_install "$APP5" "$WORK/h5.txt" bad-tree 2>&1) && rc=0 || rc=$?
 # shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
 [[ ! -e "$APP5" ]] && ok "bad tree never placed" || bad "bad tree placed anyway"
 
-# ---- 6: non-root run is refused with the sudo one-liner ----
+# ---- 6: the advertised pipe form (curl | bash -s --) works end to end ----
+H6="$WORK/h6.txt"; APP6="$WORK/app6"
+out=$(cd "$WORK" && cat "$REPO/install.sh" | KIOSK_BASE_URL="$BASE" KIOSK_APP_DIR="$APP6" \
+    KIOSK_REF=main HANDOFF_FILE="$H6" bash -s -- --rotate right 2>&1) && rc=0 || rc=$?
+expect_rc "piped wrapper exits 0" 0 "$rc" "$out"
+# shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
+[[ "$(cat "$H6" 2>/dev/null)" == "--rotate right" && -f "$APP6/package.json" ]] \
+    && ok "piped wrapper places source and passes args" || bad "piped wrapper places source and passes args ($(cat "$H6" 2>/dev/null))"
+
+# ---- 7: non-root run is refused with the sudo one-liner ----
 chmod -R a+rX "$WORK"
 if command -v runuser >/dev/null; then
     out=$(runuser -u nobody -- env KIOSK_BASE_URL="$BASE" KIOSK_APP_DIR="$WORK/app6" \
