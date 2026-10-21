@@ -42,7 +42,7 @@ Create `tests/kiosk-install/test-install-sh.sh` with exactly this content:
 #!/usr/bin/env bash
 # Test harness for install.sh (the Homebrew-style kiosk bootstrap wrapper).
 # install.sh needs root, so this runs inside a Debian container:
-#   docker run --rm -v "$PWD":/w:ro debian:12 bash /w/tests/kiosk-install/test-install-sh.sh
+#   docker run --rm -v "$PWD":/w:ro debian:12 bash -c 'apt-get -qq update >/dev/null && apt-get -qqy -o Dpkg::Use-Pty=0 install curl >/dev/null && bash /w/tests/kiosk-install/test-install-sh.sh'
 # The wrapper-under-test is read from /w/install.sh; the repo tarball is
 # faked with a file:// fixture so no network is required.
 set -Eeuo pipefail
@@ -137,10 +137,10 @@ printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 Run from the worktree root:
 
 ```bash
-docker run --rm -v "$PWD":/w:ro debian:12 bash /w/tests/kiosk-install/test-install-sh.sh
+docker run --rm -v "$PWD":/w:ro debian:12 bash -c 'apt-get -qq update >/dev/null && apt-get -qqy -o Dpkg::Use-Pty=0 install curl >/dev/null && bash /w/tests/kiosk-install/test-install-sh.sh'
 ```
 
-Expected: FAILS immediately at scenario 1 with something like `bash: /w/install.sh: No such file or directory` and a non-zero exit. That is the red state; do not proceed until you see it.
+Expected: FAILS at the first scenario with `bash: /w/install.sh: No such file or directory` (exit 127) and a non-zero harness exit. That is the red state; do not proceed until every failure traces to the missing install.sh.
 
 - [ ] **Step 4: Commit**
 
@@ -244,7 +244,7 @@ Expected: no output, exit 0.
 
 - [ ] **Step 3: Run the harness and verify all scenarios pass**
 
-Run: `docker run --rm -v "$PWD":/w:ro debian:12 bash /w/tests/kiosk-install/test-install-sh.sh`
+Run: `docker run --rm -v "$PWD":/w:ro debian:12 bash -c 'apt-get -qq update >/dev/null && apt-get -qqy -o Dpkg::Use-Pty=0 install curl >/dev/null && bash /w/tests/kiosk-install/test-install-sh.sh'`
 Expected: `ok` lines for all scenarios and `6 passed, 0 failed` (or `4 passed, 0 failed` plus the skip line if `runuser` is missing), exit 0.
 
 - [ ] **Step 4: Commit**
@@ -418,7 +418,7 @@ Expected: vitest suite passes. Nothing in this change touches TypeScript, so the
 - [ ] **Step 2: Re-run the bash harness one last time**
 
 ```bash
-docker run --rm -v "$PWD":/w:ro debian:12 bash /w/tests/kiosk-install/test-install-sh.sh
+docker run --rm -v "$PWD":/w:ro debian:12 bash -c 'apt-get -qq update >/dev/null && apt-get -qqy -o Dpkg::Use-Pty=0 install curl >/dev/null && bash /w/tests/kiosk-install/test-install-sh.sh'
 ```
 
 Expected: `0 failed`.

@@ -77,6 +77,22 @@ grep -qi 'no package.json' <<<"$out" && ok "corrupt target message" || bad "corr
 # shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
 [[ -d "$APP3" ]] && ok "corrupt target left untouched" || bad "corrupt target was deleted"
 
+# ---- 3b: reuse demands BOTH marker files; package.json alone is refused ----
+APP3B="$WORK/app3b"; mkdir -p "$APP3B"
+printf '{"name":"half-tree"}\n' > "$APP3B/package.json"
+out=$(run_install "$APP3B" "$WORK/h3b.txt" main 2>&1) && rc=0 || rc=$?
+# shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
+[[ $rc -ne 0 ]] && ok "reuse demands install-kiosk.sh" || bad "reuse demands install-kiosk.sh (rc=0)"
+# shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
+[[ -f "$APP3B/package.json" && -d "$APP3B" ]] && ok "half tree kept for inspection, never deleted" || bad "half tree was deleted"
+
+# ---- 3c: relative KIOSK_APP_DIR resolves from the caller's cwd ----
+out=$(cd "$WORK" && KIOSK_BASE_URL="$BASE" KIOSK_APP_DIR="relapp" KIOSK_REF=main \
+    HANDOFF_FILE="$WORK/h3c.txt" bash "$REPO/install.sh" 2>&1) && rc=0 || rc=$?
+# shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
+[[ $rc -eq 0 && "$(cat "$WORK/h3c.txt.dir" 2>/dev/null)" == "$WORK/relapp" ]] \
+    && ok "relative app dir absolutized before handoff" || bad "relative app dir absolutized (rc=$rc, dir=$(cat "$WORK/h3c.txt.dir" 2>/dev/null))"
+
 # ---- 4: unknown ref fails cleanly, target never created ----
 APP4="$WORK/app4"
 out=$(run_install "$APP4" "$WORK/h4.txt" does-not-exist 2>&1) && rc=0 || rc=$?

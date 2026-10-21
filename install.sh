@@ -21,7 +21,14 @@ set -Eeuo pipefail
 readonly BOOTSTRAP_URL='https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh'
 readonly BASE_URL="${KIOSK_BASE_URL:-https://codeload.github.com/itariro/digital-signage-content-os}"
 readonly REF="${KIOSK_REF:-main}"
-readonly APP_DIR="${KIOSK_APP_DIR:-/opt/dscos}"
+APP_DIR="${KIOSK_APP_DIR:-/opt/dscos}"
+# Absolutize before any cd: a relative KIOSK_APP_DIR must resolve from the
+# caller's directory, not from the handoff directory.
+case "$APP_DIR" in
+    /*) ;;
+    *)  APP_DIR="$PWD/$APP_DIR" ;;
+esac
+readonly APP_DIR
 
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 trap 'printf "install: failed - re-run: curl -fsSL %s | sudo bash\n" "$BOOTSTRAP_URL" >&2' ERR
@@ -37,13 +44,13 @@ for cmd in curl tar; do
 done
 
 # --- source resolution ---
-if [[ -f "$APP_DIR/package.json" ]]; then
-    printf 'install: reusing existing source in %s\n' "$APP_DIR"
+REUSED=0
+if [[ -f "$APP_DIR/package.json" && -f "$APP_DIR/install-kiosk.sh" ]]; then
+    REUSED=1
+    printf 'install: reusing existing source in %s (KIOSK_REF applies only to fresh downloads; delete this directory to re-download)\n' "$APP_DIR"
+elif [[ -e "$APP_DIR" ]]; then
+    die "$APP_DIR exists but has no package.json or install-kiosk.sh; remove it and re-run: $BOOTSTRAP_URL"
 else
-    if [[ -e "$APP_DIR" ]]; then
-        die "$APP_DIR exists but has no package.json; remove it and re-run: $BOOTSTRAP_URL"
-    fi
-
     mkdir -p "$(dirname "$APP_DIR")"
     TMP_DIR=$(mktemp -d "$(dirname "$APP_DIR")/.dscos-stage.XXXXXX")
     printf 'install: downloading %s/tar.gz/%s\n' "$BASE_URL" "$REF"
@@ -60,7 +67,9 @@ else
     [[ -f "$tree/install-kiosk.sh" && -f "$tree/package.json" ]] \
         || die "downloaded tree is missing install-kiosk.sh or package.json (wrong ref?)"
 
-    mv "$tree" "$APP_DIR"
+    # -T: if another install created APP_DIR during the download, fail the
+    # rename instead of nesting the tree inside it.
+    mv -T "$tree" "$APP_DIR"
     rm -rf "$TMP_DIR"; TMP_DIR=""
     printf 'install: source placed in %s\n' "$APP_DIR"
 fi
@@ -68,5 +77,9 @@ fi
 # --- handoff ---
 cd "$APP_DIR"
 export DSCOS_APP_DIR="$APP_DIR"
-printf 'install: starting kiosk installer (ref %s)\n' "$REF"
+if [[ $REUSED -eq 1 ]]; then
+    printf 'install: starting kiosk installer (existing source in %s)\n' "$APP_DIR"
+else
+    printf 'install: starting kiosk installer (fresh source, ref %s)\n' "$REF"
+fi
 exec bash install-kiosk.sh "$@"
