@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Test harness for install.sh (the Homebrew-style kiosk bootstrap wrapper).
 # install.sh needs root, so this runs inside a Debian container:
-#   docker run --rm -v "$PWD":/w:ro debian:12 bash /w/tests/kiosk-install/test-install-sh.sh
+#   docker run --rm -v "$PWD":/w:ro debian:12 bash -c 'apt-get -qq update >/dev/null && apt-get -qqy -o Dpkg::Use-Pty=0 install curl >/dev/null && bash /w/tests/kiosk-install/test-install-sh.sh'
 # The wrapper-under-test is read from /w/install.sh; the repo tarball is
 # faked with a file:// fixture so no network is required.
 set -Eeuo pipefail
 
 REPO=/w
+command -v curl >/dev/null 2>&1 || { printf 'not ok - harness needs curl in the container (use the documented run command)\n' >&2; exit 1; }
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 PASS=0; FAIL=0
