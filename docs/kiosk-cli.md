@@ -96,7 +96,7 @@ existing `/opt/dscos` reuse that tree and never download.
 | Application service | `dscos.service` | Next.js app on port 3000, restarts always, data in `/var/lib/dscos` |
 | Display session | `lightdm` + `/usr/local/lib/kiosk/session.sh` | Auto-login, Chromium in `--kiosk` mode, rotation applied and re-checked, browser supervised and restarted on exit |
 | Browser lockdown | `/etc/chromium/policies/managed/kiosk.json` | No sign-in, extensions, downloads, printing, devtools, or `chrome://` pages |
-| Config file | `/etc/kiosk/kiosk.conf` | Root-owned, mode 0600; secrets stored as `KIOSK_SECRET_*` |
+| Config file | `/etc/kiosk/kiosk.conf` | Root-owned, mode 0644 (the kiosk user's browser session reads it at runtime); secrets stored as `KIOSK_SECRET_*` and redacted in CLI output |
 | Management CLI | `/usr/local/bin/kiosk` | This document |
 | Session helper | `/usr/local/bin/kiosk-ctl` | Low-level browser/session control (see below) |
 | Standby timers | `kiosk-standby-on/off.timer` | systemd, persistent across reboots |
@@ -139,12 +139,18 @@ it works as a monitoring hook.
 kiosk config show                 Redacted config as JSON
 kiosk config validate             Check values without writing
 kiosk config set <key> <value>    Validate before write
-kiosk config export               JSON snapshot for backup
+kiosk config export               JSON snapshot with secrets redacted
 kiosk config restore <file>       Replace config from a JSON file
 ```
 
 `config set` rejects invalid values before touching the file. Booleans accept
 `true`, `1`, or `yes`. Unknown keys are refused, not created.
+
+`config export` replaces every `secrets.*` value with a placeholder, so it is
+a snapshot for inspection, not a backup. Restoring an exported file writes
+those placeholders over the real secrets. To back up configuration with
+secrets, copy `/etc/kiosk/kiosk.conf` itself and store it as you would any
+credential.
 
 Keys (dot notation, CLI key = file variable):
 
@@ -177,8 +183,13 @@ The display session re-reads `kiosk.conf` each time the browser restarts.
 Browser-side keys (`frameUrl`, `rotate`, `output`, `mode`, `scale`, `touch`)
 take effect on the next browser cycle, which happens after `restartHours` or
 immediately with `sudo kiosk-ctl restart`. `kiosk app restart` manages the
-application service, not the browser; an `appPort` change needs the service
-restart.
+application service, not the browser. Note that the service's listening port
+comes from the systemd unit (`Environment=PORT=3000`), not from
+`kiosk.conf`: `appPort` sets which port `kiosk app health` probes. To move
+the application itself, edit the unit (`sudo systemctl edit dscos`, set
+`Environment=PORT=...`), run `sudo systemctl daemon-reload` and
+`kiosk app restart`, then set `appPort` to the same value so health checks
+agree.
 
 ### Overnight standby
 
@@ -283,8 +294,11 @@ Where to look for logs: `kiosk app logs` (application), `sudo kiosk-ctl logs`
 - The browser runs as `kiosk` (no sudo, no password). A compromised page
   cannot reconfigure the system, and the Chromium policy blocks extensions,
   downloads, devtools, and internal pages.
-- `/etc/kiosk/kiosk.conf` is root-owned, mode 0600. `kiosk config show` and
-  logs redact `KIOSK_SECRET_*` values.
+- `/etc/kiosk/kiosk.conf` is root-owned at mode 0644 because the kiosk
+  user's browser session reads it at runtime. That means `KIOSK_SECRET_*`
+  values in the file are readable by any local user ID on the device; the
+  kiosk user has no sudo, and physical and LAN access are the real
+  perimeter. CLI output and logs redact secrets.
 - The install one-liner trusts the HTTPS/TLS channel to GitHub. Pin
   `KIOSK_REF` to a tag for reproducible deployments.
 - The device stays reachable over the network during standby so operators can
