@@ -43,7 +43,8 @@ else
         die "$APP_DIR exists but has no package.json; remove it and re-run: $BOOTSTRAP_URL"
     fi
 
-    TMP_DIR=$(mktemp -d /tmp/kiosk-bootstrap.XXXXXX)
+    mkdir -p "$(dirname "$APP_DIR")"
+    TMP_DIR=$(mktemp -d "$(dirname "$APP_DIR")/.dscos-stage.XXXXXX")
     printf 'install: downloading %s/tar.gz/%s\n' "$BASE_URL" "$REF"
     curl -fsSL --max-time 180 -o "$TMP_DIR/source.tar.gz" "$BASE_URL/tar.gz/$REF" \
         || die "download failed: $BASE_URL/tar.gz/$REF"
@@ -58,7 +59,6 @@ else
     [[ -f "$tree/install-kiosk.sh" && -f "$tree/package.json" ]] \
         || die "downloaded tree is missing install-kiosk.sh or package.json (wrong ref?)"
 
-    mkdir -p "$(dirname "$APP_DIR")"
     mv "$tree" "$APP_DIR"
     rm -rf "$TMP_DIR"; TMP_DIR=""
     printf 'install: source placed in %s\n' "$APP_DIR"
