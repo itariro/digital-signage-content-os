@@ -27,6 +27,8 @@ printf '{"name":"dscos-fake"}\n' > "$WORK/pkg/package.json"
 cat > "$WORK/pkg/install-kiosk.sh" <<'MOCK'
 #!/usr/bin/env bash
 echo "$*" > "$HANDOFF_FILE"
+pwd > "$HANDOFF_FILE.dir"
+echo "${DSCOS_APP_DIR-UNSET}" > "$HANDOFF_FILE.env"
 echo "mock installer ran"
 MOCK
 chmod +x "$WORK/pkg/install-kiosk.sh"
@@ -53,6 +55,10 @@ expect_rc "fresh install exits 0" 0 "$rc" "$out"
 [[ -f "$APP1/package.json" && -f "$APP1/install-kiosk.sh" ]] && ok "source placed in app dir" || bad "source placed in app dir"
 # shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
 [[ "$(cat "$H1")" == "--rotate right --yes" ]] && ok "args passed through to installer" || bad "args passed through ($(cat "$H1"))"
+# shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
+[[ "$(cat "$H1.dir")" == "$APP1" ]] && ok "handoff runs inside app dir" || bad "handoff runs inside app dir ($(cat "$H1.dir"))"
+# shellcheck disable=SC2015 # assertion idiom: ok/bad always return 0, so || bad cannot misfire
+[[ "$(cat "$H1.env")" == "$APP1" ]] && ok "DSCOS_APP_DIR exported to installer" || bad "DSCOS_APP_DIR exported to installer ($(cat "$H1.env"))"
 
 # ---- 2: re-run reuses existing source (no download) ----
 H2="$WORK/h2.txt"

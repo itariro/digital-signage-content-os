@@ -27,6 +27,8 @@ The raw URL serves `install.sh` from `main`, so the one-liner needs this change 
 curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo bash -s -- --rotate right --tz Australia/Melbourne --yes
 ```
 
+A dry run through the wrapper still needs sudo because the wrapper places files before handing off. For a no-root preview, download `install-kiosk.sh` and run `bash install-kiosk.sh -n` directly.
+
 Pin a branch or tag by setting `KIOSK_REF` on `sudo`, between `sudo` and `bash`.
 Setting it before `sudo` does not work, because `sudo` strips the variable:
 
@@ -34,8 +36,8 @@ Setting it before `sudo` does not work, because `sudo` strips the variable:
 curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo KIOSK_REF=v1.0 bash
 ```
 
-Re-running reuses `/opt/dscos`; delete that directory (or set a
-new `KIOSK_REF`) to refresh the source.
+Re-running reuses `/opt/dscos`. To refresh the source, delete that directory and
+re-run; `KIOSK_REF` selects the ref only when the source is downloaded fresh.
 
 From an existing checkout, run the installer directly:
 

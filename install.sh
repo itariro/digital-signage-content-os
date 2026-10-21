@@ -24,6 +24,7 @@ readonly REF="${KIOSK_REF:-main}"
 readonly APP_DIR="${KIOSK_APP_DIR:-/opt/dscos}"
 
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
+trap 'printf "install: failed - re-run: curl -fsSL %s | sudo bash\n" "$BOOTSTRAP_URL" >&2' ERR
 
 TMP_DIR=""
 cleanup() { [[ -n "$TMP_DIR" ]] && rm -rf "$TMP_DIR"; return 0; }
