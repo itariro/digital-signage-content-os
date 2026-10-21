@@ -5,6 +5,8 @@
 # Target : Debian 12/13 on small x86 thin clients (e.g. Dell Wyse 3040:
 #          2 GB RAM, 8 GB eMMC). Portrait displays are first-class.
 # Usage  : sudo bash install-kiosk.sh [options] https://dashboard.example.com
+#            or without a checkout:
+#            curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo bash
 #
 # Display options:
 #   -r, --rotate DIR       normal | left | right | inverted  (default: left)

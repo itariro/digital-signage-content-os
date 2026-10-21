@@ -509,11 +509,19 @@ When adding a new artwork provider or media theme:
 
 The repository includes `install-kiosk.sh`, a bootstrap installer for Debian 12/13 thin clients. It installs the display stack, the kiosk user, and the management CLI, then deploys this application locally.
 
+Set up a frame with one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo bash
+```
+
+`install.sh` fetches the app source to `/opt/dscos` and runs `install-kiosk.sh`; installer options pass through `sudo bash -s --`. From a checkout you can still run `sudo bash install-kiosk.sh` directly. To refresh an installed frame's source, delete `/opt/dscos` and re-run; set `KIOSK_REF` (between `sudo` and `bash`) to select a branch or tag.
+
 - Default frame URL: `http://localhost:3000/frame/home`
 - The application runs as `dscos.service` on port 3000.
 - The kiosk browser launches after the configured local URL responds.
 - Overnight standby defaults to 22:00-06:00 (device local time) via systemd timers.
-- Management is performed with the `kiosk` CLI. See `docs/kiosk-cli.md`.
+- Management is performed with the `kiosk` CLI: `kiosk status` for a quick check, `kiosk doctor` for diagnostics, `kiosk config set <key> <value>` to change settings. Full lifecycle reference: `docs/kiosk-cli.md`.
 
 
 This repository is connected to a Vercel project and can be deployed through Vercel or the linked v0 workflow. Configure the production database and environment variables in the deployment project before publishing.
