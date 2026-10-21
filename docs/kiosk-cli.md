@@ -189,7 +189,9 @@ comes from the systemd unit (`Environment=PORT=3000`), not from
 the application itself, edit the unit (`sudo systemctl edit dscos`, set
 `Environment=PORT=...`), run `sudo systemctl daemon-reload` and
 `kiosk app restart`, then set `appPort` to the same value so health checks
-agree.
+agree. Finally update `frameUrl` to the new address and restart the browser
+(`sudo kiosk-ctl restart`), or the frame keeps opening the old port and
+shows a connection error while the service runs fine.
 
 ### Overnight standby
 
