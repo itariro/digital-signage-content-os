@@ -270,11 +270,11 @@ through. Re-runs reuse the existing source."
 Run from the worktree root:
 
 ```bash
-docker run --rm -v "$PWD":/w:ro koalaman/shellcheck:stable \
+docker run --rm -v "$PWD":/w:ro --workdir /w koalaman/shellcheck:stable \
   --shell=bash --exclude=SC1091 install.sh tests/kiosk-install/test-install-sh.sh
 ```
 
-Expected: exit 0, no output.
+Expected: exit 0, no output. (The `--workdir /w` is required; the shellcheck image's default workdir does not resolve the mounted paths.)
 
 - [ ] **Step 2: Address findings on the merits**
 
