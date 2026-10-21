@@ -354,8 +354,9 @@ curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/
 curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo bash -s -- --rotate right --tz Australia/Melbourne --yes
 ```
 
-Pin a branch or tag with `KIOSK_REF=v1.0`, placed before `bash` in the
-pipeline. Re-running reuses `/opt/dscos`; delete that directory (or set a
+Pin a branch or tag with `KIOSK_REF=v1.0`, placed between `sudo` and `bash`
+(so it survives sudo's env_reset). Re-running reuses `/opt/dscos`; delete that
+directory (or set a
 new `KIOSK_REF`) to refresh the source.
 
 From an existing checkout, run the installer directly:
