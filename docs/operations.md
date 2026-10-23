@@ -2,7 +2,7 @@
 
 ## Installation (instance)
 1. Set `FRAME_MODE=instance`, `FRAME_DATA_DIR`, `FRAME_DB_PATH`.
-2. Run the app (`npm run build && npm start` or kiosk service). Migrations run on startup.
+2. Run the app (`pnpm build && pnpm start` or kiosk service). Migrations run on startup.
 3. Register the instance with the console: `POST /api/instances` (admin token) → returns `instanceId` + `deviceToken`.
 4. Configure sync: set `SYNC_ENDPOINT`, `SYNC_TOKEN=<deviceToken>`, `INSTANCE_ID`, `SYNC_ENABLED=true`.
 
@@ -27,7 +27,7 @@
   (rotation keeps `BACKUP_MAX`, default 10, in `$FRAME_DATA_DIR/backups`).
   A corrupt database is restored from the latest snapshot at boot; with no
   backup available startup fails loudly instead of serving a broken db.
-- Periodic cron: `0 * * * * cd /app && FRAME_DATA_DIR=/var/lib/frame npx tsx scripts/snapshot.ts`
+- Periodic cron: `0 * * * * cd /app && FRAME_DATA_DIR=/var/lib/frame pnpm dlx tsx scripts/snapshot.ts`
 - Instance: copy `FRAME_DB_PATH` (+ `-wal`/`-shm`) and `FRAME_DATA_DIR/assets` while app stopped, or use snapshot helper.
 - Console: standard Postgres backup (pg_dump).
 
@@ -35,7 +35,7 @@
 - Stop app, replace DB file with backup, restart. Integrity check runs on startup.
 
 ## Upgrade
-- Pull new code, `npm install`, `npm run build`, restart. Migrations apply automatically.
+- Pull new code, `pnpm install --frozen-lockfile`, `pnpm build`, restart. Migrations apply automatically.
 
 ## Rollback
 - Restore previous build + DB backup. Keep last-known-good.
@@ -46,7 +46,7 @@
 - Conflicts: inspect `/api/sync` status; resolve via console.
 
 ## Migration from hosted Postgres to instance
-- Run `npx tsx scripts/migrate-pg-to-sqlite.ts` with `DATABASE_URL` and `FRAME_DB_PATH`.
+- Run `pnpm dlx tsx scripts/migrate-pg-to-sqlite.ts` with `DATABASE_URL` and `FRAME_DB_PATH`.
 
 ## Postgres schema (console)
-- Apply migrations with `npx drizzle-kit migrate` (drizzle/0000..0003, latest: sync_queue.base_revision). Do not rely on `drizzle-kit push`: until 0002 the migration set was missing 8 console tables and the frame_documents sync columns (revision/content_hash/updated_by).
+- Apply migrations with `pnpm exec drizzle-kit migrate` (drizzle/0000..0003, latest: sync_queue.base_revision). Do not rely on `drizzle-kit push`: until 0002 the migration set was missing 8 console tables and the frame_documents sync columns (revision/content_hash/updated_by).

@@ -959,8 +959,18 @@ t_deploy_app() {
     fi
     cd "$app_dir"
     if [[ -f package.json ]]; then
-        npm install
-        npm run build
+        # Install and build with pnpm: the committed pnpm-lock.yaml is the
+        # single source of truth for device builds, so what a frame runs is
+        # exactly what was resolved at release time. Debian's corepack is
+        # too old to launch pnpm 12, so npm provides the bootstrap only;
+        # the version follows packageManager in package.json. On Debian 12
+        # (node 18) pnpm 12 and Next 16 both refuse to run - fails loudly.
+        if ! command -v pnpm >/dev/null 2>&1; then
+            PNPM_VER=$(sed -n 's/.*"packageManager"[[:space:]]*:[[:space:]]*"pnpm@\([^"]*\)".*/\1/p' package.json)
+            npm install -g "pnpm@${PNPM_VER:-12}"
+        fi
+        pnpm install --frozen-lockfile
+        pnpm run build
     fi
 }
 
@@ -979,7 +989,7 @@ WorkingDirectory=${app_dir}
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=FRAME_DATA_DIR=/var/lib/dscos/data
-ExecStart=/usr/bin/npm run start
+ExecStart=${app_dir}/node_modules/.bin/next start
 Restart=always
 RestartSec=5
 

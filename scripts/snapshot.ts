@@ -1,5 +1,5 @@
 // Periodic instance snapshot for cron/systemd timers.
-// Usage: FRAME_DATA_DIR=/var/lib/frame npx tsx scripts/snapshot.ts
+// Usage: FRAME_DATA_DIR=/var/lib/frame pnpm dlx tsx scripts/snapshot.ts
 // Rotation honors BACKUP_MAX (default 10).
 import { snapshotIfPopulated, dbFilePath } from '../lib/backup'
 

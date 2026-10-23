@@ -384,8 +384,8 @@ lib/
 
 ### Requirements
 
-- Node.js compatible with the Next.js 16 toolchain.
-- pnpm 12 or another package manager capable of installing the declared dependencies.
+- Node.js 20.9 or newer (required by Next.js 16).
+- pnpm 12, activated through the bundled Corepack (`corepack enable`). The version is pinned in `package.json` under `packageManager`. `pnpm-lock.yaml` is the only lockfile; npm or yarn lockfiles are ignored and unsupported.
 - PostgreSQL for durable persistence.
 - API access to the public artwork providers if artwork search is used.
 

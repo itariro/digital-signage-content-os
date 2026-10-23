@@ -1,4 +1,4 @@
-// Usage: DATABASE_URL=postgres://... FRAME_DB_PATH=/path/to/frame.db npx tsx scripts/migrate-pg-to-sqlite.ts
+// Usage: DATABASE_URL=postgres://... FRAME_DB_PATH=/path/to/frame.db pnpm dlx tsx scripts/migrate-pg-to-sqlite.ts
 import { Pool } from 'pg'
 import Database from 'better-sqlite3'
 import fs from 'node:fs'
