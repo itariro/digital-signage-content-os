@@ -15,7 +15,7 @@ const bebas = Bebas_Neue({ subsets: ['latin'], weight: '400', variable: '--font-
 const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' })
 
 export const metadata: Metadata = {
-  title: 'Frame Studio · Lockscreen Editor',
+  title: 'mural · Lockscreen Editor',
   description: 'Design, save and manage lockscreen layouts, widgets and typefaces for your digital photo frame.',
   generator: 'v0.app',
   icons: {

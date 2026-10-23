@@ -47,7 +47,7 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
           <Frame className="size-4" aria-hidden />
         </span>
         <div className="hidden items-baseline gap-1.5 sm:flex">
-          <span className="text-sm font-semibold text-foreground">Frame Studio</span>
+          <span className="text-sm font-semibold text-foreground">mural</span>
           <span className="text-[10px] font-medium text-muted-foreground" aria-label="Version 0.1.0">
             v0.1.0
           </span>
