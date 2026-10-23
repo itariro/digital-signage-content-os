@@ -18,7 +18,7 @@ export function Hero() {
           <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Frame className="size-4" aria-hidden />
           </span>
-          <span className="text-lg font-semibold tracking-tight [font-family:var(--font-bebas)]">Frame Studio</span>
+          <span className="text-lg font-semibold tracking-tight [font-family:var(--font-bebas)]">mural</span>
         </div>
         <div className="flex items-center gap-3">
           <Show when="signed-out">
@@ -44,7 +44,7 @@ export function Hero() {
           <span className="italic text-primary">your space deserves.</span>
         </h1>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          Frame Studio is a visual editor for ambient displays — layouts, widgets, albums, schedules, and live
+          mural is a visual editor for ambient displays — layouts, widgets, albums, schedules, and live
           playback on any screen. Design once, run anywhere, online or off.
         </p>
         <div className="flex flex-wrap items-center gap-4">
