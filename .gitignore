@@ -15,3 +15,7 @@ node_modules
 .next/
 .DS_Store
 *.tsbuildinfo
+
+# Single lockfile policy: pnpm only (packageManager in package.json)
+package-lock.json
+yarn.lock
