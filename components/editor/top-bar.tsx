@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import type { EditorApi } from '@/hooks/use-editor'
 import { IconButton } from './controls'
 import { cn } from '@/lib/utils'
+import { APP_VERSION } from '@/lib/version'
 import { FrameSwitcher } from './frame-switcher'
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
 
@@ -48,8 +49,8 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
         </span>
         <div className="hidden items-baseline gap-1.5 sm:flex">
           <span className="text-sm font-semibold text-foreground">mural</span>
-          <span className="text-[10px] font-medium text-muted-foreground" aria-label="Version 0.1.0">
-            v0.1.0
+          <span className="text-[10px] font-medium text-muted-foreground" aria-label={`Version ${APP_VERSION}`}>
+            v{APP_VERSION}
           </span>
         </div>
       </div>

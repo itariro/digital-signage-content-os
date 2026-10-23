@@ -88,6 +88,22 @@ To refresh an installed frame's source, delete `/opt/dscos` and re-run the
 one-liner (or point it at a new `KIOSK_REF` after deleting). Re-runs with an
 existing `/opt/dscos` reuse that tree and never download.
 
+### Versioning policy
+
+The product is in beta until a polished release earns `v1.0`. Until then:
+
+- Releases are tagged `v0.x` (for example `v0.8`). The `v1.0` tag is
+  reserved for the first primetime release.
+- `package.json` `version` moves with the tag: tag `v0.8` ships version
+  `0.8.0`. Wire updates read the bundled `package.json` version and compare
+  it against tags (`lib/kiosk/updates.ts`), so the two must not drift apart.
+- Pins follow the same rule: `KIOSK_REF=v0.8`, never a `v1.0` example,
+  until `v1.0` actually exists.
+
+The installer's own `INSTALLER_VERSION` (in `install-kiosk.sh`) and the sync
+wire protocol's `apiVersion` are separate version spaces and do not track
+product tags.
+
 ### What the installer sets up
 
 | Component | Location | Notes |
