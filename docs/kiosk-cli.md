@@ -81,7 +81,7 @@ Set them between `sudo` and `bash`, not before `sudo`. Sudo's default
 `env_reset` strips variables set on the `sudo` command itself.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo KIOSK_REF=v1.0 bash
+curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/main/install.sh | sudo KIOSK_REF=v0.8 bash
 ```
 
 To refresh an installed frame's source, delete `/opt/dscos` and re-run the
@@ -282,7 +282,7 @@ sudo kiosk-ctl restart-session    Restart lightdm (full session cycle)
 | One-liner prints HTML or bash syntax errors | The URL served GitHub's page, not the file. Use the `raw.githubusercontent.com` form |
 | One-liner download 404s | Bad `KIOSK_REF`, or the change is not on `main` yet |
 | Re-run did not update the app | Existing `/opt/dscos` is reused by design. `sudo rm -rf /opt/dscos` and re-run with the desired `KIOSK_REF` |
-| `KIOSK_REF=v1.0 sudo bash` had no effect | env_reset stripped it. Use `sudo KIOSK_REF=v1.0 bash` |
+| `KIOSK_REF=v0.8 sudo bash` had no effect | env_reset stripped it. Use `sudo KIOSK_REF=v0.8 bash` |
 | Wrapper says target "has no package.json or install-kiosk.sh" | A previous partial tree. Remove `/opt/dscos` and re-run |
 | Need to preview without touching a machine | `bash install-kiosk.sh -n` from a checkout (no root needed) |
 | `doctor` reports config invalid | Fix the named field; `config validate` prints `field: message` pairs without writing |
