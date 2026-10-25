@@ -15,11 +15,11 @@ export async function POST(request: NextRequest) {
   if (!limit.allowed) return NextResponse.json({ error: 'rate limited' }, { status: 429 })
   const parsed = body.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid body' }, { status: 400 })
-  if (!adminAuthEnabled() || !verifyAdminPassword(parsed.data.password, process.env.FRAME_ADMIN_HASH!)) {
+  if (!adminAuthEnabled() || !process.env.FRAME_ADMIN_SECRET || !verifyAdminPassword(parsed.data.password, process.env.FRAME_ADMIN_HASH!)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
   const res = NextResponse.json({ ok: true })
-  const token = await signAdminSession(process.env.FRAME_ADMIN_SECRET ?? '')
+  const token = await signAdminSession(process.env.FRAME_ADMIN_SECRET!)
   res.headers.set('set-cookie', `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 3600}`)
   return res
 }

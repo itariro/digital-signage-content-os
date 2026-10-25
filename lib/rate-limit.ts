@@ -8,6 +8,8 @@ export interface LimitResult { allowed: boolean; retryAfterMs: number }
 
 export function checkLimit(key: string, max: number, windowMs: number, now: () => number = Date.now): LimitResult {
   const t = now()
+  // Lazily sweep to prevent unbounded map growth
+  sweepLimits(now)
   const w = windows.get(key)
   if (!w || t >= w.resetAt) {
     windows.set(key, { count: 1, resetAt: t + windowMs })

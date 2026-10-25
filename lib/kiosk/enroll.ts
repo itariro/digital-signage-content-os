@@ -18,14 +18,20 @@ export interface EnrollDeps {
 export async function enroll(consoleUrl: string, code: string, deps: EnrollDeps): Promise<{ ok: boolean; status?: number; message?: string; written?: string }> {
   if (!/^https?:\/\//.test(consoleUrl)) return { ok: false, message: 'console URL must be http(s)' }
   let res: Response
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30000)
   try {
     res = await deps.fetch(`${consoleUrl.replace(/\/$/, '')}/api/enroll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
-    })
-  } catch {
+      signal: controller.signal,
+    } as RequestInit)
+  } catch (e) {
+    clearTimeout(timeout)
     return { ok: false, message: 'console unreachable; check the URL and network' }
+  } finally {
+    clearTimeout(timeout)
   }
   if (!res.ok) {
     const hint = res.status === 401 ? 'code invalid, expired, or already used; issue a fresh one from the console (rotate for an existing instance)'
@@ -33,7 +39,15 @@ export async function enroll(consoleUrl: string, code: string, deps: EnrollDeps)
       : `enroll failed (HTTP ${res.status})`
     return { ok: false, status: res.status, message: hint }
   }
-  const bundle = (await res.json()) as EnrollResponse
+  let bundle: EnrollResponse
+  try {
+    bundle = (await res.json()) as EnrollResponse
+  } catch {
+    return { ok: false, message: 'invalid response from console' }
+  }
+  if (!bundle.instanceId || !bundle.deviceToken || !bundle.syncEndpoint || !bundle.frameAdminSecret) {
+    return { ok: false, message: 'invalid enrollment bundle from console' }
+  }
   const vars: Record<string, string> = {
     FRAME_MODE: 'instance',
     SYNC_ENABLED: 'true',

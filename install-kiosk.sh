@@ -1326,6 +1326,7 @@ PACKAGES=(
     fonts-dejavu-core fonts-noto-color-emoji
     systemd-timesyncd
     nodejs npm git
+    build-essential python3
 )
 if (( TOUCH )); then PACKAGES+=(xinput); fi
 if (( ZRAM && ! DRY )); then
