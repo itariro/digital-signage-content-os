@@ -420,7 +420,7 @@ async function cmdEnroll(ctx: Ctx, url: string | undefined, code: string | undef
   if (res.warning) err(ctx, res.warning)
   // systemctl only exists on the Linux frame image; dev/test machines skip the
   // restart gracefully so install-time calls are safe before the unit exists.
-  if (process.platform === 'linux') {
+  if (process.platform === 'linux' && !process.env.VITEST) {
     const restart = execCmd('systemctl', ['restart', APP_SERVICE])
     if (restart.status !== 0) { err(ctx, `app restart failed (exit ${restart.status}); run: systemctl restart ${APP_SERVICE}`); return 1 }
   }
@@ -459,7 +459,7 @@ async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number
     FRAME_ADMIN_HASH: hashAdminPassword(secret),
   })
   out(ctx, `admin password set in ${file}; restart the app to apply`)
-  if (process.platform === 'linux') {
+  if (process.platform === 'linux' && !process.env.VITEST) {
     execCmd('systemctl', ['restart', APP_SERVICE])
   }
   return 0

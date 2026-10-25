@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { execSync } from 'node:child_process'
 import { z } from 'zod'
 import { isValidAdminSecret } from '../frame-admin'
-import { writeFrameEnv, frameEnvPath } from './frame-env'
+import { writeFrameEnv, frameEnvPath, parseFrameEnv } from './frame-env'
 
 export interface EnrollResponse {
   instanceId: string
@@ -151,7 +151,13 @@ export async function enroll(
     vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = bundle.config.clerkPublishableKey
   }
   const file = deps.envPath ?? frameEnvPath()
-  writeFrameEnv(file, vars)
+  const BUNDLE_KEYS = ['FRAME_MODE', 'SYNC_ENABLED', 'SYNC_ENDPOINT', 'INSTANCE_ID', 'SYNC_TOKEN', 'FRAME_ADMIN_SECRET', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY']
+  let existing: Record<string, string> = {}
+  if (fs.existsSync(file)) {
+    try { existing = parseFrameEnv(fs.readFileSync(file, 'utf8')) } catch { existing = {} }
+  }
+  for (const k of BUNDLE_KEYS) delete existing[k]
+  writeFrameEnv(file, { ...existing, ...vars })
   const warning = chownToKioskGroup(file)
   return { ok: true, written: file, warning }
 }

@@ -63,6 +63,18 @@ export async function issueEnrollmentCode(instanceId?: string, ttlMs: number = C
     })
   } else {
     await db.transaction(async (tx) => {
+      // Lock in a consistent order with redeem (codes first, then instance) so a
+      // concurrent rotation and redeem cannot deadlock waiting on each other's
+      // locks. Lock all of the instance's codes, then the instance row, then
+      // invalidate and insert.
+      await tx.select({ codeHash: t.enrollmentCodes.codeHash })
+        .from(t.enrollmentCodes)
+        .where(eq(t.enrollmentCodes.instanceId, instanceId))
+        .for('update')
+      await tx.select({ id: t.instances.id })
+        .from(t.instances)
+        .where(eq(t.instances.id, instanceId))
+        .for('update')
       await tx.update(t.enrollmentCodes)
         .set({ consumedAt: now })
         .where(and(eq(t.enrollmentCodes.instanceId, instanceId), isNull(t.enrollmentCodes.consumedAt)))

@@ -230,7 +230,7 @@ leave it unset and run Clerk-protected on one port as before.
 Invalid `KIOSK_MGMT_PORT` or `PORT` values are logged and start no forwarder;
 the display keeps running. If `FRAME_ADMIN_HASH` is set but
 `FRAME_ADMIN_SECRET` is missing or invalid, the management surface stays
-read-only and login returns 401.
+read-only and login returns 401. Changing mgmtPort requires restarting the app service; the forwarder reads KIOSK_MGMT_PORT at startup.
 
 ### Configuration
 

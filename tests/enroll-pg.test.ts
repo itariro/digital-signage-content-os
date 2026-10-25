@@ -14,12 +14,13 @@ suite('enrollment redeem on postgres', () => {
     const baseUrl = process.env.DATABASE_URL!
     const admin = new Client({ connectionString: baseUrl })
     await admin.connect()
-    await admin.query('DROP DATABASE IF EXISTS frame_enroll')
-    await admin.query('CREATE DATABASE frame_enroll')
+    const dbName = `frame_enroll_${process.pid}`
+    await admin.query(`DROP DATABASE IF EXISTS ${dbName}`)
+    await admin.query(`CREATE DATABASE ${dbName}`)
     await admin.end()
 
     const target = new URL(baseUrl)
-    target.pathname = '/frame_enroll'
+    target.pathname = `/${dbName}`
     const connUrl = target.toString()
     const conn = new Client({ connectionString: connUrl })
     await conn.connect()
