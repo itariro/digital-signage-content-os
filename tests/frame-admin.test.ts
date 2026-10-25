@@ -11,15 +11,15 @@ describe('frame admin auth', () => {
     expect(stored).not.toContain('correct horse battery staple')
   })
 
-  it('HMAC session verifies, expires, and rejects foreign signatures', () => {
+  it('HMAC session verifies, expires, and rejects foreign signatures', async () => {
     const secret = 'a'.repeat(32)
     const nowMs = 1_700_000_000_000
-    const token = signAdminSession(secret, nowMs)
-    expect(verifyAdminSession(token, secret, nowMs)).toBe(true)
-    expect(verifyAdminSession(token, secret, nowMs + 7 * 24 * 3600_000 - 1000)).toBe(true)
-    expect(verifyAdminSession(token, secret, nowMs + 8 * 24 * 3600_000)).toBe(false)
-    expect(verifyAdminSession(token, 'b'.repeat(32), nowMs)).toBe(false)
-    expect(verifyAdminSession('garbage', secret, nowMs)).toBe(false)
+    const token = await signAdminSession(secret, nowMs)
+    expect(await verifyAdminSession(token, secret, nowMs)).toBe(true)
+    expect(await verifyAdminSession(token, secret, nowMs + 7 * 24 * 3600_000 - 1000)).toBe(true)
+    expect(await verifyAdminSession(token, secret, nowMs + 8 * 24 * 3600_000)).toBe(false)
+    expect(await verifyAdminSession(token, 'b'.repeat(32), nowMs)).toBe(false)
+    expect(await verifyAdminSession('garbage', secret, nowMs)).toBe(false)
   })
 
   it('login route sets the cookie when FRAME_ADMIN_HASH is configured', async () => {
@@ -36,7 +36,7 @@ describe('frame admin auth', () => {
     const cookie = res.headers.get('set-cookie')!
     expect(cookie).toContain(`${ADMIN_COOKIE}=admin.`)
     expect(cookie).toContain('HttpOnly')
-    expect(verifyAdminSession(cookie.split(';')[0].slice(ADMIN_COOKIE.length + 1), env.FRAME_ADMIN_SECRET, Date.now())).toBe(true)
+    expect(await verifyAdminSession(cookie.split(';')[0].slice(ADMIN_COOKIE.length + 1), env.FRAME_ADMIN_SECRET, Date.now())).toBe(true)
   })
 
   it('wrong-password and unset-hash 401s return the same body', async () => {

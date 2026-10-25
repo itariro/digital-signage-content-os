@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
   const res = NextResponse.json({ ok: true })
-  res.headers.set('set-cookie', `${ADMIN_COOKIE}=${signAdminSession(process.env.FRAME_ADMIN_SECRET ?? '')}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 3600}`)
+  const token = await signAdminSession(process.env.FRAME_ADMIN_SECRET ?? '')
+  res.headers.set('set-cookie', `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 3600}`)
   return res
 }
