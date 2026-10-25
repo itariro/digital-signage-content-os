@@ -32,4 +32,26 @@ describe('startMgmtForwarder', () => {
     const res = await maybeStartMgmtForwarder({ ...process.env, KIOSK_MGMT_PORT: undefined } as any)
     expect(res).toBeNull()
   })
+
+  it('opens the forwarder through the enabled env path and echoes bytes', async () => {
+    const { maybeStartMgmtForwarder } = await import('@/lib/mgmt-port')
+    const echo = await new Promise<net.Server>((res) => {
+      const s = net.createServer((sock) => sock.on('data', (d) => sock.write(`echo:${d}`)))
+      res(s)
+    })
+    const appPort = await listen(echo)
+    const mgmt = await maybeStartMgmtForwarder({ KIOSK_MGMT_PORT: '0', PORT: String(appPort) } as any)
+    expect(mgmt).not.toBeNull()
+    const mgmtPort = (mgmt as net.Server).address() as net.AddressInfo
+    expect(mgmtPort.port).toBeGreaterThan(0)
+
+    const reply = await new Promise<string>((res, rej) => {
+      const c = net.connect(mgmtPort.port, '127.0.0.1')
+      c.on('error', rej)
+      c.on('connect', () => c.write('hi'))
+      c.once('data', (d) => { res(String(d)); c.destroy() })
+    })
+    expect(reply).toBe('echo:hi')
+    mgmt!.close(); echo.close()
+  })
 })
