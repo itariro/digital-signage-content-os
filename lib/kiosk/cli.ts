@@ -40,6 +40,7 @@ function parseShellConfig(text: string): any {
   if (vars.KIOSK_TOUCH !== undefined) cfg.touch = vars.KIOSK_TOUCH === '1'
   if (vars.KIOSK_RESTART_HOURS !== undefined) cfg.restartHours = parseInt(vars.KIOSK_RESTART_HOURS,10) || 0
   if (vars.KIOSK_PORT) cfg.appPort = parseInt(vars.KIOSK_PORT,10) || cfg.appPort
+  if (vars.KIOSK_MGMT_PORT) cfg.mgmtPort = parseInt(vars.KIOSK_MGMT_PORT,10) || cfg.mgmtPort
   if (vars.KIOSK_TIMEZONE) cfg.timezone = vars.KIOSK_TIMEZONE
   if (vars.KIOSK_LOG_LEVEL) cfg.logLevel = vars.KIOSK_LOG_LEVEL as any
   if (vars.KIOSK_UPDATE_CHANNEL) cfg.updateChannel = vars.KIOSK_UPDATE_CHANNEL
@@ -70,6 +71,7 @@ function serializeShellConfig(config: any): string {
     `KIOSK_TOUCH=${config.touch ? 1 : 0}`,
     `KIOSK_RESTART_HOURS=${config.restartHours}`,
     `KIOSK_PORT=${config.appPort}`,
+    `KIOSK_MGMT_PORT=${config.mgmtPort}`,
     `KIOSK_TIMEZONE='${config.timezone}'`,
     `KIOSK_LOG_LEVEL='${config.logLevel}'`,
     `KIOSK_UPDATE_CHANNEL='${config.updateChannel}'`,
