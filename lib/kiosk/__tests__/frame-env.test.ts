@@ -173,12 +173,13 @@ describe('kiosk password command', () => {
     const { runCli } = await import('@/lib/kiosk/cli')
     const file = path.join(dir, 'password-preserve.env')
     process.env.FRAME_ENV_PATH = file
-    writeFrameEnv(file, { FRAME_ADMIN_SECRET: 'existing-secret' })
+    const existing = 'v'.repeat(43)
+    writeFrameEnv(file, { FRAME_ADMIN_SECRET: existing })
     try {
       const res = await runCli(['password', 'anothersecret'])
       expect(res.exitCode).toBe(0)
       const env = parseFrameEnv(fs.readFileSync(file, 'utf8'))
-      expect(env.FRAME_ADMIN_SECRET).toBe('existing-secret')
+      expect(env.FRAME_ADMIN_SECRET).toBe(existing)
       expect(env.FRAME_ADMIN_HASH).toMatch(/^[0-9a-f]{32}\$[0-9a-f]{64}$/)
       expect(res.stdout).not.toContain('generated FRAME_ADMIN_SECRET')
     } finally {
@@ -196,6 +197,60 @@ describe('kiosk password command', () => {
       expect(res.exitCode).toBe(1)
       expect(fs.existsSync(file)).toBe(false)
       expect(res.stderr).toContain('password too short')
+    } finally {
+      delete process.env.FRAME_ENV_PATH
+      fs.rmSync(file, { force: true })
+    }
+  })
+
+  it('persists an env-only FRAME_ADMIN_SECRET into frame.env', async () => {
+    const { runCli } = await import('@/lib/kiosk/cli')
+    const file = path.join(dir, 'password-env.env')
+    process.env.FRAME_ENV_PATH = file
+    process.env.FRAME_ADMIN_SECRET = 'e'.repeat(43)
+    try {
+      const res = await runCli(['password', 'anothersecret'])
+      expect(res.exitCode).toBe(0)
+      const env = parseFrameEnv(fs.readFileSync(file, 'utf8'))
+      expect(env.FRAME_ADMIN_SECRET).toBe('e'.repeat(43))
+      expect(env.FRAME_ADMIN_HASH).toMatch(/^[0-9a-f]{32}\$[0-9a-f]{64}$/)
+      expect(res.stdout).not.toContain('generated FRAME_ADMIN_SECRET')
+    } finally {
+      delete process.env.FRAME_ENV_PATH
+      delete process.env.FRAME_ADMIN_SECRET
+      fs.rmSync(file, { force: true })
+    }
+  })
+
+  it('replaces an invalid stored secret with a warning', async () => {
+    const { runCli } = await import('@/lib/kiosk/cli')
+    const file = path.join(dir, 'password-invalid.env')
+    process.env.FRAME_ENV_PATH = file
+    writeFrameEnv(file, { FRAME_ADMIN_SECRET: 'too-short' })
+    try {
+      const res = await runCli(['password', 'anothersecret'])
+      expect(res.exitCode).toBe(0)
+      const env = parseFrameEnv(fs.readFileSync(file, 'utf8'))
+      expect(env.FRAME_ADMIN_SECRET).toMatch(/^[A-Za-z0-9_-]{43}$/)
+      expect(env.FRAME_ADMIN_SECRET).not.toBe('too-short')
+      expect(res.stderr).toContain('replaced invalid FRAME_ADMIN_SECRET')
+    } finally {
+      delete process.env.FRAME_ENV_PATH
+      fs.rmSync(file, { force: true })
+    }
+  })
+
+  it('writes the secret and hash together with no temp file left behind', async () => {
+    const { runCli } = await import('@/lib/kiosk/cli')
+    const file = path.join(dir, 'password-once.env')
+    process.env.FRAME_ENV_PATH = file
+    try {
+      const res = await runCli(['password', 'anothersecret'])
+      expect(res.exitCode).toBe(0)
+      const env = parseFrameEnv(fs.readFileSync(file, 'utf8'))
+      expect(env.FRAME_ADMIN_SECRET).toBeTruthy()
+      expect(env.FRAME_ADMIN_HASH).toMatch(/^[0-9a-f]{32}\$[0-9a-f]{64}$/)
+      expect(fs.readdirSync(dir).filter((name) => name.startsWith('password-once.env.tmp.'))).toEqual([])
     } finally {
       delete process.env.FRAME_ENV_PATH
       fs.rmSync(file, { force: true })

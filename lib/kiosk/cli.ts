@@ -428,19 +428,35 @@ async function cmdEnroll(ctx: Ctx, url: string | undefined, code: string | undef
 
 async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number> {
   if (!secret) { err(ctx, 'usage: kiosk password <secret>'); return 2 }
-  const { hashAdminPassword } = await import('../frame-admin')
-  const { setFrameEnvValue, frameEnvPath, parseFrameEnv } = await import('./frame-env')
+  const { hashAdminPassword, isValidAdminSecret } = await import('../frame-admin')
+  const { writeFrameEnv, frameEnvPath, parseFrameEnv } = await import('./frame-env')
   const fs = require('node:fs')
   const crypto = require('node:crypto')
   const file = process.env.FRAME_ENV_PATH || frameEnvPath()
   if (secret.length < 8) { err(ctx, 'password too short (min 8)'); return 1 }
+
   const existing = fs.existsSync(file) ? parseFrameEnv(fs.readFileSync(file, 'utf8')) : {}
-  if (!existing.FRAME_ADMIN_SECRET && !process.env.FRAME_ADMIN_SECRET) {
-    const generated = crypto.randomBytes(32).toString('base64url')
-    setFrameEnvValue(file, 'FRAME_ADMIN_SECRET', generated)
+  const storedSecret = existing.FRAME_ADMIN_SECRET
+  if (storedSecret && !isValidAdminSecret(storedSecret)) {
+    err(ctx, `warning: replaced invalid FRAME_ADMIN_SECRET in ${file}`)
+  }
+
+  let adminSecret: string
+  if (isValidAdminSecret(storedSecret)) {
+    adminSecret = storedSecret
+  } else if (isValidAdminSecret(process.env.FRAME_ADMIN_SECRET)) {
+    adminSecret = process.env.FRAME_ADMIN_SECRET
+  } else {
+    adminSecret = crypto.randomBytes(32).toString('base64url')
     out(ctx, `generated FRAME_ADMIN_SECRET in ${file}`)
   }
-  setFrameEnvValue(file, 'FRAME_ADMIN_HASH', hashAdminPassword(secret))
+
+  // One write: a crash cannot leave a new secret with the old hash.
+  writeFrameEnv(file, {
+    ...existing,
+    FRAME_ADMIN_SECRET: adminSecret,
+    FRAME_ADMIN_HASH: hashAdminPassword(secret),
+  })
   out(ctx, `admin password set in ${file}; restart the app to apply`)
   if (process.platform === 'linux') {
     execCmd('systemctl', ['restart', APP_SERVICE])
