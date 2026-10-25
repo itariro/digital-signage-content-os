@@ -16,6 +16,8 @@
 #   -m, --mode WxH         force a resolution (default: monitor's preferred mode)
 #       --scale FACTOR     Chromium device scale factor, e.g. 1.5
 #       --touch            rotate touchscreen input to match the display
+#       --console-url URL  console base URL for frame enrollment
+#       --enroll-code CODE one-time enrollment code (pulls per-frame keys)
 #
 # System options:
 #       --tz ZONE          set the system timezone, e.g. Australia/Melbourne
@@ -90,6 +92,8 @@ usage() {
 # Arguments
 # ==========================================================================
 URL=""
+CONSOLE_URL=""
+ENROLL_CODE=""
 ROTATE="left"
 OUTPUT=""
 MODE=""
@@ -109,6 +113,8 @@ while (($#)); do
         -o|--output)        [[ $# -ge 2 ]] || die "$1 requires a value"; OUTPUT=$2; shift 2 ;;
         -m|--mode)          [[ $# -ge 2 ]] || die "$1 requires a value"; MODE=$2; shift 2 ;;
         --scale)            [[ $# -ge 2 ]] || die "$1 requires a value"; SCALE=$2; shift 2 ;;
+        --console-url)      [[ $# -ge 2 ]] || die "$1 requires a value"; CONSOLE_URL=$2; shift 2 ;;
+        --enroll-code)      [[ $# -ge 2 ]] || die "$1 requires a value"; ENROLL_CODE=$2; shift 2 ;;
         --tz)               [[ $# -ge 2 ]] || die "$1 requires a value"; TZ_NAME=$2; shift 2 ;;
         --restart-hours)    [[ $# -ge 2 ]] || die "$1 requires a value"; RESTART_HOURS=$2; shift 2 ;;
         --touch)            TOUCH=1; shift ;;
@@ -128,6 +134,10 @@ url_re='^(https?://|file:///)[^[:space:]]+$'
 if [[ -z $URL ]]; then URL='http://localhost:3000/frame/home'; fi
 [[ $URL =~ $url_re ]] || die "URL must start with http://, https:// or file:/// and contain no whitespace"
 [[ $URL != *"'"* ]]   || die "URL must not contain a single quote (percent-encode it as %27)"
+if [[ -n $CONSOLE_URL ]]; then
+    [[ $CONSOLE_URL =~ $url_re ]] || die "console URL must start with http://, https:// or file:/// and contain no whitespace"
+    [[ $CONSOLE_URL != *"'"* ]]   || die "console URL must not contain a single quote (percent-encode it as %27)"
+fi
 [[ $ROTATE =~ ^(normal|left|right|inverted)$ ]] || die "--rotate must be normal, left, right or inverted"
 [[ -z $OUTPUT ]] || [[ $OUTPUT =~ ^[A-Za-z0-9._-]+$ ]] || die "--output has an invalid name"
 [[ -z $MODE ]]   || [[ $MODE =~ ^[0-9]+x[0-9]+$ ]]      || die "--mode must look like 1440x2560"
@@ -623,6 +633,7 @@ KIOSK_STANDBY_START='22:00'
 KIOSK_STANDBY_END='06:00'
 KIOSK_STANDBY_MODE='display'
 KIOSK_PORT=3000
+KIOSK_MGMT_PORT=8808
 EOF
 }
 
@@ -959,19 +970,39 @@ t_deploy_app() {
     fi
     cd "$app_dir"
     if [[ -f package.json ]]; then
-        # Install and build with pnpm: the committed pnpm-lock.yaml is the
-        # single source of truth for device builds, so what a frame runs is
-        # exactly what was resolved at release time. Debian's corepack is
-        # too old to launch pnpm 12, so npm provides the bootstrap only;
-        # the version follows packageManager in package.json. On Debian 12
-        # (node 18) pnpm 12 and Next 16 both refuse to run - fails loudly.
+        # Install with pnpm: the committed pnpm-lock.yaml is the single source
+        # of truth for device builds, so what a frame runs is exactly what was
+        # resolved at release time. Debian's corepack is too old to launch
+        # pnpm 12, so npm provides the bootstrap only; the version follows
+        # packageManager in package.json. On Debian 12 (node 18) pnpm 12 and
+        # Next 16 both refuse to run - fails loudly.
         if ! command -v pnpm >/dev/null 2>&1; then
             PNPM_VER=$(sed -n 's/.*"packageManager"[[:space:]]*:[[:space:]]*"pnpm@\([^"]*\)".*/\1/p' package.json)
             npm install -g "pnpm@${PNPM_VER:-12}"
         fi
         pnpm install --frozen-lockfile
-        pnpm run build
     fi
+}
+
+t_enroll_frame() {
+    if [[ -z "${CONSOLE_URL:-}" || -z "${ENROLL_CODE:-}" ]]; then
+        echo "console URL / enrollment code not supplied; frame boots unpaired" \
+             "(sync stays off until: sudo kiosk-ctl enroll <URL> <CODE>)" >&2
+        return 0
+    fi
+    cd "${DSCOS_APP_DIR:-/opt/dscos}"
+    # Fresh installs: the dscos service does not exist yet, so the CLI's own
+    # restart advisory may fail; the later service/enable tasks start it.
+    npx tsx lib/kiosk/cli.ts enroll "$CONSOLE_URL" "$ENROLL_CODE" || true
+    echo "enroll command completed; the app service will be started shortly"
+}
+
+t_build_app() {
+    local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
+    cd "$app_dir"
+    # frame.env must exist BEFORE the build so NEXT_PUBLIC_* values inline.
+    [[ -f /etc/dscos/frame.env ]] && set -a && . /etc/dscos/frame.env && set +a
+    pnpm run build
 }
 
 t_write_app_service() {
@@ -988,8 +1019,10 @@ User=kiosk
 WorkingDirectory=${app_dir}
 Environment=NODE_ENV=production
 Environment=PORT=3000
+Environment=KIOSK_MGMT_PORT=8808
 Environment=FRAME_DATA_DIR=/var/lib/dscos/data
-ExecStart=${app_dir}/node_modules/.bin/next start
+EnvironmentFile=-/etc/dscos/frame.env
+ExecStart=/usr/bin/npm run start -- -p 3000 -H 127.0.0.1
 Restart=always
 RestartSec=5
 
@@ -1216,6 +1249,9 @@ finish_screen() {
     next_step 1 "Reboot. The machine logs in automatically and starts the dashboard."
     next_step 2 "Check on it with 'sudo kiosk-ctl status' or 'sudo kiosk-ctl logs'."
     next_step 3 "Change the URL or rotation in ${CONFIG_FILE}, then run 'sudo kiosk-ctl restart'."
+    if [[ -z $CONSOLE_URL || -z $ENROLL_CODE ]]; then
+        next_step 4 "Frame is unpaired. Enroll later with: sudo kiosk-ctl enroll <console-url> <enroll-code>"
+    fi
     if [[ $ROTATE == left || $ROTATE == right ]]; then
         local other=left tip
         if [[ $ROTATE == left ]]; then other=right; fi
@@ -1290,6 +1326,7 @@ PACKAGES=(
     fonts-dejavu-core fonts-noto-color-emoji
     systemd-timesyncd
     nodejs npm git
+    build-essential python3
 )
 if (( TOUCH )); then PACKAGES+=(xinput); fi
 if (( ZRAM && ! DRY )); then
@@ -1360,11 +1397,13 @@ if (( ZRAM )); then task "Configuring zram swap" t_zram_conf; fi
 step_end
 
 # ---- 9/11 --------------------------------------------------------------------
-step 4 \
+step 6 \
     "Installs the management CLI, deploys the local application, and configures its service."
 task "Installing tsx runtime" t_install_tsx
 task "Installing kiosk CLI" t_install_cli
 task "Deploying application" t_deploy_app
+task "Enrolling frame" t_enroll_frame
+task "Building application" t_build_app
 task "Configuring application service" t_write_app_service
 task "Configuring standby scripts" t_write_standby_scripts
 step_end

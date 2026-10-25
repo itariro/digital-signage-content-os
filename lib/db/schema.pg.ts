@@ -128,6 +128,14 @@ export const instances = pgTable('instances', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
 })
 
+export const enrollmentCodes = pgTable('enrollment_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  instanceId: text('instance_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+})
+
 export const auditLog = pgTable('audit_log', {
   id: text('id').primaryKey(),
   actor: text('actor').notNull(),

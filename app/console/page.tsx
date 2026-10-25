@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { listAudit } from '@/lib/audit'
 import { listInstanceCards } from '@/lib/console/service'
+import AddFrame from '@/components/console/AddFrame'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,8 @@ export default async function ConsolePage() {
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <h1 className="text-2xl font-bold">Frame Console</h1>
-      <p className="text-sm text-muted-foreground">Multi-instance management. Register instances via POST /api/instances.</p>
+      <p className="text-sm text-muted-foreground">Multi-instance management. Provision frames with one-time enrollment codes.</p>
+      <AddFrame />
       <div className="overflow-x-auto rounded border">
         <table className="w-full text-sm">
           <thead className="bg-muted">
