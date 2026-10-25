@@ -57,6 +57,71 @@ describe('enroll service', () => {
     expect(await redeemEnrollmentCode(live.code)).toBeNull()
   })
 
+  it('rejects a non-positive or non-finite TTL', async () => {
+    await freshDb()
+    const { issueEnrollmentCode } = await import('@/lib/console/enroll')
+    for (const ttl of [0, -1, Number.NaN, Infinity]) {
+      await expect(issueEnrollmentCode(undefined, ttl)).rejects.toBeInstanceOf(RangeError)
+    }
+  })
+
+  it('a newly issued code consumes the previous code for the same instance', async () => {
+    await freshDb()
+    const { issueEnrollmentCode, redeemEnrollmentCode } = await import('@/lib/console/enroll')
+    const first = await issueEnrollmentCode()
+    const second = await issueEnrollmentCode(first.instanceId)
+    expect(await redeemEnrollmentCode(first.code)).toBeNull()
+    const bundle = await redeemEnrollmentCode(second.code)
+    expect(bundle).toBeTruthy()
+    expect(bundle!.instanceId).toBe(first.instanceId)
+  })
+
+  it('the older code stays dead after the newest code redeems', async () => {
+    await freshDb()
+    const { issueEnrollmentCode, redeemEnrollmentCode } = await import('@/lib/console/enroll')
+    const first = await issueEnrollmentCode()
+    const second = await issueEnrollmentCode(first.instanceId)
+    expect(await redeemEnrollmentCode(second.code)).toBeTruthy()
+    expect(await redeemEnrollmentCode(first.code)).toBeNull()
+  })
+
+  it('a successful redeem consumes every other outstanding code for the instance', async () => {
+    await freshDb()
+    const { issueEnrollmentCode, redeemEnrollmentCode } = await import('@/lib/console/enroll')
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const { hashToken } = await import('@/lib/sync/auth')
+    const first = await issueEnrollmentCode()
+    const now = new Date()
+    await getDb().insert(getTables().enrollmentCodes).values({
+      codeHash: hashToken('manual-code-b'),
+      instanceId: first.instanceId,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + 60_000),
+    })
+
+    expect(await redeemEnrollmentCode(first.code)).toBeTruthy()
+    expect(await redeemEnrollmentCode('manual-code-b')).toBeNull()
+  })
+
+  it('stores the token hash and never the token itself', async () => {
+    await freshDb()
+    const { issueEnrollmentCode, redeemEnrollmentCode } = await import('@/lib/console/enroll')
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const { hashToken } = await import('@/lib/sync/auth')
+    const { eq } = await import('drizzle-orm')
+    const { instanceId, code } = await issueEnrollmentCode()
+    const bundle = await redeemEnrollmentCode(code)
+
+    const t = getTables()
+    const [row] = await getDb().select().from(t.instances).where(eq(t.instances.id, instanceId))
+    expect(row.deviceTokenHash).toBe(hashToken(bundle!.deviceToken))
+    expect(JSON.stringify(row)).not.toContain(bundle!.deviceToken)
+    const codeRows = await getDb().select().from(t.enrollmentCodes)
+    expect(JSON.stringify(codeRows)).not.toContain(bundle!.deviceToken)
+  })
+
   it('concurrent redemption: exactly one winner', async () => {
     await freshDb()
     const { issueEnrollmentCode, redeemEnrollmentCode } = await import('@/lib/console/enroll')
@@ -97,14 +162,19 @@ describe('enroll service', () => {
     expect(rows[0].codeHash).toBe(hashToken(code))
   })
 
-  it('returns null when the instance is revoked before redeem (no bundle, code consumed)', async () => {
+  it('returns null when the instance is revoked before redeem and leaves the code consumed', async () => {
     await freshDb()
     const { issueEnrollmentCode, redeemEnrollmentCode } = await import('@/lib/console/enroll')
     const { getDb } = await import('@/lib/db')
     const { getTables } = await import('@/lib/db/tables')
+    const { hashToken } = await import('@/lib/sync/auth')
     const { eq } = await import('drizzle-orm')
     const { instanceId, code } = await issueEnrollmentCode()
-    await getDb().delete(getTables().instances).where(eq(getTables().instances.id, instanceId))
+    const t = getTables()
+    await getDb().delete(t.instances).where(eq(t.instances.id, instanceId))
     expect(await redeemEnrollmentCode(code)).toBeNull()
+    const rows = await getDb().select().from(t.enrollmentCodes)
+      .where(eq(t.enrollmentCodes.codeHash, hashToken(code)))
+    expect(rows[0].consumedAt).not.toBeNull()
   })
 })

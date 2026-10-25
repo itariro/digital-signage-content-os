@@ -20,12 +20,19 @@ const CODE_TTL_MS = 15 * 60 * 1000
 
 /** Create the instance row (token hash stays NULL until redeem) + seed frame doc. */
 export async function issueEnrollmentCode(instanceId?: string, ttlMs: number = CODE_TTL_MS): Promise<IssuedCode> {
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0) {
+    throw new RangeError('enrollment code TTL must be a positive finite number')
+  }
+
   const db = getDb()
   const t = getTables()
   const now = new Date()
-  let id = instanceId
-  if (!id) {
-    id = nanoid(12)
+  const expiresAt = new Date(now.getTime() + ttlMs)
+  const code = nanoid(20)
+  const codeHash = hashToken(code)
+
+  if (!instanceId) {
+    const id = nanoid(12)
     await db.insert(t.instances).values({ id, deviceTokenHash: null, createdAt: now })
     const existing = await db.select({ id: t.frameDocuments.id }).from(t.frameDocuments)
       .where(eq(t.frameDocuments.identifier, id))
@@ -36,11 +43,33 @@ export async function issueEnrollmentCode(instanceId?: string, ttlMs: number = C
         createdAt: now, updatedAt: now, revision: 1, resolutionWidth: 1920, resolutionHeight: 1080,
       })
     }
+    await db.insert(t.enrollmentCodes).values({ codeHash, instanceId: id, createdAt: now, expiresAt })
+    return { instanceId: id, code, expiresAt }
   }
-  const code = nanoid(20)
-  const expiresAt = new Date(now.getTime() + ttlMs)
-  await db.insert(t.enrollmentCodes).values({ codeHash: hashToken(code), instanceId: id, createdAt: now, expiresAt })
-  return { instanceId: id, code, expiresAt }
+
+  // A rotate replaces the old code. Consume every outstanding code for the
+  // instance and insert the new one in the same transaction, so a leaked old
+  // code cannot overwrite the token after the legitimate frame enrolls.
+  if (getDatabaseMode() === 'sqlite') {
+    const st = sqliteSchema
+    getSqliteDb().transaction((tx) => {
+      tx.update(st.enrollmentCodes)
+        .set({ consumedAt: now })
+        .where(and(eq(st.enrollmentCodes.instanceId, instanceId), isNull(st.enrollmentCodes.consumedAt)))
+        .run()
+      tx.insert(st.enrollmentCodes)
+        .values({ codeHash, instanceId, createdAt: now, expiresAt })
+        .run()
+    })
+  } else {
+    await db.transaction(async (tx) => {
+      await tx.update(t.enrollmentCodes)
+        .set({ consumedAt: now })
+        .where(and(eq(t.enrollmentCodes.instanceId, instanceId), isNull(t.enrollmentCodes.consumedAt)))
+      await tx.insert(t.enrollmentCodes).values({ codeHash, instanceId, createdAt: now, expiresAt })
+    })
+  }
+  return { instanceId, code, expiresAt }
 }
 
 /**
@@ -51,6 +80,8 @@ export async function issueEnrollmentCode(instanceId?: string, ttlMs: number = C
 export async function redeemEnrollmentCode(code: string): Promise<EnrollBundle | null> {
   const codeHash = hashToken(code)
   const now = new Date()
+  // Generate before the transaction: a crypto failure must not burn a code.
+  const frameAdminSecret = crypto.randomBytes(32).toString('base64url')
 
   if (getDatabaseMode() === 'sqlite') {
     const t = sqliteSchema
@@ -66,21 +97,25 @@ export async function redeemEnrollmentCode(code: string): Promise<EnrollBundle |
       const row = claimed[0] as { instanceId: string } | undefined
       if (!row) return
 
-      const found = tx.select({ id: t.instances.id }).from(t.instances)
-        .where(eq(t.instances.id, row.instanceId))
-        .all()
-      if (!found.length) return // Instance revoked between issue and redeem: code burned, generic failure (spec §5).
-
+      // UPDATE ... RETURNING closes the select-then-update race: a deleted
+      // instance returns no row and the code stays consumed.
       const deviceToken = nanoid(32)
-      tx.update(t.instances)
+      const updated = tx.update(t.instances)
         .set({ deviceTokenHash: hashToken(deviceToken) })
         .where(eq(t.instances.id, row.instanceId))
+        .returning({ id: t.instances.id })
+        .all()
+      if (!updated.length) return
+
+      tx.update(t.enrollmentCodes)
+        .set({ consumedAt: now })
+        .where(and(eq(t.enrollmentCodes.instanceId, row.instanceId), isNull(t.enrollmentCodes.consumedAt)))
         .run()
 
       bundle = {
         instanceId: row.instanceId,
         deviceToken,
-        frameAdminSecret: crypto.randomBytes(32).toString('base64url'),
+        frameAdminSecret,
         clerkPublishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '',
       }
     })
@@ -98,19 +133,21 @@ export async function redeemEnrollmentCode(code: string): Promise<EnrollBundle |
     const row = claimed[0] as { instanceId: string } | undefined
     if (!row) return null
 
-    const found = await tx.select({ id: t.instances.id }).from(t.instances)
-      .where(eq(t.instances.id, row.instanceId))
-    if (!found.length) return null // Instance revoked between issue and redeem: code burned, generic failure (spec §5).
-
     const deviceToken = nanoid(32)
-    await tx.update(t.instances)
+    const updated = await tx.update(t.instances)
       .set({ deviceTokenHash: hashToken(deviceToken) })
       .where(eq(t.instances.id, row.instanceId))
+      .returning({ id: t.instances.id })
+    if (!updated.length) return null
+
+    await tx.update(t.enrollmentCodes)
+      .set({ consumedAt: now })
+      .where(and(eq(t.enrollmentCodes.instanceId, row.instanceId), isNull(t.enrollmentCodes.consumedAt)))
 
     return {
       instanceId: row.instanceId,
       deviceToken,
-      frameAdminSecret: crypto.randomBytes(32).toString('base64url'),
+      frameAdminSecret,
       clerkPublishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '',
     }
   })
