@@ -2,6 +2,9 @@ import crypto from 'node:crypto'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getDb } from '@/lib/db'
+import { getDatabaseMode } from '@/lib/db/mode'
+import * as sqliteSchema from '@/lib/db/schema.sqlite'
+import { getSqliteDb } from '@/lib/db/sqlite'
 import { getTables } from '@/lib/db/tables'
 import { hashToken } from '@/lib/sync/auth'
 
@@ -46,31 +49,69 @@ export async function issueEnrollmentCode(instanceId?: string, ttlMs: number = C
  * deleted instances alike (spec §5: one generic failure).
  */
 export async function redeemEnrollmentCode(code: string): Promise<EnrollBundle | null> {
-  const db = getDb()
-  const t = getTables()
   const codeHash = hashToken(code)
   const now = new Date()
 
-  const claimed = await db.update(t.enrollmentCodes)
-    .set({ consumedAt: now })
-    .where(and(eq(t.enrollmentCodes.codeHash, codeHash), isNull(t.enrollmentCodes.consumedAt), gt(t.enrollmentCodes.expiresAt, now)))
-    .returning({ instanceId: t.enrollmentCodes.instanceId })
+  if (getDatabaseMode() === 'sqlite') {
+    const t = sqliteSchema
+    const sdb = getSqliteDb()
+    let bundle: EnrollBundle | null = null
+    sdb.transaction((tx) => {
+      const claimed = tx.update(t.enrollmentCodes)
+        .set({ consumedAt: now })
+        .where(and(eq(t.enrollmentCodes.codeHash, codeHash), isNull(t.enrollmentCodes.consumedAt), gt(t.enrollmentCodes.expiresAt, now)))
+        .returning({ instanceId: t.enrollmentCodes.instanceId })
+        .all()
 
-  const row = claimed[0] as { instanceId: string } | undefined
-  if (!row) return null
+      const row = claimed[0] as { instanceId: string } | undefined
+      if (!row) return
 
-  const instanceId = row.instanceId
-  const found = await db.select({ id: t.instances.id }).from(t.instances)
-    .where(eq(t.instances.id, instanceId))
-  if (!found.length) return null // Instance revoked between issue and redeem: code burned, generic failure (spec §5).
+      const found = tx.select({ id: t.instances.id }).from(t.instances)
+        .where(eq(t.instances.id, row.instanceId))
+        .all()
+      if (!found.length) return // Instance revoked between issue and redeem: code burned, generic failure (spec §5).
 
-  const deviceToken = nanoid(32)
-  await db.update(t.instances).set({ deviceTokenHash: hashToken(deviceToken) }).where(eq(t.instances.id, instanceId))
+      const deviceToken = nanoid(32)
+      tx.update(t.instances)
+        .set({ deviceTokenHash: hashToken(deviceToken) })
+        .where(eq(t.instances.id, row.instanceId))
+        .run()
 
-  return {
-    instanceId,
-    deviceToken,
-    frameAdminSecret: crypto.randomBytes(32).toString('base64url'),
-    clerkPublishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '',
+      bundle = {
+        instanceId: row.instanceId,
+        deviceToken,
+        frameAdminSecret: crypto.randomBytes(32).toString('base64url'),
+        clerkPublishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '',
+      }
+    })
+    return bundle
   }
+
+  const db = getDb()
+  const t = getTables()
+  return db.transaction(async (tx) => {
+    const claimed = await tx.update(t.enrollmentCodes)
+      .set({ consumedAt: now })
+      .where(and(eq(t.enrollmentCodes.codeHash, codeHash), isNull(t.enrollmentCodes.consumedAt), gt(t.enrollmentCodes.expiresAt, now)))
+      .returning({ instanceId: t.enrollmentCodes.instanceId })
+
+    const row = claimed[0] as { instanceId: string } | undefined
+    if (!row) return null
+
+    const found = await tx.select({ id: t.instances.id }).from(t.instances)
+      .where(eq(t.instances.id, row.instanceId))
+    if (!found.length) return null // Instance revoked between issue and redeem: code burned, generic failure (spec §5).
+
+    const deviceToken = nanoid(32)
+    await tx.update(t.instances)
+      .set({ deviceTokenHash: hashToken(deviceToken) })
+      .where(eq(t.instances.id, row.instanceId))
+
+    return {
+      instanceId: row.instanceId,
+      deviceToken,
+      frameAdminSecret: crypto.randomBytes(32).toString('base64url'),
+      clerkPublishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '',
+    }
+  })
 }

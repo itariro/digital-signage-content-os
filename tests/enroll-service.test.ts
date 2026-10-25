@@ -96,4 +96,15 @@ describe('enroll service', () => {
     const { hashToken } = await import('@/lib/sync/auth')
     expect(rows[0].codeHash).toBe(hashToken(code))
   })
+
+  it('returns null when the instance is revoked before redeem (no bundle, code consumed)', async () => {
+    await freshDb()
+    const { issueEnrollmentCode, redeemEnrollmentCode } = await import('@/lib/console/enroll')
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const { eq } = await import('drizzle-orm')
+    const { instanceId, code } = await issueEnrollmentCode()
+    await getDb().delete(getTables().instances).where(eq(getTables().instances.id, instanceId))
+    expect(await redeemEnrollmentCode(code)).toBeNull()
+  })
 })
