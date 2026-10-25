@@ -39,6 +39,25 @@ describe('frame admin auth', () => {
     expect(verifyAdminSession(cookie.split(';')[0].slice(ADMIN_COOKIE.length + 1), env.FRAME_ADMIN_SECRET, Date.now())).toBe(true)
   })
 
+  it('wrong-password and unset-hash 401s return the same body', async () => {
+    env.FRAME_MODE = 'instance'; delete env.DATABASE_URL
+    env.FRAME_DB_PATH = ':memory:'; env.FRAME_DATA_DIR = '/tmp/scratchpad/fadmin'
+    env.FRAME_ADMIN_SECRET = 's'.repeat(40)
+    env.FRAME_ADMIN_HASH = hashAdminPassword('right')
+    const { NextRequest } = await import('next/server')
+    const { POST } = await import('@/app/api/admin/login/route')
+    const wrong = await POST(new NextRequest('http://f:8808/api/admin/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'wrong' }),
+    }))
+    delete env.FRAME_ADMIN_HASH
+    const unset = await POST(new NextRequest('http://f:8808/api/admin/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'right' }),
+    }))
+    expect(wrong.status).toBe(401)
+    expect(unset.status).toBe(401)
+    expect(JSON.stringify(await unset.json())).toBe(JSON.stringify(await wrong.json()))
+  })
+
   it('login returns 401 when the configured password is wrong, 401 when unset', async () => {
     env.FRAME_MODE = 'instance'; delete env.DATABASE_URL
     env.FRAME_DB_PATH = ':memory:'; env.FRAME_DATA_DIR = '/tmp/scratchpad/fadmin'

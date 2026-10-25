@@ -13,11 +13,9 @@ export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'local'
   const limit = checkLimit(`login:${ip}`, 10, 60_000)
   if (!limit.allowed) return NextResponse.json({ error: 'rate limited' }, { status: 429 })
-  if (!adminAuthEnabled()) return NextResponse.json({ error: 'admin disabled' }, { status: 401 })
-
   const parsed = body.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid body' }, { status: 400 })
-  if (!verifyAdminPassword(parsed.data.password, process.env.FRAME_ADMIN_HASH!)) {
+  if (!adminAuthEnabled() || !verifyAdminPassword(parsed.data.password, process.env.FRAME_ADMIN_HASH!)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
   const res = NextResponse.json({ ok: true })
