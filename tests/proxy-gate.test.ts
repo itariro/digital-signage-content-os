@@ -39,4 +39,32 @@ describe('proxy gate wiring', () => {
     expect(body.hint).toContain('kiosk-ctl password')
     delete env.KIOSK_MGMT_PORT
   })
+
+  it('display-port GET /api/store is allowed past the gate', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    const mod = await import('@/proxy')
+    const req = makeRequest('/api/store', 'GET', '127.0.0.1:3000')
+    const res = await mod.default(req, {} as any)
+    expect(res).toBeDefined()
+    // The gate would 404 this if it fired; anything else means the request fell
+    // through to the Clerk stage / downstream handler.
+    expect(res!.status).not.toBe(404)
+    if (res!.status === 404) {
+      const body = await res!.json()
+      expect(body.error).not.toBe('not_found')
+    }
+  })
+
+  it('management-port GET / is allowed past the gate', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    const mod = await import('@/proxy')
+    const req = makeRequest('/', 'GET', 'x:8808')
+    const res = await mod.default(req, {} as any)
+    expect(res).toBeDefined()
+    expect(res!.status).not.toBe(404)
+    if (res!.status === 404) {
+      const body = await res!.json()
+      expect(body.error).not.toBe('not_found')
+    }
+  })
 })
