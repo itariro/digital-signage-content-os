@@ -166,6 +166,10 @@ sync:
   sync now                                    Trigger synchronization
   sync configure --endpoint URL [--interval N] [--enable|--disable]
 
+enroll:
+  enroll <console-url> <CODE>                Pull the frame bundle, write /etc/dscos/frame.env, restart app
+  password <secret>                          Set the frame-local admin password (management-port mutations)
+
 Global options:
   --json                                      Machine-readable output
   --yes                                       Skip confirmations
@@ -405,6 +409,43 @@ async function cmdSync(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   return 2
 }
 
+async function cmdEnroll(ctx: Ctx, url: string | undefined, code: string | undefined): Promise<number> {
+  if (!url || !code) { err(ctx, 'usage: kiosk enroll <console-url> <CODE>'); return 2 }
+  const { enroll } = await import('./enroll')
+  const res = await enroll(url, code, { fetch: globalThis.fetch })
+  if (!res.ok) { err(ctx, res.message ?? 'enroll failed'); return 1 }
+  out(ctx, `enrolled: wrote ${res.written}`)
+  // systemctl only exists on the Linux frame image; dev/test machines skip the
+  // restart gracefully so install-time calls are safe before the unit exists.
+  if (process.platform === 'linux') {
+    const restart = execCmd('systemctl', ['restart', APP_SERVICE])
+    if (restart.status !== 0) { err(ctx, `app restart failed (exit ${restart.status}); run: systemctl restart ${APP_SERVICE}`); return 1 }
+  }
+  return 0
+}
+
+async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number> {
+  if (!secret) { err(ctx, 'usage: kiosk password <secret>'); return 2 }
+  const { hashAdminPassword } = await import('../frame-admin')
+  const { setFrameEnvValue, frameEnvPath, parseFrameEnv } = await import('./frame-env')
+  const fs = require('node:fs')
+  const crypto = require('node:crypto')
+  const file = process.env.FRAME_ENV_PATH || frameEnvPath()
+  if (secret.length < 8) { err(ctx, 'password too short (min 8)'); return 1 }
+  const existing = fs.existsSync(file) ? parseFrameEnv(fs.readFileSync(file, 'utf8')) : {}
+  if (!existing.FRAME_ADMIN_SECRET && !process.env.FRAME_ADMIN_SECRET) {
+    const generated = crypto.randomBytes(32).toString('base64url')
+    setFrameEnvValue(file, 'FRAME_ADMIN_SECRET', generated)
+    out(ctx, `generated FRAME_ADMIN_SECRET in ${file}`)
+  }
+  setFrameEnvValue(file, 'FRAME_ADMIN_HASH', hashAdminPassword(secret))
+  out(ctx, `admin password set in ${file}; restart the app to apply`)
+  if (process.platform === 'linux') {
+    execCmd('systemctl', ['restart', APP_SERVICE])
+  }
+  return 0
+}
+
 export async function runCli(argv: string[]): Promise<RunResult> {
   const ctx: Ctx = { argv: [...argv], stdout: [], stderr: [], json: false, yes: false }
   // global flags
@@ -461,6 +502,10 @@ export async function runCli(argv: string[]): Promise<RunResult> {
       code = await cmdUpdate(ctx, args[1] || 'check', args.slice(2))
     } else if (cmd === 'sync') {
       code = await cmdSync(ctx, args[1] || 'status', args.slice(2))
+    } else if (cmd === 'enroll') {
+      code = await cmdEnroll(ctx, args[1], args[2])
+    } else if (cmd === 'password') {
+      code = await cmdPassword(ctx, args[1])
     } else {
       err(ctx, `unknown command: ${cmd}`)
       out(ctx, helpText())
