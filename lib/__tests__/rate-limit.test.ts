@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest'
-import { checkLimit } from '../rate-limit'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { checkLimit, __limitsSize, __resetLimits, MAX_WINDOWS } from '../rate-limit'
+
+beforeEach(() => { __resetLimits() })
 
 describe('checkLimit', () => {
   it('allows up to max per window, then blocks', () => {
@@ -25,5 +27,20 @@ describe('checkLimit', () => {
     expect(checkLimit('ip', 1, 500, now).allowed).toBe(false)
     nowMs += 600
     expect(checkLimit('ip', 1, 500, now).allowed).toBe(true)
+  })
+
+  it('bounds the number of tracked windows', () => {
+    const now = () => 2_000_000
+    for (let i = 0; i < MAX_WINDOWS + 1; i++) checkLimit(`k${i}`, 1, 60_000, now)
+    expect(__limitsSize()).toBeLessThanOrEqual(MAX_WINDOWS)
+  })
+
+  it('evicts the oldest window first when the map is full', () => {
+    const now = () => 3_000_000
+    checkLimit('oldest', 1, 60_000, now)
+    for (let i = 0; i < MAX_WINDOWS - 1; i++) checkLimit(`k${i}`, 1, 60_000, now)
+    expect(__limitsSize()).toBe(MAX_WINDOWS)
+    checkLimit('trigger', 1, 60_000, now)
+    expect(checkLimit('oldest', 1, 60_000, now).allowed).toBe(true)
   })
 })
