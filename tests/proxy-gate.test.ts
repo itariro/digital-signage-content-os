@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const env = process.env as Record<string, string | undefined>
+
+afterEach(() => {
+  delete env.KIOSK_MGMT_PORT
+  delete env.FRAME_ADMIN_HASH
+  delete env.FRAME_ADMIN_SECRET
+})
 
 function makeRequest(path: string, method = 'GET', host = 'localhost:3000') {
   return new NextRequest(`http://${host}${path}`, { method, headers: { host } })
@@ -38,6 +44,19 @@ describe('proxy gate wiring', () => {
     expect(body.error).toBe('admin_password_not_configured')
     expect(body.hint).toContain('kiosk-ctl password')
     delete env.KIOSK_MGMT_PORT
+  })
+
+  it('returns the password hint when the hash is set but the secret is unusable', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    env.FRAME_ADMIN_HASH = 'configured'
+    env.FRAME_ADMIN_SECRET = 'short'
+    const mod = await import('@/proxy')
+    const res = await mod.default(makeRequest('/api/frames', 'POST', 'x:8808'), {} as any)
+    expect(res).toBeDefined()
+    expect(res!.status).toBe(401)
+    const body = await res!.json()
+    expect(body.error).toBe('admin_password_not_configured')
+    expect(body.hint).toContain('kiosk-ctl password')
   })
 
   it('display-port GET /api/store is allowed past the gate', async () => {
