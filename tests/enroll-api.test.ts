@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const env = process.env as Record<string, string | undefined>
@@ -17,6 +17,11 @@ async function freshDb() {
   await runMigrations()
 }
 
+async function dropAuditTable() {
+  const { getSqliteRaw } = await import('@/lib/db/sqlite')
+  getSqliteRaw().exec('DROP TABLE audit_log')
+}
+
 function jsonReq(url: string, body: unknown) {
   return new NextRequest(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 }
@@ -33,6 +38,7 @@ describe('POST /api/enroll', () => {
     expect(body.deviceToken).toBeTruthy()
     expect(body.syncEndpoint).toBe('http://console.test/api/sync')
     expect(body.frameAdminSecret).toBeTruthy()
+    expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
   it('401 generic on garbage/expired/consumed; 400 on bad body', async () => {
@@ -44,18 +50,52 @@ describe('POST /api/enroll', () => {
     expect(badBody.status).toBe(400)
   })
 
-  it('rate-limits per ip after 10 failures', async () => {
+  it('does not let changing x-forwarded-for values bypass the limiter', async () => {
     await freshDb()
     const { __resetLimits } = await import('@/lib/rate-limit')
     __resetLimits()
+    delete env.TRUST_PROXY
     const { POST } = await import('@/app/api/enroll/route')
     let last = 0
     for (let i = 0; i < 12; i++) {
-      const req = jsonReq('http://console.test/api/enroll', { code: `guess-${i}` })
-      req.headers.set('x-forwarded-for', '9.9.9.9')
+      const req = jsonReq('http://console.test/api/enroll', { code: `guess-${i}-padding` })
+      req.headers.set('x-forwarded-for', `10.0.0.${i}`)
       last = (await POST(req)).status
     }
     expect(last).toBe(429)
+  })
+
+  it('still returns the bundle when the audit insert fails', async () => {
+    await freshDb()
+    const { __resetLimits } = await import('@/lib/rate-limit')
+    __resetLimits()
+    const { issueEnrollmentCode } = await import('@/lib/console/enroll')
+    const { code } = await issueEnrollmentCode()
+    await dropAuditTable()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { POST } = await import('@/app/api/enroll/route')
+      const res = await POST(jsonReq('http://console.test/api/enroll', { code }))
+      expect(res.status).toBe(200)
+      expect((await res.json()).deviceToken).toBeTruthy()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('still returns 401 when the audit insert fails on rejection', async () => {
+    await freshDb()
+    const { __resetLimits } = await import('@/lib/rate-limit')
+    __resetLimits()
+    await dropAuditTable()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { POST } = await import('@/app/api/enroll/route')
+      const res = await POST(jsonReq('http://console.test/api/enroll', { code: 'nope-nope-nope-nope' }))
+      expect(res.status).toBe(401)
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 })
 
