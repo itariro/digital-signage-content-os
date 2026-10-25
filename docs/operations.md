@@ -7,6 +7,15 @@
 4. On the frame, run `sudo kiosk-ctl enroll <console-url> <CODE>`. It writes `/etc/dscos/frame.env` and restarts the app.
 5. Lost the frame key? Call `POST /api/instances/<instanceId>/rotate` (or click "Reissue code" on the console card), then re-run `kiosk-ctl enroll` with the new code. Revoking an instance works the same as before (`DELETE /api/instances/<id>`).
 
+## Frame enrollment and admin
+- Enrollment requires an https console URL. Plain http is accepted only for loopback development (`localhost`, `127.0.0.1`, `::1`).
+- Rotating a code invalidates every older code for that instance. Use the newest code.
+- `sudo kiosk-ctl password <secret>` writes `FRAME_ADMIN_SECRET` and `FRAME_ADMIN_HASH` together in one atomic file update. It keeps a valid stored secret, otherwise uses a valid `FRAME_ADMIN_SECRET` from the environment, otherwise generates one. An invalid stored secret is replaced with a warning.
+- A valid `FRAME_ADMIN_SECRET` is 32-128 base64url characters. If `FRAME_ADMIN_HASH` is set without a valid secret, the management surface stays read-only, login returns 401, and the display keeps running.
+- Set `TRUST_PROXY=1` only behind a proxy that overwrites `x-forwarded-for`. Leave it unset on frames; unset means every client shares one rate-limit bucket.
+- Invalid `KIOSK_MGMT_PORT` or `PORT` values are logged. No forwarder starts and the display is unaffected.
+- Enrollment audit writes are best-effort: a failed insert logs the action and target but does not fail the request or lose a bundle.
+
 ## Console admin
 - `/console` requires a signed-in Clerk account; set `CONSOLE_ADMIN_ROLE` to additionally require that Clerk role.
 - Instance management APIs (`/api/instances` GET/POST, revoke, config push, delete) accept a Clerk session or the `x-admin-token: $CONSOLE_ADMIN_TOKEN` header.

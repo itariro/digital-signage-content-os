@@ -174,17 +174,29 @@ token), `FRAME_ADMIN_SECRET`, and the Clerk publishable key when the console
 sends one. The app service sources the file before it builds, so publishable
 keys inline correctly. After it writes, `enroll` restarts the app.
 
+Enrollment requires an https console URL. Plain http is accepted only for
+loopback development addresses (`localhost`, `127.0.0.1`, `::1`). The response
+is schema-checked before anything is written, so a malformed bundle leaves
+`frame.env` untouched.
+
 Failures never leave a half-written file. If the console is unreachable or the
 code is dead (invalid, expired, or already used), `enroll` exits non-zero and
 leaves `frame.env` untouched, with a message that says which it was and how to
 issue a fresh one. For an existing instance, click "Reissue code (rotate)" on
-the console card and enroll with the new code.
+the console card and enroll with the new code. Rotating invalidates every older
+code for that instance, so use the newest one.
+
+If root cannot resolve or set the kiosk group after a successful write, `enroll`
+prints a warning with the `chown` command and exits 0. The bundle is already in
+place; fix ownership without issuing another code.
 
 `kiosk password <secret>` sets the frame-local admin password used for
-management-port mutations (see "Two ports on a frame"). It hashes the secret
-with scrypt into `FRAME_ADMIN_HASH`, generates `FRAME_ADMIN_SECRET` first if
-it is missing, and restarts the app on Linux. Passwords shorter than 8
-characters are rejected and nothing is written.
+management-port mutations (see "Two ports on a frame"). It writes
+`FRAME_ADMIN_SECRET` and the scrypt `FRAME_ADMIN_HASH` together in one atomic
+file update. It keeps a valid secret already in `frame.env`, otherwise writes a
+valid `FRAME_ADMIN_SECRET` from the environment, otherwise generates one. An
+invalid stored secret is replaced with a warning. Passwords shorter than 8
+characters are rejected and nothing is written. The app restarts on Linux.
 
 ### Two ports on a frame
 
@@ -197,8 +209,9 @@ A frame exposes two HTTP entry points served by the same Next.js process:
 
 The app binds `localhost:3000` only. A TCP forwarder (`lib/mgmt-port.ts`)
 listens on `KIOSK_MGMT_PORT`, pipes each connection into the local app, and
-preserves the source address, so the proxy layer reads the real client IP. The
-proxy gates routes by the `Host` header port:
+preserves the TCP source address. Rate limiting treats every management-port
+client as one local bucket unless `TRUST_PROXY` is enabled (see the operations
+guide). The proxy gates routes by the `Host` header port:
 
 - Requests without the management port in `Host` behave exactly as they did
   before this feature existed.
@@ -213,6 +226,11 @@ gate, so plugging a keyboard into the frame does not grant write access.
 
 The gate is active only when `KIOSK_MGMT_PORT` is set. Console deployments
 leave it unset and run Clerk-protected on one port as before.
+
+Invalid `KIOSK_MGMT_PORT` or `PORT` values are logged and start no forwarder;
+the display keeps running. If `FRAME_ADMIN_HASH` is set but
+`FRAME_ADMIN_SECRET` is missing or invalid, the management surface stays
+read-only and login returns 401.
 
 ### Configuration
 

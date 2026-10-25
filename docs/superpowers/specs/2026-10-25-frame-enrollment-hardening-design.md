@@ -1,7 +1,7 @@
 # Frame enrollment hardening design
 
 - Date: 2026-10-25
-- Status: Approved for spec review
+- Status: Approved
 - Scope: fix the confirmed open issues from the adversarial review of tasks 1-12
   in the frame enrollment branch.
 - Related: `docs/superpowers/specs/2026-10-25-frame-enrollment-design.md`,
@@ -552,7 +552,7 @@ instrumentation -> validate ports -> TCP forwarder -> proxy gate by Host port
 Test files:
 
 - `tests/frame-admin.test.ts`
-- `tests/frame-gate.test.ts` for the gate hint on a misconfigured secret
+- `tests/proxy-gate.test.ts` for the gate hint on a misconfigured secret
 - `lib/kiosk/__tests__/frame-env.test.ts`
 - new `lib/kiosk/__tests__/enroll.test.ts`
 - `tests/enroll-service.test.ts`
