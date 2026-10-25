@@ -417,6 +417,7 @@ async function cmdEnroll(ctx: Ctx, url: string | undefined, code: string | undef
   const res = await enroll(url, code, { fetch: globalThis.fetch })
   if (!res.ok) { err(ctx, res.message ?? 'enroll failed'); return 1 }
   out(ctx, `enrolled: wrote ${res.written}`)
+  if (res.warning) err(ctx, res.warning)
   // systemctl only exists on the Linux frame image; dev/test machines skip the
   // restart gracefully so install-time calls are safe before the unit exists.
   if (process.platform === 'linux') {

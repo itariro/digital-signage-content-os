@@ -120,12 +120,12 @@ describe('kiosk enroll command', () => {
     process.env.FRAME_ENV_PATH = file
     const ORIGINAL = globalThis.fetch
     globalThis.fetch = (async () => new Response(JSON.stringify({
-      instanceId: 'c1', deviceToken: 'dt', syncEndpoint: 'https://console.test/api/sync', frameAdminSecret: 'sec',
+      instanceId: 'inst1234', deviceToken: 'd'.repeat(32), syncEndpoint: 'https://console.test/api/sync', frameAdminSecret: 's'.repeat(43),
     }))) as typeof fetch
     try {
       const res = await runCli(['enroll', 'https://console.test', 'CODE'])
       expect(res.exitCode).toBe(0)
-      expect(parseFrameEnv(fs.readFileSync(file, 'utf8')).SYNC_TOKEN).toBe('dt')
+      expect(parseFrameEnv(fs.readFileSync(file, 'utf8')).SYNC_TOKEN).toBe('d'.repeat(32))
     } finally {
       globalThis.fetch = ORIGINAL
       delete process.env.FRAME_ENV_PATH
