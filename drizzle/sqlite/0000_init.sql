@@ -107,3 +107,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 -- additive columns (runner ignores duplicate-column on re-run)
 ALTER TABLE sync_queue ADD COLUMN base_revision INTEGER;
+CREATE TABLE IF NOT EXISTS enrollment_codes (
+  code_hash TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  consumed_at INTEGER
+);
