@@ -126,6 +126,8 @@ After install, reboot. The machine logs in automatically and shows the frame.
 kiosk help              Show usage
 kiosk status            Service state plus full config (secrets redacted)
 kiosk doctor            Diagnostics: config validity, process, port, HTTP
+kiosk enroll            Pair the frame with the console (see "Pair the frame")
+kiosk password          Set the frame-local admin password (management-port mutations)
 kiosk uninstall --yes   Recorded but not implemented yet (see below)
 ```
 
@@ -148,6 +150,69 @@ kiosk app logs [--lines N]          Journal for the app service (default 100 lin
 The four core checks (process, port, HTTP, config) are critical: any one
 failing makes the whole report `failed`. It exits non-zero when unhealthy, so
 it works as a monitoring hook.
+
+### Pair the frame
+
+```text
+kiosk enroll <console-url> <CODE>   Redeem a one-time code, write /etc/dscos/frame.env, restart the app
+kiosk password <secret>             Set the frame-local admin password (management-port mutations)
+```
+
+A freshly installed frame shows its own page but stays unpaired; sync stays off
+until you enroll. In the console web UI, open "Add a frame" and click "Issue
+enrollment code". The code expires after 15 minutes and works exactly once.
+Run the printed command on the frame as root:
+
+```bash
+sudo kiosk-ctl enroll https://console.example.com A1B2C3D4E5F6
+```
+
+`enroll` sends the code to `POST /api/enroll` on the console and writes the
+returned keys to `/etc/dscos/frame.env` (mode 0640, root:kiosk): `FRAME_MODE=instance`,
+`SYNC_ENABLED=true`, `SYNC_ENDPOINT`, `INSTANCE_ID`, `SYNC_TOKEN` (the device
+token), `FRAME_ADMIN_SECRET`, and the Clerk publishable key when the console
+sends one. The app service sources the file before it builds, so publishable
+keys inline correctly. After it writes, `enroll` restarts the app.
+
+Failures never leave a half-written file. If the console is unreachable or the
+code is dead (invalid, expired, or already used), `enroll` exits non-zero and
+leaves `frame.env` untouched, with a message that says which it was and how to
+issue a fresh one. For an existing instance, click "Reissue code (rotate)" on
+the console card and enroll with the new code.
+
+`kiosk password <secret>` sets the frame-local admin password used for
+management-port mutations (see "Two ports on a frame"). It hashes the secret
+with scrypt into `FRAME_ADMIN_HASH`, generates `FRAME_ADMIN_SECRET` first if
+it is missing, and restarts the app on Linux. Passwords shorter than 8
+characters are rejected and nothing is written.
+
+### Two ports on a frame
+
+A frame exposes two HTTP entry points served by the same Next.js process:
+
+| Port | Who reaches it | What it serves |
+|---|---|---|
+| `localhost:3000` | The frame's own Chromium | Display pages, Clerk-protected as today |
+| LAN address `:<mgmtPort>` (default 8808) | Anyone on the frame's network | Display pages, the editor, and frame-local admin APIs |
+
+The app binds `localhost:3000` only. A TCP forwarder (`lib/mgmt-port.ts`)
+listens on `KIOSK_MGMT_PORT`, pipes each connection into the local app, and
+preserves the source address, so the proxy layer reads the real client IP. The
+proxy gates routes by the `Host` header port:
+
+- Requests without the management port in `Host` behave exactly as they did
+  before this feature existed.
+- On the management port, reads work, but every mutation returns `401` until
+  you set a frame-local admin password with `kiosk password`. After that, the
+  cookie from `POST /api/admin/login` on that port authorizes mutations.
+- The console web UI (`/console`) and console-only APIs (`/api/instances`)
+  answer on neither port of a frame. They live on the console deployment.
+
+A request to the frame's own loopback address cannot pass the management-port
+gate, so plugging a keyboard into the frame does not grant write access.
+
+The gate is active only when `KIOSK_MGMT_PORT` is set. Console deployments
+leave it unset and run Clerk-protected on one port as before.
 
 ### Configuration
 
@@ -189,6 +254,7 @@ Keys (dot notation, CLI key = file variable):
 | `cloudEndpoint` | `KIOSK_CLOUD_ENDPOINT` | sync endpoint URL | empty |
 | `syncEnabled` | `KIOSK_SYNC_ENABLED` | boolean | `false` |
 | `syncIntervalMinutes` | `KIOSK_SYNC_INTERVAL` | positive integer | `15` |
+| `mgmtPort` | `KIOSK_MGMT_PORT` | integer 1-65535 | `8808` |
 | `standby.enabled` | `KIOSK_STANDBY_ENABLED` | boolean | `true` |
 | `standby.start` | `KIOSK_STANDBY_START` | `HH:MM` (24h) | `22:00` |
 | `standby.end` | `KIOSK_STANDBY_END` | `HH:MM` (24h) | `06:00` |
