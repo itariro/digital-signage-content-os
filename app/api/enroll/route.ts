@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     instanceId: bundle.instanceId,
     deviceToken: bundle.deviceToken,
-    syncEndpoint: `${origin}/api/sync`,
+    syncEndpoint: origin,
     frameAdminSecret: bundle.frameAdminSecret,
     config: { clerkPublishableKey: bundle.clerkPublishableKey },
   }, { headers: { 'Cache-Control': 'no-store' } })

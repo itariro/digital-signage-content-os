@@ -36,7 +36,7 @@ describe('POST /api/enroll', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.deviceToken).toBeTruthy()
-    expect(body.syncEndpoint).toBe('http://console.test/api/sync')
+    expect(body.syncEndpoint).toBe('http://console.test')
     expect(body.frameAdminSecret).toBeTruthy()
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
