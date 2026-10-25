@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   const actor = outcome.actor
   const parsed = registerSchema.safeParse(await request.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'invalid body' }, { status: 400 })
-  const { instanceId, deviceToken } = await registerInstance(parsed.data.name)
+  const { instanceId, enrollmentCode, expiresAt } = await registerInstance(parsed.data.name)
   await audit(actor, 'register_instance', 'instance', instanceId, { name: parsed.data.name })
-  return NextResponse.json({ instanceId, deviceToken }, { status: 201 })
+  return NextResponse.json({ instanceId, enrollmentCode, expiresAt }, { status: 201 })
 }
