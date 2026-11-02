@@ -271,3 +271,75 @@
     transform: translateX(var(--vinyl-x));
   }
 }
+
+.mosaic-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mosaic-front {
+  backface-visibility: hidden;
+}
+
+.mosaic-back {
+  backface-visibility: hidden;
+}
+
+@keyframes mosaic-flip {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(180deg);
+  }
+}
+
+@keyframes mosaic-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mosaic-zoom {
+  from {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.mosaic-flip {
+  animation: mosaic-flip var(--mosaic-dur, 800ms) ease-in-out both;
+  animation-delay: var(--mosaic-delay, 0ms);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.mosaic-fade {
+  animation: mosaic-fade var(--mosaic-dur, 800ms) ease-in-out both;
+  animation-delay: var(--mosaic-delay, 0ms);
+  will-change: opacity;
+}
+
+.mosaic-zoom {
+  animation: mosaic-zoom var(--mosaic-dur, 800ms) ease-in-out both;
+  animation-delay: var(--mosaic-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mosaic-flip,
+  .mosaic-fade,
+  .mosaic-zoom {
+    animation: none;
+  }
+}

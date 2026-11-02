@@ -102,6 +102,7 @@ Supported presentation modes include:
 - Book
 - Vinyl
 - Gallery
+- Mosaic
 
 Slideshow configuration includes:
 

@@ -89,7 +89,7 @@ export type LayoutSettings = {
 export const ALBUM_THEMES = ['movies', 'tv', 'books', 'music', 'photos'] as const
 export type AlbumTheme = (typeof ALBUM_THEMES)[number]
 
-export const PRESENTATIONS = ['fill', 'poster', 'book', 'vinyl', 'gallery'] as const
+export const PRESENTATIONS = ['fill', 'poster', 'book', 'vinyl', 'gallery', 'mosaic'] as const
 export type Presentation = (typeof PRESENTATIONS)[number]
 
 export type AlbumItem = {
@@ -105,6 +105,12 @@ export type AlbumItem = {
   rating?: string
 }
 
+export type Mosaic = {
+  tilesAcross: number
+  gap: number
+  effect: 'flip' | 'fade' | 'zoom' | 'none'
+}
+
 export type Slideshow = {
   presentation: Presentation
   transition: 'fade' | 'slide' | 'zoom' | 'none'
@@ -115,6 +121,7 @@ export type Slideshow = {
   artPosition: 'top' | 'center' | 'bottom'
   backdrop: 'blur' | 'solid'
   backdropColor: string
+  mosaic?: Mosaic
 }
 
 export type Album = {

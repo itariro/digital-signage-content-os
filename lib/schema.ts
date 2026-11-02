@@ -87,6 +87,12 @@ export const albumItemSchema = z.object({
   year: z.string().max(12),
 })
 
+export const mosaicSchema = z.object({
+  tilesAcross: z.number().int().min(2).max(10),
+  gap: z.number().int().min(0).max(12),
+  effect: z.enum(['flip', 'fade', 'zoom', 'none']),
+})
+
 export const slideshowSchema = z.object({
   presentation: z.enum(PRESENTATIONS),
   transition: z.enum(['fade', 'slide', 'zoom', 'none']),
@@ -97,6 +103,7 @@ export const slideshowSchema = z.object({
   artPosition: z.enum(['top', 'center', 'bottom']),
   backdrop: z.enum(['blur', 'solid']),
   backdropColor: hex,
+  mosaic: mosaicSchema.optional(),
 })
 
 export const albumCreateSchema = z.object({
