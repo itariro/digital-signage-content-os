@@ -6,7 +6,7 @@ import { ArrowLeft, Check, ChevronLeft, ChevronRight, ImagePlus, Loader2, Search
 import { toast } from 'sonner'
 import type { Album, AlbumItem, Slideshow } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH, PRESENTATIONS } from '@/lib/types'
-import { PRESENTATION_META, THEME_META, slideAt } from '@/lib/albums'
+import { PRESENTATION_META, THEME_META, slideAt, defaultMosaicSlideshow } from '@/lib/albums'
 import { downscaleImage } from '@/lib/frame-utils'
 import { useArtworkSearch, type ArtworkResult } from '@/hooks/use-frame-store'
 import { useNow } from '@/hooks/use-now'
@@ -85,27 +85,25 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
         <SelectField
           label="Presentation"
           value={show.presentation}
-          onChange={(v) => setShow({ presentation: v as Slideshow['presentation'] })}
+          onChange={(v) => {
+            const pres = v as Slideshow['presentation']
+            if (pres === 'mosaic') {
+              setShow({
+                presentation: pres,
+                interval: 25,
+                backdrop: 'solid',
+                backdropColor: show.backdropColor || '#14161b',
+                mosaic: album.slideshow.mosaic ?? defaultMosaicSlideshow().mosaic,
+              })
+            } else {
+              setShow({ presentation: pres })
+            }
+          }}
           options={PRESENTATIONS.map((p) => ({ value: p, label: PRESENTATION_META[p].label }))}
         />
         <p className="-mt-1 text-xs text-muted-foreground">{PRESENTATION_META[show.presentation].description}</p>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Transition</span>
-          <Segmented
-            label="Transition"
-            value={show.transition}
-            onChange={(transition) => setShow({ transition })}
-            className="w-48"
-            options={[
-              { value: 'fade', label: 'Fade' },
-              { value: 'slide', label: 'Slide' },
-              { value: 'zoom', label: 'Zoom' },
-              { value: 'none', label: 'Cut' },
-            ]}
-          />
-        </div>
         <SliderField
-          label="Each slide"
+          label={show.presentation === 'mosaic' ? 'New cover every (mean)' : 'Each slide'}
           value={show.interval}
           min={5}
           max={300}
@@ -114,62 +112,135 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
           onCommit={commit}
           onChange={(interval) => setShow({ interval }, false)}
         />
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Order</span>
-          <Segmented
-            label="Slide order"
-            value={show.order}
-            onChange={(order) => setShow({ order })}
-            className="w-40"
-            options={[
-              { value: 'sequence', label: 'In order' },
-              { value: 'shuffle', label: 'Shuffle' },
-            ]}
-          />
-        </div>
-        <ToggleField label="Ken Burns drift" checked={show.kenBurns} onChange={(kenBurns) => setShow({ kenBurns })} />
+        {show.presentation === 'mosaic' && (
+          <p className="-mt-1 text-xs text-muted-foreground">
+            About every {Math.round(show.interval * 0.8)}–{Math.round(show.interval * 1.2)} s.
+          </p>
+        )}
+        {show.presentation !== 'mosaic' && (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-foreground">Transition</span>
+              <Segmented
+                label="Transition"
+                value={show.transition}
+                onChange={(transition) => setShow({ transition })}
+                className="w-48"
+                options={[
+                  { value: 'fade', label: 'Fade' },
+                  { value: 'slide', label: 'Slide' },
+                  { value: 'zoom', label: 'Zoom' },
+                  { value: 'none', label: 'Cut' },
+                ]}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-foreground">Order</span>
+              <Segmented
+                label="Slide order"
+                value={show.order}
+                onChange={(order) => setShow({ order })}
+                className="w-40"
+                options={[
+                  { value: 'sequence', label: 'In order' },
+                  { value: 'shuffle', label: 'Shuffle' },
+                ]}
+              />
+            </div>
+            <ToggleField label="Ken Burns drift" checked={show.kenBurns} onChange={(kenBurns) => setShow({ kenBurns })} />
+          </>
+        )}
       </Section>
 
       {show.presentation !== 'fill' && (
         <Section title="Staging">
-          <SliderField
-            label="Artwork size"
-            value={show.artSize}
-            min={40}
-            max={100}
-            suffix="%"
-            onCommit={commit}
-            onChange={(artSize) => setShow({ artSize }, false)}
-          />
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground">Position</span>
-            <Segmented
-              label="Artwork position"
-              value={show.artPosition}
-              onChange={(artPosition) => setShow({ artPosition })}
-              className="w-44"
-              options={[
-                { value: 'top', label: 'Top' },
-                { value: 'center', label: 'Middle' },
-                { value: 'bottom', label: 'Bottom' },
-              ]}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground">Backdrop</span>
-            <Segmented
-              label="Backdrop"
-              value={show.backdrop}
-              onChange={(backdrop) => setShow({ backdrop })}
-              className="w-40"
-              options={[
-                { value: 'blur', label: 'Blurred' },
-                { value: 'solid', label: 'Solid' },
-              ]}
-            />
-          </div>
-          {show.backdrop === 'solid' && (
-            <ColorField label="Wall colour" value={show.backdropColor} onChange={(backdropColor) => setShow({ backdropColor })} />
+          {show.presentation === 'mosaic' ? (
+            <>
+              <SliderField
+                label="Tiles across (short edge)"
+                value={show.mosaic?.tilesAcross ?? 4}
+                min={2}
+                max={10}
+                step={1}
+                suffix=""
+                onCommit={commit}
+                onChange={(tilesAcross) => setShow({ mosaic: { ...(show.mosaic ?? { tilesAcross: 4, gap: 2, effect: 'flip' }), tilesAcross } }, false)}
+              />
+              <SliderField
+                label="Gap"
+                value={show.mosaic?.gap ?? 2}
+                min={0}
+                max={12}
+                step={1}
+                suffix="px"
+                onCommit={commit}
+                onChange={(gap) => setShow({ mosaic: { ...(show.mosaic ?? { tilesAcross: 4, gap: 2, effect: 'flip' }), gap } }, false)}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-foreground">Effect</span>
+                <Segmented
+                  label="Effect"
+                  value={show.mosaic?.effect ?? 'flip'}
+                  onChange={(effect) => setShow({ mosaic: { ...(show.mosaic ?? { tilesAcross: 4, gap: 2, effect: 'flip' }), effect: effect as 'flip' | 'fade' | 'zoom' | 'none' } })}
+                  className="w-48"
+                  options={[
+                    { value: 'flip', label: 'Flip' },
+                    { value: 'fade', label: 'Fade' },
+                    { value: 'zoom', label: 'Zoom' },
+                    { value: 'none', label: 'Cut' },
+                  ]}
+                />
+              </div>
+              <ColorField label="Gap colour" value={show.backdropColor} onChange={(backdropColor) => setShow({ backdropColor })} />
+              {album.items.length < 5 && (
+                <p className="text-xs text-muted-foreground">Mosaic needs at least 5 items; showing full-bleed instead.</p>
+              )}
+              {album.items.length >= 5 && album.items.length < (show.mosaic?.tilesAcross ?? 4) * (show.mosaic?.tilesAcross ?? 4) && (
+                <p className="text-xs text-muted-foreground">Add more covers for a fuller mosaic.</p>
+              )}
+            </>
+          ) : (
+            <>
+              <SliderField
+                label="Artwork size"
+                value={show.artSize}
+                min={40}
+                max={100}
+                suffix="%"
+                onCommit={commit}
+                onChange={(artSize) => setShow({ artSize }, false)}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-foreground">Position</span>
+                <Segmented
+                  label="Artwork position"
+                  value={show.artPosition}
+                  onChange={(artPosition) => setShow({ artPosition })}
+                  className="w-44"
+                  options={[
+                    { value: 'top', label: 'Top' },
+                    { value: 'center', label: 'Middle' },
+                    { value: 'bottom', label: 'Bottom' },
+                  ]}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-foreground">Backdrop</span>
+                <Segmented
+                  label="Backdrop"
+                  value={show.backdrop}
+                  onChange={(backdrop) => setShow({ backdrop })}
+                  className="w-40"
+                  options={[
+                    { value: 'blur', label: 'Blurred' },
+                    { value: 'solid', label: 'Solid' },
+                  ]}
+                />
+              </div>
+              {show.backdrop === 'solid' && (
+                <ColorField label="Wall colour" value={show.backdropColor} onChange={(backdropColor) => setShow({ backdropColor })} />
+              )}
+            </>
           )}
         </Section>
       )}
