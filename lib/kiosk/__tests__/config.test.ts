@@ -23,6 +23,13 @@ describe('config', () => {
     expect(errors.map(e => e.field)).toContain('appPort')
   })
 
+  it('carries a management port default of 8808', () => {
+    const c = defaultConfig()
+    expect(c.mgmtPort).toBe(8808)
+    c.mgmtPort = 70000
+    expect(validateConfig(c).map(e => e.field)).toContain('mgmtPort')
+  })
+
   it('redacts secrets', () => {
     const c = defaultConfig()
     c.secrets.token = 'supersecret'

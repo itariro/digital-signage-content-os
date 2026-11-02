@@ -40,6 +40,7 @@ function parseShellConfig(text: string): any {
   if (vars.KIOSK_TOUCH !== undefined) cfg.touch = vars.KIOSK_TOUCH === '1'
   if (vars.KIOSK_RESTART_HOURS !== undefined) cfg.restartHours = parseInt(vars.KIOSK_RESTART_HOURS,10) || 0
   if (vars.KIOSK_PORT) cfg.appPort = parseInt(vars.KIOSK_PORT,10) || cfg.appPort
+  if (vars.KIOSK_MGMT_PORT) cfg.mgmtPort = parseInt(vars.KIOSK_MGMT_PORT,10) || cfg.mgmtPort
   if (vars.KIOSK_TIMEZONE) cfg.timezone = vars.KIOSK_TIMEZONE
   if (vars.KIOSK_LOG_LEVEL) cfg.logLevel = vars.KIOSK_LOG_LEVEL as any
   if (vars.KIOSK_UPDATE_CHANNEL) cfg.updateChannel = vars.KIOSK_UPDATE_CHANNEL
@@ -70,6 +71,7 @@ function serializeShellConfig(config: any): string {
     `KIOSK_TOUCH=${config.touch ? 1 : 0}`,
     `KIOSK_RESTART_HOURS=${config.restartHours}`,
     `KIOSK_PORT=${config.appPort}`,
+    `KIOSK_MGMT_PORT=${config.mgmtPort}`,
     `KIOSK_TIMEZONE='${config.timezone}'`,
     `KIOSK_LOG_LEVEL='${config.logLevel}'`,
     `KIOSK_UPDATE_CHANNEL='${config.updateChannel}'`,
@@ -165,6 +167,10 @@ sync:
   sync status                                 Show sync status
   sync now                                    Trigger synchronization
   sync configure --endpoint URL [--interval N] [--enable|--disable]
+
+enroll:
+  enroll <console-url> <CODE>                Pull the frame bundle, write /etc/dscos/frame.env, restart app
+  password <secret>                          Set the frame-local admin password (management-port mutations)
 
 Global options:
   --json                                      Machine-readable output
@@ -405,6 +411,60 @@ async function cmdSync(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   return 2
 }
 
+async function cmdEnroll(ctx: Ctx, url: string | undefined, code: string | undefined): Promise<number> {
+  if (!url || !code) { err(ctx, 'usage: kiosk enroll <console-url> <CODE>'); return 2 }
+  const { enroll } = await import('./enroll')
+  const res = await enroll(url, code, { fetch: globalThis.fetch })
+  if (!res.ok) { err(ctx, res.message ?? 'enroll failed'); return 1 }
+  out(ctx, `enrolled: wrote ${res.written}`)
+  if (res.warning) err(ctx, res.warning)
+  // systemctl only exists on the Linux frame image; dev/test machines skip the
+  // restart gracefully so install-time calls are safe before the unit exists.
+  if (process.platform === 'linux' && !process.env.VITEST) {
+    const restart = execCmd('systemctl', ['restart', APP_SERVICE])
+    if (restart.status !== 0) { err(ctx, `app restart failed (exit ${restart.status}); run: systemctl restart ${APP_SERVICE}`); return 1 }
+  }
+  return 0
+}
+
+async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number> {
+  if (!secret) { err(ctx, 'usage: kiosk password <secret>'); return 2 }
+  const { hashAdminPassword, isValidAdminSecret } = await import('../frame-admin')
+  const { writeFrameEnv, frameEnvPath, parseFrameEnv } = await import('./frame-env')
+  const fs = require('node:fs')
+  const crypto = require('node:crypto')
+  const file = process.env.FRAME_ENV_PATH || frameEnvPath()
+  if (secret.length < 8) { err(ctx, 'password too short (min 8)'); return 1 }
+
+  const existing = fs.existsSync(file) ? parseFrameEnv(fs.readFileSync(file, 'utf8')) : {}
+  const storedSecret = existing.FRAME_ADMIN_SECRET
+  if (storedSecret && !isValidAdminSecret(storedSecret)) {
+    err(ctx, `warning: replaced invalid FRAME_ADMIN_SECRET in ${file}`)
+  }
+
+  let adminSecret: string
+  if (isValidAdminSecret(storedSecret)) {
+    adminSecret = storedSecret
+  } else if (isValidAdminSecret(process.env.FRAME_ADMIN_SECRET)) {
+    adminSecret = process.env.FRAME_ADMIN_SECRET
+  } else {
+    adminSecret = crypto.randomBytes(32).toString('base64url')
+    out(ctx, `generated FRAME_ADMIN_SECRET in ${file}`)
+  }
+
+  // One write: a crash cannot leave a new secret with the old hash.
+  writeFrameEnv(file, {
+    ...existing,
+    FRAME_ADMIN_SECRET: adminSecret,
+    FRAME_ADMIN_HASH: hashAdminPassword(secret),
+  })
+  out(ctx, `admin password set in ${file}; restart the app to apply`)
+  if (process.platform === 'linux' && !process.env.VITEST) {
+    execCmd('systemctl', ['restart', APP_SERVICE])
+  }
+  return 0
+}
+
 export async function runCli(argv: string[]): Promise<RunResult> {
   const ctx: Ctx = { argv: [...argv], stdout: [], stderr: [], json: false, yes: false }
   // global flags
@@ -461,6 +521,10 @@ export async function runCli(argv: string[]): Promise<RunResult> {
       code = await cmdUpdate(ctx, args[1] || 'check', args.slice(2))
     } else if (cmd === 'sync') {
       code = await cmdSync(ctx, args[1] || 'status', args.slice(2))
+    } else if (cmd === 'enroll') {
+      code = await cmdEnroll(ctx, args[1], args[2])
+    } else if (cmd === 'password') {
+      code = await cmdPassword(ctx, args[1])
     } else {
       err(ctx, `unknown command: ${cmd}`)
       out(ctx, helpText())

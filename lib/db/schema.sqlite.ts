@@ -107,6 +107,14 @@ export const instances = sqliteTable('instances', {
   lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }),
 })
 
+export const enrollmentCodes = sqliteTable('enrollment_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  instanceId: text('instance_id').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+  consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
+})
+
 export const auditLog = sqliteTable('audit_log', {
   id: text('id').primaryKey(),
   actor: text('actor').notNull(),

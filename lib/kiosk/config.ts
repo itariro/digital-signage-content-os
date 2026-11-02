@@ -12,6 +12,7 @@ export interface StandbySchedule {
 export interface KioskConfig {
   frameUrl: string
   appPort: number
+  mgmtPort: number
   rotate: Rotate
   output: string
   mode: string
@@ -33,12 +34,14 @@ export interface KioskConfig {
 
 export const DEFAULT_FRAME_URL = 'http://localhost:3000/frame/home'
 export const DEFAULT_APP_PORT = 3000
+export const DEFAULT_MGMT_PORT = 8808
 export const DEFAULT_STANDBY_START = '22:00'
 export const DEFAULT_STANDBY_END = '06:00'
 
 export const defaultConfig = (): KioskConfig => ({
   frameUrl: DEFAULT_FRAME_URL,
   appPort: DEFAULT_APP_PORT,
+  mgmtPort: DEFAULT_MGMT_PORT,
   rotate: 'left',
   output: '',
   mode: '',
@@ -81,6 +84,7 @@ export function validateConfig(config: KioskConfig): ValidationError[] {
   const errors: ValidationError[] = []
   if (!validateUrl(config.frameUrl)) errors.push({ field: 'frameUrl', message: 'must be a valid http(s)/file URL' })
   if (!validatePort(config.appPort)) errors.push({ field: 'appPort', message: 'must be an integer between 1 and 65535' })
+  if (!validatePort(config.mgmtPort)) errors.push({ field: 'mgmtPort', message: 'must be an integer between 1 and 65535' })
   if (!validateRotate(config.rotate)) errors.push({ field: 'rotate', message: 'must be normal, left, right or inverted' })
   if (!validateTime(config.standby.start)) errors.push({ field: 'standby.start', message: 'must be HH:MM (24h)' })
   if (!validateTime(config.standby.end)) errors.push({ field: 'standby.end', message: 'must be HH:MM (24h)' })

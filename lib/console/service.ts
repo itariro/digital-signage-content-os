@@ -1,8 +1,6 @@
-import { nanoid } from 'nanoid'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
-import { hashToken } from '@/lib/sync/auth'
 
 export interface FrameSummary {
   identifier: string
@@ -41,30 +39,21 @@ export async function listInstanceCards(): Promise<InstanceCard[]> {
 }
 
 /**
- * Register a device: mint id + one-time bearer token (only the hash is
- * stored) and seed its frame document. Returns the plaintext token exactly
- * once (spec §9 redeem flow).
+ * Register a device. Enrollment moved to lib/console/enroll: the admin API
+ * returns only a one-time code now, and the plaintext token exists solely in
+ * the /api/enroll response (spec §3).
  */
-export async function registerInstance(name?: string): Promise<{ instanceId: string; deviceToken: string }> {
-  const db = getDb()
-  const tables = getTables()
-  const id = nanoid(12)
-  const token = nanoid(32)
-  await db.insert(tables.instances).values({
-    id,
-    deviceTokenHash: hashToken(token),
-    createdAt: new Date(),
-  })
-  const existing = await db.select({ id: tables.frameDocuments.id }).from(tables.frameDocuments).where(eq(tables.frameDocuments.identifier, id))
-  if (!existing.length) {
-    const { seed } = await import('@/lib/store')
-    const now = new Date()
-    await db.insert(tables.frameDocuments).values({
-      id, identifier: id, name: name ?? `Frame ${id}`, data: seed(),
-      createdAt: now, updatedAt: now, revision: 1, resolutionWidth: 1920, resolutionHeight: 1080,
-    })
+export async function registerInstance(name?: string): Promise<{ instanceId: string; enrollmentCode: string; expiresAt: Date }> {
+  const { issueEnrollmentCode } = await import('@/lib/console/enroll')
+  const issued = await issueEnrollmentCode()
+  if (name) {
+    const db = getDb()
+    const tables = getTables()
+    await db.update(tables.frameDocuments)
+      .set({ name })
+      .where(eq(tables.frameDocuments.identifier, issued.instanceId))
   }
-  return { instanceId: id, deviceToken: token }
+  return { instanceId: issued.instanceId, enrollmentCode: issued.code, expiresAt: issued.expiresAt }
 }
 
 export async function revokeInstance(id: string): Promise<void> {

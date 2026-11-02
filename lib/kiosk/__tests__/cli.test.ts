@@ -35,4 +35,19 @@ describe('cli', () => {
     const r = await runCli(['standby', 'schedule', 'set', '22:00', '06:00'])
     expect(r.exitCode).toBe(0)
   })
+
+  it('round-trips kiosk.conf including mgmtPort', async () => {
+    const confPath = path.join(tmpDir, 'kiosk.conf')
+    process.env.KIOSK_CONFIG_PATH = confPath
+    fs.writeFileSync(confPath, "KIOSK_MGMT_PORT=9911\nKIOSK_PORT=3300\n", { mode: 0o600 })
+    const r1 = await runCli(['config', 'show'])
+    expect(r1.exitCode).toBe(0)
+    expect(r1.stdout).toContain('"mgmtPort": 9911')
+    expect(r1.stdout).toContain('"appPort": 3300')
+    const r2 = await runCli(['config', 'set', 'mgmtPort', '8808'])
+    expect(r2.exitCode).toBe(0)
+    const written = fs.readFileSync(confPath, 'utf8')
+    expect(written).toContain('KIOSK_MGMT_PORT=8808')
+    expect(written).toContain('KIOSK_PORT=3300')
+  })
 })
