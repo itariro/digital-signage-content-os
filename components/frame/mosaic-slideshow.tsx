@@ -27,6 +27,7 @@ function Tile({
   reducedMotion: boolean
 }) {
   const [failed, setFailed] = useState(false)
+  useEffect(() => { setFailed(false) }, [item.image])
   const eff = reducedMotion ? 'fade' : effect
   const showPrev = animating && item.image !== previousItem.image
   const displayedItem = failed ? previousItem : item
