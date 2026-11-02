@@ -199,7 +199,7 @@ export function normalize(store: FrameStore): FrameStore {
   const albums = (store.albums ?? [seedPhotoAlbum()]).map((album) => {
     const show = album?.slideshow
     if (!show) return album
-    const isMosaic = show.presentation === 'mosaic' || show.mosaic != null
+    const isMosaic = show.presentation === 'mosaic'
     if (!isMosaic) return album
     const m = (show.mosaic ?? {}) as { tilesAcross?: unknown; gap?: unknown; effect?: unknown }
     const tilesAcross = clampLegacyNumber(m.tilesAcross, 2, 10, 4)

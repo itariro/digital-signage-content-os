@@ -35,12 +35,11 @@ function Tile({
   const elapsed = progress * transitionMs
   const delay = -elapsed
 
-  function onError(url: string) {
+  function logError(url: string) {
     if (!loggedErrors.has(url)) {
       loggedErrors.add(url)
       console.warn('Mosaic image failed to load:', url)
     }
-    setFailed(true)
   }
 
   if (!animating || eff === 'none') {
@@ -52,7 +51,7 @@ function Tile({
           decoding="async"
           draggable={false}
           className="absolute inset-0 h-full w-full object-cover"
-          onError={() => onError(displayedItem.image)}
+          onError={() => { logError(displayedItem.image); setFailed(true) } }
         />
       </div>
     )
@@ -86,7 +85,7 @@ function Tile({
             draggable={false}
             className={cn('mosaic-img mosaic-front', eff !== 'flip' && '')}
             style={{ backfaceVisibility: eff === 'flip' ? 'hidden' : undefined }}
-            onError={() => onError(previousItem.image)}
+            onError={() => logError(previousItem.image)}
           />
         )}
         <img
@@ -100,7 +99,7 @@ function Tile({
               ? ({ backfaceVisibility: eff === 'flip' ? 'hidden' : undefined, transform: eff === 'flip' ? 'rotateY(180deg)' : undefined, '--mosaic-dur': `${transitionMs}ms`, '--mosaic-delay': `${delay}ms`, willChange: 'opacity, transform' } as React.CSSProperties)
               : { backfaceVisibility: eff === 'flip' ? 'hidden' : undefined, transform: eff === 'flip' ? 'rotateY(180deg)' : undefined }
           }
-          onError={() => onError(displayedItem.image)}
+          onError={() => { logError(displayedItem.image); setFailed(true) } }
         />
       </div>
     </div>
@@ -110,7 +109,7 @@ function Tile({
 export function MosaicSlideshow({ album, time, offset = 0 }: { album: Album; time: number; offset?: number }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
-  const [now, setNow] = useState<number>(() => (typeof time === 'number' && time > 0 ? time : Date.now()))
+  const [tick, setTick] = useState(0)
   const [reducedMotion, setReducedMotion] = useState(false)
 
   const mosaicCfg = album.slideshow.mosaic ?? { tilesAcross: 4, gap: 2, effect: 'flip' }
@@ -136,7 +135,7 @@ export function MosaicSlideshow({ album, time, offset = 0 }: { album: Album; tim
   const state = useMemo(
     () =>
       mosaicAt({
-        nowMs: now,
+        nowMs: Date.now(),
         offset,
         seed,
         itemCount: album.items.length,
@@ -144,7 +143,7 @@ export function MosaicSlideshow({ album, time, offset = 0 }: { album: Album; tim
         cols: grid.cols,
         rows: grid.rows,
       }),
-    [now, offset, seed, album.items.length, intervalSec, grid.cols, grid.rows],
+    [tick, offset, seed, album.items.length, intervalSec, grid.cols, grid.rows],
   )
 
   const transitionMs = useMemo(() => Math.min(1200, 0.5 * Math.max(3, intervalSec) * 1000 * (1 - 0.2)), [intervalSec])
@@ -178,13 +177,13 @@ export function MosaicSlideshow({ album, time, offset = 0 }: { album: Album; tim
   // scheduling
   useEffect(() => {
     const ms = Math.min(Math.max(state.nextEventAtMs - Date.now(), 0), 2147483647)
-    const id = setTimeout(() => setNow(Date.now()), ms)
+    const id = setTimeout(() => setTick((t) => t + 1), ms)
     return () => clearTimeout(id)
   }, [state.nextEventAtMs])
 
   // resync on visibility/focus
   useEffect(() => {
-    const handler = () => setNow(Date.now())
+    const handler = () => setTick((t) => t + 1)
     document.addEventListener('visibilitychange', handler)
     window.addEventListener('focus', handler)
     return () => {
