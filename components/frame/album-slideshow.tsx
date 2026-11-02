@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import type { Album, AlbumItem, Slideshow } from '@/lib/types'
 import { FRAME_WIDTH } from '@/lib/types'
 import { themeMeta, slideAt } from '@/lib/albums'
+import { MosaicSlideshow } from './mosaic-slideshow'
 import { cn } from '@/lib/utils'
 
 const JUSTIFY = { top: 'flex-start', center: 'center', bottom: 'flex-end' } as const
@@ -197,13 +198,22 @@ function SlideLayer({
 }
 
 export function AlbumSlideshow({ album, time, offset = 0 }: { album: Album; time: number; offset?: number }) {
-  const slide = slideAt(album, time, offset)
-  if (!slide) return <div className="absolute inset-0" style={{ background: album.slideshow.backdropColor }} />
-  const enter = ENTER_CLASS[album.slideshow.transition]
+  const isMosaic = album.slideshow.presentation === 'mosaic' && album.items.length >= 5
+  if (isMosaic) {
+    return <MosaicSlideshow album={album} time={time} offset={offset} />
+  }
+  // fallback for mosaic with too few items: render as fill
+  const effectiveAlbum =
+    album.slideshow.presentation === 'mosaic'
+      ? { ...album, slideshow: { ...album.slideshow, presentation: 'fill' as const } }
+      : album
+  const slide = slideAt(effectiveAlbum, time, offset)
+  if (!slide) return <div className="absolute inset-0" style={{ background: effectiveAlbum.slideshow.backdropColor }} />
+  const enter = ENTER_CLASS[effectiveAlbum.slideshow.transition]
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden>
-      {album.items.length > 1 && enter && <SlideLayer key={`prev-${slide.cycle}`} item={slide.previous} album={album} entering={false} />}
-      <SlideLayer key={slide.cycle} item={slide.current} album={album} entering className={enter} />
+      {effectiveAlbum.items.length > 1 && enter && <SlideLayer key={`prev-${slide.cycle}`} item={slide.previous} album={effectiveAlbum} entering={false} />}
+      <SlideLayer key={slide.cycle} item={slide.current} album={effectiveAlbum} entering className={enter} />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={slide.next.image} alt="" hidden />
     </div>

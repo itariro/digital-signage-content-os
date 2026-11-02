@@ -6,6 +6,7 @@ import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { fontStack } from '@/lib/fonts'
 import { hexToRgba } from '@/lib/frame-utils'
 import { slideAt } from '@/lib/albums'
+import { mosaicAt, mosaicGrid, seedFromString } from '@/lib/mosaic'
 import { WidgetContent, type WidgetContext } from './widget-content'
 import { AlbumSlideshow } from './album-slideshow'
 
@@ -90,6 +91,20 @@ export function SceneBackground({ settings, album, now }: { settings: LayoutSett
 
 export function activeSlide(album: Album | null | undefined, now: Date | null): ActiveSlide | null {
   if (!album || !now) return null
+  if (album.slideshow.presentation === 'mosaic' && album.items.length >= 5) {
+    const aspect = (album.theme === 'music' ? 1 : album.theme === 'photos' ? 9 / 16 : 2 / 3)
+    const tilesAcross = album.slideshow.mosaic?.tilesAcross ?? 4
+    const grid = mosaicGrid({ width: 1080, height: 1920, tileAspect: aspect, tilesAcross, itemCount: album.items.length })
+    if (grid.fallback) {
+      const slide = slideAt(album, now.getTime())
+      return slide ? { item: slide.current, theme: album.theme, albumName: album.name } : null
+    }
+    const seed = seedFromString(album.id + '|' + album.items.map((i) => i.id).join(','))
+    const st = mosaicAt({ nowMs: now.getTime(), offset: 0, seed, itemCount: album.items.length, intervalSec: album.slideshow.interval, cols: grid.cols, rows: grid.rows })
+    const idx = st.lastChanged?.item
+    const item = typeof idx === 'number' ? album.items[idx] : null
+    return item ? { item, theme: album.theme, albumName: album.name } : null
+  }
   const slide = slideAt(album, now.getTime())
   return slide ? { item: slide.current, theme: album.theme, albumName: album.name } : null
 }
