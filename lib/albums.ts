@@ -82,6 +82,7 @@ export const PRESENTATION_META: Record<Presentation, { label: string; descriptio
   book: { label: 'Book', description: 'Cover with spine and page edge' },
   vinyl: { label: 'Vinyl', description: 'Sleeve with a spinning record' },
   gallery: { label: 'Gallery mat', description: 'Matted print on a solid wall' },
+  mosaic: { label: 'Mosaic', description: 'Full-screen grid of covers; one changes at a time' },
 }
 
 const THEME_PRESENTATION: Record<AlbumTheme, Presentation> = {
@@ -104,6 +105,21 @@ export function defaultSlideshow(theme: AlbumTheme): Slideshow {
     artPosition: 'center',
     backdrop: 'blur',
     backdropColor: '#14161b',
+  }
+}
+
+export function defaultMosaicSlideshow(): Slideshow {
+  return {
+    presentation: 'mosaic',
+    transition: 'none',
+    kenBurns: false,
+    interval: 25,
+    order: 'sequence',
+    artSize: 74,
+    artPosition: 'center',
+    backdrop: 'solid',
+    backdropColor: '#14161b',
+    mosaic: { tilesAcross: 4, gap: 2, effect: 'flip' },
   }
 }
 

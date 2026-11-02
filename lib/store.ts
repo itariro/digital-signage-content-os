@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { nanoid } from 'nanoid'
 import { eq, sql } from 'drizzle-orm'
-import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Widget } from './types'
+import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Slideshow, Widget } from './types'
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
@@ -196,7 +196,28 @@ function clampLegacyNumber(value: unknown, min: number, max: number, fallback: n
 export function normalize(store: FrameStore): FrameStore {
   const experiences = store.experiences ?? { enabled: false, rules: [], settings: { schoolHolidays: [] } }
   const schedule = store.schedule ?? structuredClone(DEFAULT_SCHEDULE)
-  const albums = store.albums ?? [seedPhotoAlbum()]
+  const albums = (store.albums ?? [seedPhotoAlbum()]).map((album) => {
+    const show = album?.slideshow
+    if (!show) return album
+    const isMosaic = show.presentation === 'mosaic' || show.mosaic != null
+    if (!isMosaic) return album
+    const m = (show.mosaic ?? {}) as { tilesAcross?: unknown; gap?: unknown; effect?: unknown }
+    const tilesAcross = clampLegacyNumber(m.tilesAcross, 2, 10, 4)
+    const gap = clampLegacyNumber(m.gap, 0, 12, 2)
+    const effect = ['flip', 'fade', 'zoom', 'none'].includes(m.effect as string) ? (m.effect as 'flip' | 'fade' | 'zoom' | 'none') : 'flip'
+    const interval = clampLegacyNumber(show.interval, 3, 3600, 25)
+    return {
+      ...album,
+      slideshow: {
+        ...show,
+        presentation: 'mosaic' as Slideshow['presentation'],
+        interval,
+        backdrop: 'solid',
+        backdropColor: typeof show.backdropColor === 'string' ? show.backdropColor : '#14161b',
+        mosaic: { tilesAcross, gap, effect },
+      } as Slideshow,
+    }
+  })
   const layouts = store.layouts ?? []
 
   // Prune experience rules referencing deleted layouts (never mutate the input).
