@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/
 
 | Option | Meaning | Default |
 |---|---|---|
-| `URL` (positional) | Page the frame displays | `http://localhost:3000/frame/home` |
+| `URL` (positional) | Page the frame displays | `http://127.0.0.1:3000/frame/home` |
 | `-r, --rotate DIR` | Screen rotation: `normal`, `left`, `right`, `inverted`. `left` and `right` give portrait | `left` |
 | `-o, --output NAME` | xrandr output, e.g. `DP-1` | first connected output |
 | `-m, --mode WxH` | Force a resolution, e.g. `1440x2560` | monitor's preferred mode |
@@ -255,7 +255,7 @@ Keys (dot notation, CLI key = file variable):
 
 | Key | Variable | Type | Default |
 |---|---|---|---|
-| `frameUrl` | `KIOSK_URL` | http(s)/file URL | `http://localhost:3000/frame/home` |
+| `frameUrl` | `KIOSK_URL` | http(s)/file URL | `http://127.0.0.1:3000/frame/home` |
 | `appPort` | `KIOSK_PORT` | integer 1-65535 | `3000` |
 | `rotate` | `KIOSK_ROTATE` | `normal` / `left` / `right` / `inverted` | `left` |
 | `output` | `KIOSK_OUTPUT` | xrandr name or empty (auto) | empty |

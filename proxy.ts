@@ -1,10 +1,10 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import type { OrganizationCustomRoleKey } from "@clerk/shared/types";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { decideRequest, type GateDecision } from "@/lib/frame-gate";
 import { requestHasAdmin, adminAuthEnabled } from "@/lib/frame-admin";
 
-async function gateResponse(req: Request, decision: GateDecision): Promise<NextResponse | null> {
+async function gateResponse(req: NextRequest, decision: GateDecision): Promise<NextResponse | null> {
   if (decision.kind === "allow") return null;
   if (decision.kind === "not_found") return NextResponse.json({ error: "not_found" }, { status: 404 });
   // admin_required
@@ -15,7 +15,7 @@ async function gateResponse(req: Request, decision: GateDecision): Promise<NextR
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }
 
-export default clerkMiddleware(async (auth, req) => {
+async function handleRequest(req: NextRequest, auth?: any) {
   const gate = await gateResponse(req, decideRequest({
     host: req.headers.get("host") ?? "",
     method: req.method,
@@ -25,14 +25,22 @@ export default clerkMiddleware(async (auth, req) => {
 
   const path = req.nextUrl.pathname;
   // Console UI is human-facing: require a Clerk session (and admin role when
-  // CONSOLE_ADMIN_ROLE is configured). Instance/device endpoints
-  // (/api/sync/*, /api/active, /api/assets delivery) keep their own bearer /
-  // x-admin-token gates so kiosks are never locked out here.
-  if (path === "/console" || path.startsWith("/console/")) {
+  // CONSOLE_ADMIN_ROLE is configured). Only enforced when Clerk is configured.
+  if ((path === "/console" || path.startsWith("/console/")) && auth) {
     const role = process.env.CONSOLE_ADMIN_ROLE;
-    await auth.protect((has) => (role ? has({ role: role as OrganizationCustomRoleKey }) : true));
+    await auth.protect((has: any) => (role ? has({ role: role as OrganizationCustomRoleKey }) : true));
   }
-});
+  return NextResponse.next();
+}
+
+const hasClerk = Boolean(process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+export default hasClerk
+  ? clerkMiddleware(async (auth, req) => {
+      const res = await handleRequest(req, auth);
+      return res;
+    })
+  : async (req: NextRequest) => handleRequest(req);
 
 export const config = {
   matcher: [

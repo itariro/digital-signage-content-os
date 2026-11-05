@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server'
-import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { getDatabaseMode } from '@/lib/db/mode'
 import { getBobBridgeStats } from '@/lib/bob-bridge'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    await getDb().execute(sql`SELECT 1`)
+    if (getDatabaseMode() === 'sqlite') {
+      const { getSqliteRaw } = await import('@/lib/db/sqlite')
+      getSqliteRaw().prepare('SELECT 1').get()
+    } else {
+      const { sql } = await import('drizzle-orm')
+      await getDb().execute(sql`SELECT 1`)
+    }
     return NextResponse.json({ status: 'ok', database: 'connected', bob: getBobBridgeStats() })
   } catch (error) {
     return NextResponse.json(

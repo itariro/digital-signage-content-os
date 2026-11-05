@@ -131,7 +131,7 @@ while (($#)); do
 done
 
 url_re='^(https?://|file:///)[^[:space:]]+$'
-if [[ -z $URL ]]; then URL='http://localhost:3000/frame/home'; fi
+if [[ -z $URL ]]; then URL='http://127.0.0.1:3000/frame/home'; fi
 [[ $URL =~ $url_re ]] || die "URL must start with http://, https:// or file:/// and contain no whitespace"
 [[ $URL != *"'"* ]]   || die "URL must not contain a single quote (percent-encode it as %27)"
 if [[ -n $CONSOLE_URL ]]; then
@@ -602,6 +602,12 @@ t_prep_dirs() {
     install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0755 "$KIOSK_HOME/.config"
     install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0700 "$KIOSK_HOME/.config/chromium"
     install -d -o root -g root -m 0755 "$CONF_DIR" "$LIB_DIR"
+    # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only.
+    # Drop 'localhost' from the ::1 line so localhost -> 127.0.0.1 (IPv4) only.
+    if [[ -f /etc/hosts ]]; then
+        sed -i -E '/^::1[[:space:]]/s/[[:space:]]+localhost([[:space:]]+|$)/\1/g' /etc/hosts \
+            || echo "warning: could not update /etc/hosts; continuing" >&2
+    fi
 }
 
 t_write_conf() {
@@ -663,6 +669,16 @@ load_config() {
     KIOSK_NET_WAIT=60; KIOSK_DISPLAY_WAIT=30; KIOSK_EXTRA_FLAGS=""
     # shellcheck disable=SC1090
     . "$CONFIG_FILE"
+    # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only,
+    # so Chromium would see "connection refused". Normalize to the IPv4 loopback.
+    # Only normalize a plain-http URL whose host is exactly 'localhost'
+    # (avoid breaking https certificate verification or other hostnames).
+    case "$KIOSK_URL" in
+        http://localhost|http://localhost:*|http://localhost/*|http://localhost\?*|http://localhost#*)
+            KIOSK_URL="http://127.0.0.1${KIOSK_URL#http://localhost}"
+            ;;
+    esac
+
 }
 
 # ---- display ---------------------------------------------------------------

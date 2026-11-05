@@ -4,7 +4,7 @@ import { defaultConfig, validateConfig, redactConfig, setConfigValue, configFrom
 describe('config', () => {
   it('defaults to local frame URL', () => {
     const c = defaultConfig()
-    expect(c.frameUrl).toBe('http://localhost:3000/frame/home')
+    expect(c.frameUrl).toBe('http://127.0.0.1:3000/frame/home')
     expect(c.appPort).toBe(3000)
     expect(c.standby.start).toBe('22:00')
     expect(c.standby.end).toBe('06:00')
