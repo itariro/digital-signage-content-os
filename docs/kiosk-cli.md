@@ -347,6 +347,13 @@ Backups live under `/var/lib/dscos-updates/backup/` and
 `/var/lib/dscos-updates/runtime-backup/`, and update state is in
 `/var/lib/dscos-updates/state.json`.
 
+An apply that stops during the runtime refresh leaves its snapshot in place.
+The next apply restores that snapshot before it takes a new one, so a retry
+never saves partly replaced helpers as the rollback target. If recovery
+cannot move the old app back, or cannot restore the helpers, the backup and
+snapshot stay recorded in `state.json`; `kiosk update rollback` resumes from
+where recovery stopped.
+
 The update lock is an OS-held SQLite lock at
 `/var/lib/dscos-updates/lock.db`. The kernel releases it when the update
 process exits, so an interrupted update does not block the next manual or

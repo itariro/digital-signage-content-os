@@ -456,13 +456,26 @@ function restorePreviousCheckout(opts: {
   config: any
 }): { ok: boolean; error?: string } {
   const rollback = rollbackRelease({ appDir: opts.appDir, backup: opts.backup })
-  const runtimeError = restoreRuntimeSnapshot(opts.runtimeSnapshot)
-  const health = rollback.ok ? restartAndCheckHealth(opts.config) : { ok: false }
-  try { writeUpdateState({ lastBackup: null, installedVersion: opts.currentVersion }) } catch {}
+  // Keep the new app with its matching runtime if the app move fails. The
+  // state still points at both backups, so `update rollback` can retry.
   if (!rollback.ok) return { ok: false, error: `rollback failed: ${rollback.error}` }
-  if (runtimeError) return { ok: false, error: `runtime restore failed: ${runtimeError}` }
-  if (!health.ok) return { ok: false, error: 'rolled back but restored app failed its health check' }
+  const runtimeError = restoreRuntimeSnapshot(opts.runtimeSnapshot)
+  const health = restartAndCheckHealth(opts.config)
+  if (runtimeError) {
+    // The app is back but its helpers are not. Keep the snapshot recorded so
+    // `update rollback` can finish restoring them.
+    try {
+      writeUpdateState({
+        lastBackup: null,
+        runtimeBackup: opts.runtimeSnapshot,
+        installedVersion: opts.currentVersion,
+      })
+    } catch {}
+    return { ok: false, error: `runtime restore failed: ${runtimeError} (snapshot: ${opts.runtimeSnapshot})` }
+  }
+  try { writeUpdateState({ lastBackup: null, installedVersion: opts.currentVersion }) } catch {}
   discardRuntimeSnapshot(opts.runtimeSnapshot)
+  if (!health.ok) return { ok: false, error: 'rolled back but restored app failed its health check' }
   return { ok: true }
 }
 
@@ -556,6 +569,16 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
   // side adds or drops.
   const previousInstallerVersion = readInstallerVersion()
   const runtimeSnapshot = runtimeBackupDir(version)
+  // An earlier attempt for this version may have stopped during
+  // --update-runtime. Put its clean snapshot back before taking a new one, or
+  // the retry would save half-updated helpers as the rollback target.
+  if (fs.existsSync(runtimeSnapshot) && fs.existsSync(path.join(runtimeSnapshot, 'manifest.json'))) {
+    const recovered = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (recovered) {
+      err(ctx, `could not recover the interrupted update: ${recovered}`)
+      return 1
+    }
+  }
   const runtimeFileList = new Set(runtimeFiles())
   const listed = execCmd('bash', [downloadedInstaller, '--runtime-files'])
   if (listed.status === 0) {
@@ -639,32 +662,58 @@ async function rollbackUpdate(ctx: Ctx, config: any): Promise<number> {
   const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
   const state = readUpdateState()
   const backup = state?.lastBackup
+  const runtimeSnapshot = typeof state?.runtimeBackup === 'string' ? state.runtimeBackup : null
+  const previousVersion = state?.previousVersion ?? 'unknown'
+
+  // A failed apply can put the app back and then fail to restore helpers.
+  // Finish that recovery instead of claiming there is no backup.
+  if (!backup && runtimeSnapshot) {
+    const runtimeError = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (runtimeError) {
+      err(ctx, `runtime restore failed: ${runtimeError} (snapshot: ${runtimeSnapshot})`)
+      return 1
+    }
+    const health = restartAndCheckHealth(config)
+    writeUpdateState({ lastBackup: null, installedVersion: state?.installedVersion ?? 'unknown' })
+    discardRuntimeSnapshot(runtimeSnapshot)
+    if (!health.ok) {
+      err(ctx, `restored app failed: ${health.error}`)
+      return 1
+    }
+    out(ctx, 'rolled back')
+    return 0
+  }
   if (!backup) {
     err(ctx, 'no saved backup; nothing to roll back')
     return 1
   }
+
   const rb = rollbackRelease({ appDir, backup })
   if (!rb.ok) {
     err(ctx, `rollback failed: ${rb.error}`)
     return 1
   }
-  const runtimeSnapshot = typeof state?.runtimeBackup === 'string' ? state.runtimeBackup : null
   const runtimeError = restoreRuntimeSnapshot(runtimeSnapshot)
   const health = restartAndCheckHealth(config)
-  if (!health.ok) {
-    err(ctx, `restored app failed: ${health.error}`)
-    return 1
-  }
   const fs = require('node:fs')
   if (state?.previousInstallerVersion && state.previousInstallerVersion !== 'unknown') {
     try { fs.writeFileSync(installerVersionFile(), `${state.previousInstallerVersion}\n`, { mode: 0o644 }) } catch {}
   }
-  writeUpdateState({ lastBackup: null, installedVersion: state?.previousVersion ?? 'unknown' })
   if (runtimeError) {
+    // The app is back but the helpers still need restoring. Keep the snapshot
+    // recorded so a later rollback can finish the job.
+    try {
+      writeUpdateState({ lastBackup: null, runtimeBackup: runtimeSnapshot, installedVersion: previousVersion })
+    } catch {}
     err(ctx, `app rolled back, but runtime restore failed: ${runtimeError} (snapshot: ${runtimeSnapshot})`)
     return 1
   }
+  writeUpdateState({ lastBackup: null, installedVersion: previousVersion })
   discardRuntimeSnapshot(runtimeSnapshot)
+  if (!health.ok) {
+    err(ctx, `restored app failed: ${health.error}`)
+    return 1
+  }
   out(ctx, 'rolled back')
   return 0
 }

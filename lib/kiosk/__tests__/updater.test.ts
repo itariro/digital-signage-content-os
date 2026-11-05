@@ -108,7 +108,9 @@ describe('updater', () => {
       expect(lock).not.toBeNull()
       expect(fs.existsSync(lockPath)).toBe(true)
       lock!.release()
-      expect(await acquireUpdateLock(lockPath, { timeoutMs: 0 })).not.toBeNull()
+      const again = await acquireUpdateLock(lockPath, { timeoutMs: 0 })
+      expect(again).not.toBeNull()
+      again!.release()
     })
 
     it('does not take a lock held by a live process', async () => {

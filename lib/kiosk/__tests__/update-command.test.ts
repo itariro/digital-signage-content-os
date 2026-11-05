@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { runCli } from '../cli'
+import { backupRuntimeFiles } from '../updater'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -243,6 +244,106 @@ describe('update command', () => {
     expect(appVersion(h)).toBe('0.8.0')
     expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
     expect(fs.existsSync(path.join(h.appDir, '.next'))).toBe(true)
+  })
+
+  it('keeps the saved backup when recovery cannot roll the app back', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    process.env.FAKE_RESTART_FAIL = '1'
+    const blocker = `${h.appDir}.rollback-tmp`
+    fs.mkdirSync(blocker)
+    fs.writeFileSync(path.join(blocker, 'keep'), 'x')
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('rollback failed')
+    expect(appVersion(h)).toBe('0.9.0')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('new runtime')
+    const state = JSON.parse(fs.readFileSync(h.statePath, 'utf8'))
+    expect(state.lastBackup).toBe(path.join(h.updateRoot, 'backup', '0.9.0'))
+    expect(fs.existsSync(state.lastBackup)).toBe(true)
+
+    delete process.env.FAKE_RESTART_FAIL
+    fs.rmSync(blocker, { recursive: true, force: true })
+    const rollback = await runCli(['update', 'rollback', '--yes'])
+    expect(rollback.exitCode).toBe(0)
+    expect(appVersion(h)).toBe('0.8.0')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
+  })
+
+  it('restores an interrupted attempt before snapshotting a retry', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    const snapshot = path.join(h.updateRoot, 'runtime-backup', '0.9.0')
+    expect(backupRuntimeFiles([runtimeKiosk(h)], snapshot)).toEqual({ ok: true })
+    fs.writeFileSync(runtimeKiosk(h), 'partly new\n')
+
+    const apply = await runCli(['update', 'apply', '--yes'])
+    expect(apply.exitCode).toBe(0)
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('new runtime')
+
+    const rollback = await runCli(['update', 'rollback', '--yes'])
+    expect(rollback.exitCode).toBe(0)
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
+  })
+
+  it('finishes a recovery that could not restore the runtime', async () => {
+    h = setupHarness()
+    const snapshot = path.join(h.updateRoot, 'runtime-backup', '0.9.0')
+    expect(backupRuntimeFiles([runtimeKiosk(h)], snapshot)).toEqual({ ok: true })
+    fs.writeFileSync(runtimeKiosk(h), 'mixed runtime\n')
+    fs.mkdirSync(path.dirname(h.statePath), { recursive: true })
+    fs.writeFileSync(h.statePath, JSON.stringify({
+      lastBackup: null,
+      runtimeBackup: snapshot,
+      installedVersion: '0.8.0',
+    }))
+
+    const result = await runCli(['update', 'rollback', '--yes'])
+    expect(result.exitCode).toBe(0)
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
+    expect(fs.existsSync(snapshot)).toBe(false)
+    const state = JSON.parse(fs.readFileSync(h.statePath, 'utf8'))
+    expect(state.lastBackup).toBeNull()
+    expect(state.runtimeBackup).toBeUndefined()
+  })
+
+  it('keeps the runtime snapshot when finishing recovery fails', async () => {
+    h = setupHarness()
+    const snapshot = path.join(h.updateRoot, 'runtime-backup', '0.9.0')
+    expect(backupRuntimeFiles([runtimeKiosk(h)], snapshot)).toEqual({ ok: true })
+    fs.rmSync(path.join(snapshot, 'manifest.json'))
+    fs.writeFileSync(runtimeKiosk(h), 'mixed runtime\n')
+    fs.mkdirSync(path.dirname(h.statePath), { recursive: true })
+    fs.writeFileSync(h.statePath, JSON.stringify({
+      lastBackup: null,
+      runtimeBackup: snapshot,
+      installedVersion: '0.8.0',
+    }))
+
+    const result = await runCli(['update', 'rollback', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('runtime restore failed')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('mixed runtime')
+    expect(JSON.parse(fs.readFileSync(h.statePath, 'utf8')).runtimeBackup).toBe(snapshot)
+  })
+
+  it('keeps the snapshot when a manual rollback cannot restore the runtime', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    const apply = await runCli(['update', 'apply', '--yes'])
+    expect(apply.exitCode).toBe(0)
+    const snapshot = path.join(h.updateRoot, 'runtime-backup', '0.9.0')
+    fs.rmSync(path.join(snapshot, 'manifest.json'))
+
+    const rollback = await runCli(['update', 'rollback', '--yes'])
+    expect(rollback.exitCode).toBe(1)
+    expect(rollback.stderr).toContain('app rolled back, but runtime restore failed')
+    expect(appVersion(h)).toBe('0.8.0')
+    const state = JSON.parse(fs.readFileSync(h.statePath, 'utf8'))
+    expect(state.lastBackup).toBeNull()
+    expect(state.runtimeBackup).toBe(snapshot)
+    expect(fs.existsSync(snapshot)).toBe(true)
   })
 
   it('acquires a lock left behind by an exited process', async () => {
