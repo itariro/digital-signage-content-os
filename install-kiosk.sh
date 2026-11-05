@@ -605,7 +605,8 @@ t_prep_dirs() {
     # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only.
     # Drop 'localhost' from the ::1 line so localhost -> 127.0.0.1 (IPv4) only.
     if [[ -f /etc/hosts ]]; then
-        sed -i '/^::1[[:space:]]/s/[[:space:]]localhost\([[:space:]]\|$\)/\1/g' /etc/hosts
+        sed -i -E '/^::1[[:space:]]/s/[[:space:]]+localhost([[:space:]]+|$)/\1/g' /etc/hosts \
+            || echo "warning: could not update /etc/hosts; continuing" >&2
     fi
 }
 
@@ -670,7 +671,14 @@ load_config() {
     . "$CONFIG_FILE"
     # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only,
     # so Chromium would see "connection refused". Normalize to the IPv4 loopback.
-    KIOSK_URL="${KIOSK_URL//:\/\/localhost/:\/\/127.0.0.1}"
+    # Only normalize a plain-http URL whose host is exactly 'localhost'
+    # (avoid breaking https certificate verification or other hostnames).
+    case "$KIOSK_URL" in
+        http://localhost|http://localhost:*|http://localhost/*|http://localhost\?*|http://localhost#*)
+            KIOSK_URL="http://127.0.0.1${KIOSK_URL#http://localhost}"
+            ;;
+    esac
+
 }
 
 # ---- display ---------------------------------------------------------------
