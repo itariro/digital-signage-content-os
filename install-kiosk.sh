@@ -958,6 +958,7 @@ t_install_cli() {
     cat > /usr/local/bin/kiosk <<'KIOSK_EOF'
 #!/bin/sh
 export KIOSK_CONFIG_PATH=/etc/kiosk/kiosk.conf
+export KIOSK_CLI_ENTRY=1
 if command -v tsx >/dev/null 2>&1; then
     exec tsx "${DSCOS_APP_DIR:-/opt/dscos}/lib/kiosk/cli.ts" "$@"
 elif command -v npx >/dev/null 2>&1; then
@@ -1009,7 +1010,7 @@ t_enroll_frame() {
     cd "${DSCOS_APP_DIR:-/opt/dscos}"
     # Fresh installs: the dscos service does not exist yet, so the CLI's own
     # restart advisory may fail; the later service/enable tasks start it.
-    npx tsx lib/kiosk/cli.ts enroll "$CONSOLE_URL" "$ENROLL_CODE" || true
+    KIOSK_CLI_ENTRY=1 npx tsx lib/kiosk/cli.ts enroll "$CONSOLE_URL" "$ENROLL_CODE" || true
     echo "enroll command completed; the app service will be started shortly"
 }
 

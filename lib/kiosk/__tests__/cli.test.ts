@@ -50,4 +50,28 @@ describe('cli', () => {
     expect(written).toContain('KIOSK_MGMT_PORT=8808')
     expect(written).toContain('KIOSK_PORT=3300')
   })
+
+  it('version prints versions', async () => {
+    const r = await runCli(['version'])
+    expect(r.exitCode).toBe(0)
+    expect(r.stdout).toContain('installer:')
+  })
+
+  it('reset requires --yes', async () => {
+    const r = await runCli(['reset'])
+    expect(r.exitCode).toBe(2)
+  })
+
+  it('reset with --yes restores defaults', async () => {
+    await runCli(['config', 'set', 'standby.start', '23:00'])
+    const r = await runCli(['reset', '--yes'])
+    expect(r.exitCode).toBe(0)
+    const r2 = await runCli(['config', 'show'])
+    expect(r2.stdout).toContain('22:00')
+  })
+
+  it('unknown command returns 2', async () => {
+    const r = await runCli(['frobnicate'])
+    expect(r.exitCode).toBe(2)
+  })
 })

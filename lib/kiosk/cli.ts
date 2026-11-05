@@ -104,6 +104,17 @@ function readConfig(ctx: Ctx): any {
   }
 }
 
+function withConfig(ctx: Ctx, fn: (config: any) => Promise<number> | number): Promise<number> | number {
+  const config = readConfig(ctx)
+  const errors = validateConfig(config)
+  if (errors.length) {
+    if (ctx.json) out(ctx, JSON.stringify({ configErrors: errors }, null, 2))
+    else for (const e of errors) err(ctx, `${e.field}: ${e.message}`)
+    return 1
+  }
+  return fn(config)
+}
+
 function writeConfig(ctx: Ctx, config: any): void {
   const fs = require('node:fs')
   const path = require('node:path')
@@ -133,7 +144,10 @@ Top-level:
   setup                                       Alias for install
   status                                      Overall device + app status
   doctor                                      Diagnostics and remediation
-  uninstall [--yes]                           Remove kiosk services
+  version                                     Show app/installer/os versions
+  logs [--lines N] [--unit U]                 Show journal logs
+  reset --yes                                 Reset config to defaults
+  uninstall --yes                             Remove kiosk services
 
 config:
   config show                                 Show configuration (secrets redacted)
@@ -311,6 +325,11 @@ async function cmdDevice(ctx: Ctx, sub: string, args: string[]): Promise<number>
 
 async function cmdStandby(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   const config: any = readConfig(ctx)
+  const repairing = sub === 'schedule' && args[0] === 'set'
+  if (!repairing) {
+    const _errs = validateConfig(config)
+    if (_errs.length) { if (ctx.json) out(ctx, JSON.stringify({ configErrors: _errs }, null, 2)); else for (const e of _errs) err(ctx, `${e.field}: ${e.message}`); return 1 }
+  }
   if (sub === 'status') {
     const sched = config.standby
     const now = new Date()
@@ -372,6 +391,8 @@ async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number>
 
 async function cmdSync(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   const config: any = readConfig(ctx)
+  const _errs = validateConfig(config)
+  if (_errs.length) { if (ctx.json) out(ctx, JSON.stringify({ configErrors: _errs }, null, 2)); else for (const e of _errs) err(ctx, `${e.field}: ${e.message}`); return 1 }
   if (sub === 'status') {
     out(ctx, JSON.stringify({ enabled: config.syncEnabled, endpoint: redactEndpoint(config.cloudEndpoint || ''), intervalMinutes: config.syncIntervalMinutes }, null, 2))
     return 0
@@ -465,6 +486,101 @@ async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number
   return 0
 }
 
+async function cmdVersion(ctx: Ctx): Promise<number> {
+  const fs = require('node:fs')
+  let appVersion = process.env.DSCOS_VERSION || 'unknown'
+  const candidatePaths = [
+    process.env.DSCOS_APP_DIR ? `${process.env.DSCOS_APP_DIR}/package.json` : null,
+    require('node:path').join(__dirname, '..', '..', 'package.json'),
+    '/opt/dscos/package.json',
+  ].filter(Boolean) as string[]
+  for (const cp of candidatePaths) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(cp, 'utf8'))
+      if (pkg?.version) { appVersion = pkg.version; break }
+    } catch { /* try next */ }
+  }
+  const installerVersion = '2.0'
+  const osRelease = fs.existsSync('/etc/os-release') ? fs.readFileSync('/etc/os-release', 'utf8') : ''
+  const osPretty = (osRelease.match(/^PRETTY_NAME=(.*)$/m)?.[1] || '').replace(/^"|"$/g, '') || 'unknown'
+  const info = { appVersion, installerVersion, os: osPretty }
+  if (ctx.json) out(ctx, JSON.stringify(info, null, 2))
+  else {
+    out(ctx, `app:        ${appVersion}`)
+    out(ctx, `installer:  ${installerVersion}`)
+    out(ctx, `os:         ${osPretty}`)
+  }
+  return 0
+}
+
+async function cmdLogs(ctx: Ctx, args: string[]): Promise<number> {
+  const idx = args.indexOf('--lines')
+  const n = idx >= 0 ? String(parseInt(args[idx + 1], 10) || 100) : '100'
+  const unitIdx = args.indexOf('--unit')
+  const unit = unitIdx >= 0 ? args[unitIdx + 1] : APP_SERVICE
+  const allowed = [APP_SERVICE, KIOSK_SERVICE]
+  if (!allowed.includes(unit)) { err(ctx, `unknown unit: ${unit}`); return 2 }
+  const r = execCmd('journalctl', ['-u', unit, '-n', n, '--no-pager'])
+  if (r.status !== 0) { err(ctx, r.stderr || 'journalctl failed'); return r.status || 1 }
+  out(ctx, r.stdout)
+  return 0
+}
+
+async function cmdReset(ctx: Ctx): Promise<number> {
+  if (!ctx.yes) { err(ctx, 'reset requires --yes'); return 2 }
+  const fs = require('node:fs')
+  const p = configPath()
+  if (fs.existsSync(p)) {
+    try { fs.copyFileSync(p, p + '.bak') }
+    catch (e: unknown) { err(ctx, `could not back up config: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+  }
+  writeConfig(ctx, defaultConfig())
+  out(ctx, `config reset to defaults; backup at ${p}.bak`)
+  return 0
+}
+
+async function cmdUninstall(ctx: Ctx): Promise<number> {
+  if (process.platform !== 'linux') { err(ctx, 'uninstall only supported on Linux frames'); return 1 }
+  const fs = require('node:fs')
+  if (typeof process.getuid === 'function' && process.getuid() !== 0) {
+    err(ctx, 'uninstall requires root privileges (run with sudo)')
+    return 1
+  }
+  const failures: string[] = []
+  const run = (cmd: string, args: string[]) => {
+    const r = execCmd(cmd, args)
+    if (r.status !== 0) failures.push(`${cmd} ${args.join(' ')}: ${r.stderr || r.status}`)
+  }
+  run('systemctl', ['stop', APP_SERVICE])
+  run('systemctl', ['disable', APP_SERVICE])
+  run('systemctl', ['stop', KIOSK_SERVICE])
+  run('systemctl', ['disable', KIOSK_SERVICE])
+  const files = [
+    '/etc/systemd/system/dscos.service',
+    '/etc/systemd/system/kiosk-standby-on.service',
+    '/etc/systemd/system/kiosk-standby-on.timer',
+    '/etc/systemd/system/kiosk-standby-off.service',
+    '/etc/systemd/system/kiosk-standby-off.timer',
+    '/etc/lightdm/lightdm.conf.d/50-kiosk.conf',
+    '/usr/share/xsessions/kiosk.desktop',
+    '/etc/chromium/policies/managed/kiosk.json',
+  ]
+  for (const f of files) {
+    try { fs.rmSync(f, { force: true }) } catch (e: unknown) { failures.push(`rm ${f}: ${e instanceof Error ? e.message : String(e)}`) }
+  }
+  run('systemctl', ['daemon-reload'])
+  try { fs.rmSync('/etc/kiosk', { recursive: true, force: true }) } catch (e: unknown) { failures.push(`/etc/kiosk: ${e instanceof Error ? e.message : String(e)}`) }
+  try { fs.rmSync('/usr/local/lib/kiosk', { recursive: true, force: true }) } catch (e: unknown) { failures.push(`/usr/local/lib/kiosk: ${e instanceof Error ? e.message : String(e)}`) }
+  run('userdel', ['-r', 'kiosk'])
+  if (failures.length) {
+    for (const f of failures) err(ctx, f)
+    err(ctx, `uninstall completed with ${failures.length} failure(s)`)
+    return 1
+  }
+  out(ctx, 'kiosk uninstalled')
+  return 0
+}
+
 export async function runCli(argv: string[]): Promise<RunResult> {
   const ctx: Ctx = { argv: [...argv], stdout: [], stderr: [], json: false, yes: false }
   // global flags
@@ -486,29 +602,39 @@ export async function runCli(argv: string[]): Promise<RunResult> {
       out(ctx, 'Run install-kiosk.sh to install; use `kiosk setup` on device after install.')
       code = 0
     } else if (cmd === 'status') {
-      const config: any = readConfig(ctx)
-      const healthR = execCmd('systemctl', ['is-active', APP_SERVICE])
-      out(ctx, JSON.stringify({ app: healthR.stdout.trim(), config: redactConfig(config) }, null, 2))
-      code = 0
+      const r = withConfig(ctx, (config) => {
+        const healthR = execCmd('systemctl', ['is-active', APP_SERVICE])
+        out(ctx, JSON.stringify({ app: healthR.stdout.trim(), config: redactConfig(config) }, null, 2))
+        return 0
+      })
+      code = typeof r === 'number' ? r : 0
     } else if (cmd === 'doctor') {
-      const config: any = readConfig(ctx)
-      const errors = validateConfig(config)
-      const proc = execCmd('systemctl', ['is-active', APP_SERVICE])
-      const processRunning = proc.stdout.trim() === 'active'
-      const portR = execCmd('bash', ['-c', ` (echo > /dev/tcp/127.0.0.1/${config.appPort}) >/dev/null 2>&1`])
-      const portOpen = portR.status === 0
-      let httpOk = false
-      if (portOpen) {
-        const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
-        const c = parseInt(hr.stdout.trim(), 10)
-        httpOk = c >= 200 && c < 300
-      }
-      const report = evaluateHealth({ processRunning, portOpen, httpOk, configValid: errors.length === 0 })
-      out(ctx, JSON.stringify({ configErrors: errors, health: report }, null, 2))
-      code = errors.length || report.state !== 'healthy' ? 1 : 0
+      const r = withConfig(ctx, (config) => {
+        const errors = validateConfig(config)
+        const proc = execCmd('systemctl', ['is-active', APP_SERVICE])
+        const processRunning = proc.stdout.trim() === 'active'
+        const portR = execCmd('bash', ['-c', ` (echo > /dev/tcp/127.0.0.1/${config.appPort}) >/dev/null 2>&1`])
+        const portOpen = portR.status === 0
+        let httpOk = false
+        if (portOpen) {
+          const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
+          const c = parseInt(hr.stdout.trim(), 10)
+          httpOk = c >= 200 && c < 300
+        }
+        const report = evaluateHealth({ processRunning, portOpen, httpOk, configValid: errors.length === 0 })
+        out(ctx, JSON.stringify({ configErrors: errors, health: report }, null, 2))
+        return errors.length || report.state !== 'healthy' ? 1 : 0
+      })
+      code = typeof r === 'number' ? r : 0
     } else if (cmd === 'uninstall') {
       if (!ctx.yes) { err(ctx, 'uninstall requires --yes'); code = 2 }
-      else { out(ctx, 'uninstall requested'); code = 0 }
+      else { code = await cmdUninstall(ctx) }
+    } else if (cmd === 'version') {
+      code = await cmdVersion(ctx)
+    } else if (cmd === 'logs') {
+      code = await cmdLogs(ctx, args.slice(1))
+    } else if (cmd === 'reset') {
+      code = await cmdReset(ctx)
     } else if (cmd === 'config') {
       code = await cmdConfig(ctx, args[1] || 'show', args.slice(2))
     } else if (cmd === 'app') {
@@ -535,4 +661,17 @@ export async function runCli(argv: string[]): Promise<RunResult> {
     code = 1
   }
   return { exitCode: code, stdout: ctx.stdout.join('\n'), stderr: ctx.stderr.join('\n') }
+}
+
+if (process.env.KIOSK_CLI_ENTRY === '1') {
+  runCli(process.argv.slice(2))
+    .then((r) => {
+      if (r.stdout) process.stdout.write(r.stdout + '\n')
+      if (r.stderr) process.stderr.write(r.stderr + '\n')
+      process.exitCode = r.exitCode
+    })
+    .catch((e: unknown) => {
+      console.error(e instanceof Error ? e.message : String(e))
+      process.exit(1)
+    })
 }
