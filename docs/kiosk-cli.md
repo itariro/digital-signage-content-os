@@ -405,3 +405,10 @@ Where to look for logs: `kiosk app logs` (application), `sudo kiosk-ctl logs`
   `KIOSK_REF` to a tag for reproducible deployments.
 - The device stays reachable over the network during standby so operators can
   recover it; plan LAN exposure accordingly.
+
+## Housekeeping commands
+
+- `kiosk version` — show app, installer, and OS versions.
+- `kiosk logs [--lines N] [--unit dscos|lightdm]` — tail the journal.
+- `kiosk reset --yes` — reset config to defaults (backup kept as `kiosk.conf.bak`).
+- `kiosk uninstall --yes` — stop/disable services, remove units, config, and the kiosk user.
