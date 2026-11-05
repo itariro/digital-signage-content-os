@@ -134,6 +134,15 @@ function execCmd(cmd: string, args: string[]): { status: number; stdout: string;
     return { status: 1, stdout: '', stderr: String(e) }
   }
 }
+function execCmdLong(cmd: string, args: string[]): { status: number; stdout: string; stderr: string } {
+  const cp = require('node:child_process')
+  try {
+    const r = cp.spawnSync(cmd, args, { encoding: 'utf8', timeout: 600000 })
+    return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
+  } catch (e: any) {
+    return { status: 1, stdout: '', stderr: String(e) }
+  }
+}
 
 function helpText(): string {
   return `kiosk - Digital frame management CLI
@@ -428,11 +437,20 @@ async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number>
     return 0
   }
   if (sub === 'apply') {
+    const fsLock = require('node:fs')
+    const lockPath = '/var/lib/dscos-updates/lock'
+    try { fsLock.mkdirSync('/var/lib/dscos-updates', { recursive: true }) } catch {}
+    let lockFd: number | null = null
+    for (let i = 0; i < 30; i++) {
+      try { lockFd = fsLock.openSync(lockPath, 'wx'); break } catch { await new Promise((r) => setTimeout(r, 1000)) }
+    }
+    if (lockFd === null) { err(ctx, 'could not acquire update lock'); return 1 }
+    const releaseLock = () => { try { fsLock.closeSync(lockFd!); fsLock.rmSync(lockPath, { force: true }) } catch {} }
     const versionIdx = args.indexOf('--version')
     const targetVersion = versionIdx >= 0 ? args[versionIdx + 1] : null
-    if (!ctx.yes && process.stdin.isTTY) { err(ctx, 'apply requires --yes (or run non-interactively)'); return 2 }
+    if (!ctx.yes && process.stdin.isTTY) { err(ctx, 'apply requires --yes (or run non-interactively)'); releaseLock(); return 2 }
     let info: any
-    try { info = await fetchLatestRelease(globalThis.fetch, targetVersion || undefined) } catch (e: unknown) { err(ctx, `fetch failed: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+    try { info = await fetchLatestRelease(globalThis.fetch, targetVersion || undefined) } catch (e: unknown) { err(ctx, `fetch failed: ${e instanceof Error ? e.message : String(e)}`); releaseLock(); return 1 }
     const version = targetVersion || info.version
     // skip if already current
     const appVersion = ((): string => {
@@ -443,6 +461,7 @@ async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number>
     })()
     if (appVersion === version) {
       out(ctx, `already up to date (${version})`)
+      releaseLock()
       return 0
     }
     const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
@@ -460,28 +479,29 @@ async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number>
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const buf = Buffer.from(await res.arrayBuffer())
         fs.writeFileSync(tarPath, buf)
-      } catch (e: unknown) { err(ctx, `download failed: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+      } catch (e: unknown) { err(ctx, `download failed: ${e instanceof Error ? e.message : String(e)}`); releaseLock(); return 1 }
     } else {
-      err(ctx, 'no release asset found'); return 1
+      err(ctx, 'no release asset found'); releaseLock(); return 1
     }
     // extract
     const ex = execCmd('tar', ['-xzf', tarPath, '-C', staging])
-    if (ex.status !== 0) { err(ctx, `extract failed: ${ex.stderr}`); return 1 }
+    if (ex.status !== 0) { err(ctx, `extract failed: ${ex.stderr}`); releaseLock(); return 1 }
     fs.rmSync(tarPath, { force: true })
     // prepare dependencies if missing
     if (!fs.existsSync(path.join(staging, 'node_modules'))) {
-      const r = execCmd('pnpm', ['install', '--frozen-lockfile', '--dir', staging])
-      if (r.status !== 0) { err(ctx, `dependency install failed: ${r.stderr}`); return 1 }
+      const r = execCmdLong('pnpm', ['install', '--frozen-lockfile', '--dir', staging])
+      if (r.status !== 0) { err(ctx, `dependency install failed: ${r.stderr}`); releaseLock(); return 1 }
     }
     if (!validateStaging(staging, version)) {
       err(ctx, 'staging validation failed (missing package.json/.next/node_modules or version mismatch)')
+      releaseLock()
       return 1
     }
     // record backup pointer
     const statePath = '/var/lib/dscos-updates/state.json'
     try { fs.mkdirSync('/var/lib/dscos-updates', { recursive: true }) } catch {}
     const sw = switchRelease({ appDir, staging, backup })
-    if (!sw.ok) { err(ctx, `switch failed: ${sw.error}`); return 1 }
+    if (!sw.ok) { err(ctx, `switch failed: ${sw.error}`); releaseLock(); return 1 }
     try { fs.writeFileSync(statePath, JSON.stringify({ lastBackup: backup, lastVersion: version }, null, 2)) } catch {}
     // restart + health
     const rr = execCmd('systemctl', ['restart', APP_SERVICE])
@@ -490,6 +510,7 @@ async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number>
       rollbackRelease({ appDir, backup })
       execCmd('systemctl', ['restart', APP_SERVICE])
       err(ctx, `restart failed; rolled back: ${rr.stderr}`)
+      releaseLock()
       return 1
     }
     // health check
@@ -504,11 +525,13 @@ async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number>
       rollbackRelease({ appDir, backup })
       execCmd('systemctl', ['restart', APP_SERVICE])
       err(ctx, 'health check failed; rolled back')
+      releaseLock()
       return 1
     }
     // update installer version
     try { fs.writeFileSync('/etc/kiosk/installer.version', '2.0') } catch {}
     out(ctx, `updated to ${version}`)
+    releaseLock()
     return 0
   }
   if (sub === 'rollback') {
