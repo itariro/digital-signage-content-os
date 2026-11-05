@@ -20,6 +20,20 @@ export function isUpdateAvailable(current: string, latest: string): boolean {
   return compareVersions(latest, current) > 0
 }
 
+export interface ReleaseInfo { tag: string; version: string; assetUrl: string | null; assetName: string | null }
+
+export function parseLatestRelease(json: any): ReleaseInfo {
+  const tag = String(json?.tag_name ?? '')
+  const version = tag.replace(/^v/, '')
+  const assets = Array.isArray(json?.assets) ? json.assets : []
+  const asset = assets.find((a: any) => typeof a?.name === 'string' && /^dscos-.*\.tar\.gz$/.test(a.name)) || null
+  return { tag, version, assetUrl: asset?.browser_download_url ?? null, assetName: asset?.name ?? null }
+}
+
+export function isUpdateAvailableFor(currentApp: string, currentInstaller: string, latest: string): boolean {
+  return compareVersions(latest, currentApp) > 0 || compareVersions(latest, currentInstaller) > 0
+}
+
 export type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'validating' | 'staging' | 'switching' | 'done' | 'failed' | 'rolled-back'
 
 export interface UpdateState {

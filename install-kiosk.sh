@@ -1052,6 +1052,37 @@ SVC_EOF
     systemctl enable dscos.service
 }
 
+t_write_update_timer() {
+    cat > /etc/systemd/system/kiosk-update.service <<'SVC_EOF'
+[Unit]
+Description=Digital Signage Kiosk auto-update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kiosk update apply --yes
+SVC_EOF
+    cat > /etc/systemd/system/kiosk-update.timer <<'TIMER_EOF'
+[Unit]
+Description=Daily kiosk update check
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=kiosk-update.service
+[Install]
+WantedBy=timers.target
+TIMER_EOF
+    systemctl daemon-reload
+    systemctl enable --now kiosk-update.timer || true
+}
+
+t_write_installer_version() {
+    echo "${INSTALLER_VERSION}" > /etc/kiosk/installer.version
+    chown root:kiosk /etc/kiosk/installer.version 2>/dev/null || true
+    chmod 0644 /etc/kiosk/installer.version
+}
+
 t_write_standby_scripts() {
     cat > /usr/local/bin/kiosk-standby-on <<'ON_EOF'
 #!/bin/sh
@@ -1422,6 +1453,8 @@ task "Deploying application" t_deploy_app
 task "Enrolling frame" t_enroll_frame
 task "Building application" t_build_app
 task "Configuring application service" t_write_app_service
+task "Configuring update timer" t_write_update_timer
+task "Writing installer version" t_write_installer_version
 task "Configuring standby scripts" t_write_standby_scripts
 step_end
 

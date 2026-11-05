@@ -330,9 +330,11 @@ probe; they are not yet wired to the service's environment.
 ### Updates
 
 ```text
-kiosk update check                       Channel and version report
-kiosk update apply [--version V]         Not yet supported
-kiosk update rollback                    Not yet supported
+kiosk update check                       Check GitHub releases for updates
+kiosk update apply [--version V] [--yes] Download and apply an update
+kiosk update rollback                    Roll back to last known good
+kiosk update enable|disable              Toggle daily auto-update timer
+kiosk update status                      Show auto-update timer status
 ```
 
 Version comparison logic exists (`lib/kiosk/updates.ts`), but no update

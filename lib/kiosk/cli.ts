@@ -2,7 +2,8 @@ import { defaultConfig, configFromJson, configToJson, validateConfig, setConfigV
 import { isInStandbyWindow, nextTransition, validateSchedule } from './schedule'
 import { evaluateHealth } from './health'
 import { planSync, redactEndpoint } from './sync'
-import { compareVersions, isUpdateAvailable } from './updates'
+import { compareVersions, isUpdateAvailable, isUpdateAvailableFor } from './updates'
+import { fetchLatestRelease, switchRelease, rollbackRelease, stagingDir, backupDir, validateStaging } from './updater'
 import { parseOsRelease, isSupportedDebian, checkPrerequisites, formatBytes } from './device'
 
 export function configPath(): string { return process.env.KIOSK_CONFIG_PATH || '/etc/kiosk/kiosk.conf' }
@@ -373,17 +374,84 @@ async function cmdStandby(ctx: Ctx, sub: string, args: string[]): Promise<number
 
 async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   const config: any = readConfig(ctx)
-  if (sub === 'check') {
-    out(ctx, JSON.stringify({ channel: config.updateChannel, current: 'unknown', latest: 'unknown', updateAvailable: false, note: 'update server not configured' }, null, 2))
+  if (sub === 'check' || sub === 'status') {
+    let latest = 'unknown'
+    let updateAvailable = false
+    let assetUrl: string | null = null
+    try {
+      const info = await fetchLatestRelease(globalThis.fetch)
+      latest = info.version
+      assetUrl = info.assetUrl
+      const appVersion = ((): string => {
+        const fs = require('node:fs')
+        const paths = [process.env.DSCOS_APP_DIR ? `${process.env.DSCOS_APP_DIR}/package.json` : null, '/opt/dscos/package.json']
+        for (const p of paths) { if (!p) continue; try { const pkg = JSON.parse(fs.readFileSync(p, 'utf8')); if (pkg?.version) return pkg.version } catch {} }
+        return 'unknown'
+      })()
+      const installerVersion = (() => { try { return require('node:fs').readFileSync('/etc/kiosk/installer.version', 'utf8').trim() } catch { return '2.0' } })()
+      updateAvailable = isUpdateAvailableFor(appVersion, installerVersion, latest)
+    } catch (e: unknown) {
+      err(ctx, `update check failed: ${e instanceof Error ? e.message : String(e)}`)
+      return 1
+    }
+    const payload = { channel: config.updateChannel, latest, updateAvailable, assetUrl }
+    if (ctx.json) out(ctx, JSON.stringify(payload, null, 2))
+    else out(ctx, `latest: ${latest}  updateAvailable: ${updateAvailable}`)
+    return 0
+  }
+  if (sub === 'enable') {
+    execCmd('systemctl', ['enable', '--now', 'kiosk-update.timer'])
+    out(ctx, 'auto-update enabled')
+    return 0
+  }
+  if (sub === 'disable') {
+    execCmd('systemctl', ['disable', '--now', 'kiosk-update.timer'])
+    out(ctx, 'auto-update disabled')
     return 0
   }
   if (sub === 'apply') {
-    err(ctx, 'update apply is not supported in this environment (no update server configured)')
-    return 1
+    const versionIdx = args.indexOf('--version')
+    const targetVersion = versionIdx >= 0 ? args[versionIdx + 1] : null
+    if (!ctx.yes) {
+      // allow non-interactive cron; manual without --yes prompts
+      if (process.stdin.isTTY) { err(ctx, 'apply requires --yes (or run non-interactively)'); return 2 }
+    }
+    let info: any
+    try { info = await fetchLatestRelease(globalThis.fetch) } catch (e: unknown) { err(ctx, `fetch failed: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+    const version = targetVersion || info.version
+    const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
+    const staging = stagingDir(version)
+    const backup = backupDir(version)
+    // download
+    const fs = require('node:fs')
+    const path = require('node:path')
+    fs.mkdirSync(staging, { recursive: true })
+    if (info.assetUrl) {
+      try {
+        const res = await globalThis.fetch(info.assetUrl)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const buf = Buffer.from(await res.arrayBuffer())
+        fs.writeFileSync(path.join(staging, 'release.tar.gz'), buf)
+      } catch (e: unknown) { err(ctx, `download failed: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+    }
+    if (!validateStaging(staging)) {
+      err(ctx, 'staging validation failed (missing package.json/.next)')
+      return 1
+    }
+    const sw = switchRelease({ appDir, staging, backup })
+    if (!sw.ok) { err(ctx, `switch failed: ${sw.error}`); return 1 }
+    execCmd('systemctl', ['restart', APP_SERVICE])
+    out(ctx, `updated to ${version}`)
+    return 0
   }
   if (sub === 'rollback') {
-    err(ctx, 'rollback is not supported in this environment (no update server configured)')
-    return 1
+    const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
+    const backup = backupDir('last-known-good')
+    const rb = rollbackRelease({ appDir, backup })
+    if (!rb.ok) { err(ctx, `rollback failed: ${rb.error}`); return 1 }
+    execCmd('systemctl', ['restart', APP_SERVICE])
+    out(ctx, 'rolled back')
+    return 0
   }
   err(ctx, `unknown update subcommand: ${sub}`)
   return 2
