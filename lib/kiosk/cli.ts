@@ -2,7 +2,28 @@ import { defaultConfig, configFromJson, configToJson, validateConfig, setConfigV
 import { isInStandbyWindow, nextTransition, validateSchedule } from './schedule'
 import { evaluateHealth } from './health'
 import { planSync, redactEndpoint } from './sync'
-import { compareVersions, isUpdateAvailable } from './updates'
+import { compareVersions, isUpdateAvailable, isUpdateAvailableFor } from './updates'
+import {
+  fetchLatestRelease,
+  switchRelease,
+  rollbackRelease,
+  stagingDir,
+  backupDir,
+  validateStaging,
+  acquireUpdateLock,
+  lockFile,
+  stateFile,
+  readAppVersion,
+  readInstallerVersion,
+  parseInstallerVersion,
+  installerVersionFile,
+  runtimeBackupDir,
+  runtimeFiles,
+  backupRuntimeFiles,
+  restoreRuntimeFiles,
+  isRuntimeBackupIncomplete,
+  markRuntimeBackupComplete,
+} from './updater'
 import { parseOsRelease, isSupportedDebian, checkPrerequisites, formatBytes } from './device'
 
 export function configPath(): string { return process.env.KIOSK_CONFIG_PATH || '/etc/kiosk/kiosk.conf' }
@@ -124,14 +145,25 @@ function writeConfig(ctx: Ctx, config: any): void {
   fs.writeFileSync(p, content, { mode: 0o600 })
 }
 
-function execCmd(cmd: string, args: string[]): { status: number; stdout: string; stderr: string } {
+interface ExecOpts {
+  timeoutMs?: number
+  env?: NodeJS.ProcessEnv
+}
+function execCmd(cmd: string, args: string[], opts: ExecOpts = {}): { status: number; stdout: string; stderr: string } {
   const cp = require('node:child_process')
   try {
-    const r = cp.spawnSync(cmd, args, { encoding: 'utf8', timeout: 30000 })
+    const r = cp.spawnSync(cmd, args, {
+      encoding: 'utf8',
+      timeout: opts.timeoutMs ?? 30000,
+      env: opts.env,
+    })
     return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
   } catch (e: any) {
     return { status: 1, stdout: '', stderr: String(e) }
   }
+}
+function execCmdLong(cmd: string, args: string[], opts: ExecOpts = {}): { status: number; stdout: string; stderr: string } {
+  return execCmd(cmd, args, { ...opts, timeoutMs: opts.timeoutMs ?? 600000 })
 }
 
 function helpText(): string {
@@ -174,8 +206,10 @@ standby:
 
 update:
   update check                                Check for updates
-  update apply [--version V]                  Apply an update
+  update apply [--version V] [--yes]           Apply an update
   update rollback                             Roll back to last known good
+  update enable|disable                       Toggle the daily update timer
+  update status                               Show timer state and last run
 
 sync:
   sync status                                 Show sync status
@@ -371,19 +405,395 @@ async function cmdStandby(ctx: Ctx, sub: string, args: string[]): Promise<number
   return 2
 }
 
+function restartAndCheckHealth(config: any): { ok: boolean; error?: string } {
+  const rr = execCmd('systemctl', ['restart', APP_SERVICE])
+  if (rr.status !== 0) return { ok: false, error: `restart failed: ${rr.stderr || rr.status}` }
+  for (let i = 0; i < 10; i++) {
+    const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
+    const code = parseInt(hr.stdout.trim(), 10)
+    if (code >= 200 && code < 300) return { ok: true }
+    execCmd('sleep', ['2'])
+  }
+  return { ok: false, error: 'health check failed' }
+}
+
+function readUpdateState(): any {
+  try {
+    return JSON.parse(require('node:fs').readFileSync(stateFile(), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function writeUpdateState(state: Record<string, unknown>): void {
+  const fs = require('node:fs')
+  const path = require('node:path')
+  const p = stateFile()
+  fs.mkdirSync(path.dirname(p), { recursive: true })
+  fs.writeFileSync(p, JSON.stringify(state, null, 2))
+}
+
+function restoreRuntimeSnapshot(snapshot: string | null): string | null {
+  if (!snapshot) return null
+  const result = restoreRuntimeFiles(snapshot)
+  if (!result.ok) return result.error ?? 'runtime restore failed'
+  const reload = execCmd('systemctl', ['daemon-reload'])
+  if (reload.status !== 0) return `daemon-reload failed: ${reload.stderr || reload.status}`
+  return null
+}
+
+function discardRuntimeSnapshot(snapshot: string | null): void {
+  if (!snapshot) return
+  try { require('node:fs').rmSync(snapshot, { recursive: true, force: true }) } catch {}
+}
+
+// Put the previous app and runtime back after a post-switch failure. The
+// caller reports the original error; this returns why recovery itself failed,
+// if it did.
+function restorePreviousCheckout(opts: {
+  appDir: string
+  backup: string
+  currentVersion: string
+  runtimeSnapshot: string | null
+  config: any
+}): { ok: boolean; error?: string } {
+  const rollback = rollbackRelease({ appDir: opts.appDir, backup: opts.backup })
+  // Keep the new app with its matching runtime if the app move fails. The
+  // state still points at both backups, so `update rollback` can retry.
+  if (!rollback.ok) return { ok: false, error: `rollback failed: ${rollback.error}` }
+  const runtimeError = restoreRuntimeSnapshot(opts.runtimeSnapshot)
+  const health = restartAndCheckHealth(opts.config)
+  if (runtimeError) {
+    // The app is back but its helpers are not. Keep the snapshot recorded so
+    // `update rollback` can finish restoring them.
+    try {
+      writeUpdateState({
+        lastBackup: null,
+        runtimeBackup: opts.runtimeSnapshot,
+        installedVersion: opts.currentVersion,
+      })
+    } catch {}
+    return { ok: false, error: `runtime restore failed: ${runtimeError} (snapshot: ${opts.runtimeSnapshot})` }
+  }
+  try { writeUpdateState({ lastBackup: null, installedVersion: opts.currentVersion }) } catch {}
+  discardRuntimeSnapshot(opts.runtimeSnapshot)
+  if (!health.ok) return { ok: false, error: 'rolled back but restored app failed its health check' }
+  return { ok: true }
+}
+
+async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<number> {
+  const versionIdx = args.indexOf('--version')
+  const targetVersion = versionIdx >= 0 ? args[versionIdx + 1] : null
+  if (versionIdx >= 0 && !targetVersion) {
+    err(ctx, '--version requires a value')
+    return 2
+  }
+  if (!ctx.yes && process.stdin.isTTY) {
+    err(ctx, 'apply requires --yes (or run non-interactively)')
+    return 2
+  }
+
+  let info: any
+  try {
+    info = await fetchLatestRelease(globalThis.fetch, targetVersion || undefined)
+  } catch (e: unknown) {
+    err(ctx, `fetch failed: ${e instanceof Error ? e.message : String(e)}`)
+    return 1
+  }
+  const version = targetVersion || info.version
+  if (!version || version === 'unknown') {
+    err(ctx, 'could not resolve release version')
+    return 1
+  }
+
+  const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
+  const currentVersion = readAppVersion(appDir)
+  if (currentVersion === version) {
+    out(ctx, `already up to date (${version})`)
+    return 0
+  }
+
+  const fs = require('node:fs')
+  const path = require('node:path')
+  const staging = stagingDir(version)
+  const backup = backupDir(version)
+
+  // Never trust pre-existing staging, even though its parent is root-owned.
+  try { fs.rmSync(staging, { recursive: true, force: true }) } catch {}
+  fs.mkdirSync(staging, { recursive: true })
+
+  const tarPath = path.join(staging, 'release.tar.gz')
+  if (!info.assetUrl) {
+    err(ctx, 'no release asset found')
+    return 1
+  }
+  try {
+    const res = await globalThis.fetch(info.assetUrl)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const buf = Buffer.from(await res.arrayBuffer())
+    fs.writeFileSync(tarPath, buf)
+  } catch (e: unknown) {
+    err(ctx, `download failed: ${e instanceof Error ? e.message : String(e)}`)
+    return 1
+  }
+
+  const ex = execCmd('tar', ['-xzf', tarPath, '-C', staging])
+  if (ex.status !== 0) {
+    err(ctx, `extract failed: ${ex.stderr}`)
+    return 1
+  }
+  fs.rmSync(tarPath, { force: true })
+
+  // Releases exclude node_modules; install them before touching the live app.
+  if (!fs.existsSync(path.join(staging, 'node_modules'))) {
+    const r = execCmdLong('pnpm', ['install', '--frozen-lockfile', '--dir', staging])
+    if (r.status !== 0) {
+      err(ctx, `dependency install failed: ${r.stderr}`)
+      return 1
+    }
+  }
+  if (!validateStaging(staging, version)) {
+    err(ctx, 'staging validation failed (missing package.json/.next/node_modules/lib or version mismatch)')
+    return 1
+  }
+
+  // Refresh installed helpers and unit files from the release's installer.
+  // This preserves /etc/kiosk/kiosk.conf and /etc/dscos/frame.env.
+  const downloadedInstaller = path.join(staging, 'install-kiosk.sh')
+  const nextInstallerVersion = parseInstallerVersion(downloadedInstaller)
+  if (!nextInstallerVersion) {
+    err(ctx, 'release installer has no readable INSTALLER_VERSION')
+    return 1
+  }
+
+  // Save every helper the installer is about to replace. The union of the
+  // known list and the release installer's own list covers files that either
+  // side adds or drops.
+  const previousInstallerVersion = readInstallerVersion()
+  const runtimeSnapshot = runtimeBackupDir(version)
+  // An earlier attempt for this version may have stopped during
+  // --update-runtime. Put its clean snapshot back before taking a new one, or
+  // the retry would save half-updated helpers as the rollback target. A
+  // snapshot without the marker belongs to a finished update and is only a
+  // rollback target, so leave the current helpers alone.
+  if (isRuntimeBackupIncomplete(runtimeSnapshot)) {
+    const recovered = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (recovered) {
+      err(ctx, `could not recover the interrupted update: ${recovered}`)
+      return 1
+    }
+  }
+  const runtimeFileList = new Set(runtimeFiles())
+  const listed = execCmd('bash', [downloadedInstaller, '--runtime-files'])
+  if (listed.status === 0) {
+    for (const line of listed.stdout.split('\n')) {
+      const file = line.trim()
+      if (file) runtimeFileList.add(file)
+    }
+  }
+  const savedRuntime = backupRuntimeFiles([...runtimeFileList], runtimeSnapshot)
+  if (!savedRuntime.ok) {
+    err(ctx, `could not save runtime files: ${savedRuntime.error}`)
+    return 1
+  }
+
+  const r = execCmd('bash', [downloadedInstaller, '--update-runtime', '--yes'], {
+    timeoutMs: 120000,
+    env: { ...process.env, KIOSK_RUNTIME_UPDATE: '1', DSCOS_APP_DIR: appDir },
+  })
+  if (r.status !== 0) {
+    const restoreError = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (restoreError) {
+      err(ctx, `runtime update failed: ${r.stderr || r.status}; runtime restore failed: ${restoreError} (snapshot: ${runtimeSnapshot})`)
+    } else {
+      discardRuntimeSnapshot(runtimeSnapshot)
+      err(ctx, `runtime update failed; previous runtime restored: ${r.stderr || r.status}`)
+    }
+    return 1
+  }
+
+  const sw = switchRelease({ appDir, staging, backup, expectedVersion: version })
+  if (!sw.ok) {
+    const restoreError = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (restoreError) {
+      err(ctx, `switch failed: ${sw.error}; runtime restore failed: ${restoreError} (snapshot: ${runtimeSnapshot})`)
+    } else {
+      discardRuntimeSnapshot(runtimeSnapshot)
+      err(ctx, `switch failed: ${sw.error}; previous runtime restored`)
+    }
+    return 1
+  }
+
+  try {
+    writeUpdateState({
+      lastBackup: backup,
+      runtimeBackup: runtimeSnapshot,
+      previousVersion: currentVersion,
+      installedVersion: version,
+      previousInstallerVersion,
+      installerVersion: nextInstallerVersion,
+    })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e)
+    const recovery = restorePreviousCheckout({ appDir, backup, currentVersion, runtimeSnapshot, config })
+    err(ctx, `could not record update state: ${message}; ${recovery.ok ? `rolled back to ${currentVersion}` : recovery.error}`)
+    return 1
+  }
+
+  const health = restartAndCheckHealth(config)
+  if (!health.ok) {
+    const recovery = restorePreviousCheckout({ appDir, backup, currentVersion, runtimeSnapshot, config })
+    err(ctx, `${health.error}; ${recovery.ok ? `rolled back to ${currentVersion}` : recovery.error}`)
+    return 1
+  }
+
+  if (nextInstallerVersion) {
+    try {
+      fs.mkdirSync(path.dirname(installerVersionFile()), { recursive: true })
+      fs.writeFileSync(installerVersionFile(), `${nextInstallerVersion}\n`, { mode: 0o644 })
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e)
+      const recovery = restorePreviousCheckout({ appDir, backup, currentVersion, runtimeSnapshot, config })
+      err(ctx, `could not record installer version: ${message}; ${recovery.ok ? `rolled back to ${currentVersion}` : recovery.error}`)
+      return 1
+    }
+  }
+  // The update is complete, so the snapshot is now a finished rollback target
+  // rather than a possible half-refreshed helper set.
+  const finalized = markRuntimeBackupComplete(runtimeSnapshot)
+  if (!finalized.ok) {
+    err(ctx, `warning: could not finalize runtime backup: ${finalized.error}`)
+  }
+  out(ctx, `updated to ${version}`)
+  return 0
+}
+
+async function rollbackUpdate(ctx: Ctx, config: any): Promise<number> {
+  const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
+  const state = readUpdateState()
+  const backup = state?.lastBackup
+  const runtimeSnapshot = typeof state?.runtimeBackup === 'string' ? state.runtimeBackup : null
+  const previousVersion = state?.previousVersion ?? 'unknown'
+
+  // A failed apply can put the app back and then fail to restore helpers.
+  // Finish that recovery instead of claiming there is no backup.
+  if (!backup && runtimeSnapshot) {
+    const runtimeError = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (runtimeError) {
+      err(ctx, `runtime restore failed: ${runtimeError} (snapshot: ${runtimeSnapshot})`)
+      return 1
+    }
+    const health = restartAndCheckHealth(config)
+    writeUpdateState({ lastBackup: null, installedVersion: state?.installedVersion ?? 'unknown' })
+    discardRuntimeSnapshot(runtimeSnapshot)
+    if (!health.ok) {
+      err(ctx, `restored app failed: ${health.error}`)
+      return 1
+    }
+    out(ctx, 'rolled back')
+    return 0
+  }
+  if (!backup) {
+    err(ctx, 'no saved backup; nothing to roll back')
+    return 1
+  }
+
+  const rb = rollbackRelease({ appDir, backup })
+  if (!rb.ok) {
+    err(ctx, `rollback failed: ${rb.error}`)
+    return 1
+  }
+  const runtimeError = restoreRuntimeSnapshot(runtimeSnapshot)
+  const health = restartAndCheckHealth(config)
+  const fs = require('node:fs')
+  if (state?.previousInstallerVersion && state.previousInstallerVersion !== 'unknown') {
+    try { fs.writeFileSync(installerVersionFile(), `${state.previousInstallerVersion}\n`, { mode: 0o644 }) } catch {}
+  }
+  if (runtimeError) {
+    // The app is back but the helpers still need restoring. Keep the snapshot
+    // recorded so a later rollback can finish the job.
+    try {
+      writeUpdateState({ lastBackup: null, runtimeBackup: runtimeSnapshot, installedVersion: previousVersion })
+    } catch {}
+    err(ctx, `app rolled back, but runtime restore failed: ${runtimeError} (snapshot: ${runtimeSnapshot})`)
+    return 1
+  }
+  writeUpdateState({ lastBackup: null, installedVersion: previousVersion })
+  discardRuntimeSnapshot(runtimeSnapshot)
+  if (!health.ok) {
+    err(ctx, `restored app failed: ${health.error}`)
+    return 1
+  }
+  out(ctx, 'rolled back')
+  return 0
+}
+
 async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   const config: any = readConfig(ctx)
+  const configErrors = validateConfig(config)
+  if (configErrors.length) {
+    if (ctx.json) out(ctx, JSON.stringify({ configErrors }, null, 2))
+    else for (const e of configErrors) err(ctx, `${e.field}: ${e.message}`)
+    return 1
+  }
+  if (sub === 'status') {
+    const active = execCmd('systemctl', ['is-active', 'kiosk-update.timer']).stdout.trim() === 'active'
+    const enabled = execCmd('systemctl', ['is-enabled', 'kiosk-update.timer']).stdout.trim() === 'enabled'
+    const last = execCmd('systemctl', ['show', 'kiosk-update.timer', '--property=LastTriggerUSec', '--value'])
+    const payload = { timerActive: active, timerEnabled: enabled, lastTrigger: last.stdout.trim() || 'never' }
+    if (ctx.json) out(ctx, JSON.stringify(payload, null, 2))
+    else out(ctx, `timer: ${active ? 'active' : 'inactive'}  enabled: ${enabled ? 'yes' : 'no'}  last: ${payload.lastTrigger}`)
+    return 0
+  }
   if (sub === 'check') {
-    out(ctx, JSON.stringify({ channel: config.updateChannel, current: 'unknown', latest: 'unknown', updateAvailable: false, note: 'update server not configured' }, null, 2))
+    let latest = 'unknown'
+    let updateAvailable = false
+    let assetUrl: string | null = null
+    const appVersion = readAppVersion(process.env.DSCOS_APP_DIR || '/opt/dscos')
+    const installerVersion = readInstallerVersion()
+    try {
+      const info = await fetchLatestRelease(globalThis.fetch)
+      latest = info.version
+      assetUrl = info.assetUrl
+      updateAvailable = isUpdateAvailableFor(appVersion, installerVersion, latest)
+    } catch (e: unknown) {
+      err(ctx, `update check failed: ${e instanceof Error ? e.message : String(e)}`)
+      return 1
+    }
+    const payload = { channel: config.updateChannel, current: appVersion, installerVersion, latest, updateAvailable, assetUrl }
+    if (ctx.json) out(ctx, JSON.stringify(payload, null, 2))
+    else out(ctx, updateAvailable ? `latest: ${latest}  update available` : `already up to date (${latest})`)
+    return 0
+  }
+  if (sub === 'enable') {
+    const r = execCmd('systemctl', ['enable', '--now', 'kiosk-update.timer'])
+    if (r.status !== 0) { err(ctx, r.stderr || 'failed to enable timer'); return r.status || 1 }
+    out(ctx, 'auto-update enabled')
+    return 0
+  }
+  if (sub === 'disable') {
+    const r = execCmd('systemctl', ['disable', '--now', 'kiosk-update.timer'])
+    if (r.status !== 0) { err(ctx, r.stderr || 'failed to disable timer'); return r.status || 1 }
+    out(ctx, 'auto-update disabled')
     return 0
   }
   if (sub === 'apply') {
-    err(ctx, 'update apply is not supported in this environment (no update server configured)')
-    return 1
+    const lock = await acquireUpdateLock(lockFile())
+    if (!lock) { err(ctx, 'another update is already running'); return 1 }
+    try {
+      return await applyUpdate(ctx, args, config)
+    } finally {
+      lock.release()
+    }
   }
   if (sub === 'rollback') {
-    err(ctx, 'rollback is not supported in this environment (no update server configured)')
-    return 1
+    const lock = await acquireUpdateLock(lockFile())
+    if (!lock) { err(ctx, 'another update is already running'); return 1 }
+    try {
+      return await rollbackUpdate(ctx, config)
+    } finally {
+      lock.release()
+    }
   }
   err(ctx, `unknown update subcommand: ${sub}`)
   return 2
@@ -500,7 +910,8 @@ async function cmdVersion(ctx: Ctx): Promise<number> {
       if (pkg?.version) { appVersion = pkg.version; break }
     } catch { /* try next */ }
   }
-  const installerVersion = '2.0'
+  const storedInstallerVersion = readInstallerVersion()
+  const installerVersion = storedInstallerVersion === 'unknown' ? '2.0' : storedInstallerVersion
   const osRelease = fs.existsSync('/etc/os-release') ? fs.readFileSync('/etc/os-release', 'utf8') : ''
   const osPretty = (osRelease.match(/^PRETTY_NAME=(.*)$/m)?.[1] || '').replace(/^"|"$/g, '') || 'unknown'
   const info = { appVersion, installerVersion, os: osPretty }
@@ -551,12 +962,18 @@ async function cmdUninstall(ctx: Ctx): Promise<number> {
     const r = execCmd(cmd, args)
     if (r.status !== 0) failures.push(`${cmd} ${args.join(' ')}: ${r.stderr || r.status}`)
   }
+  run('systemctl', ['stop', 'kiosk-update.timer'])
+  run('systemctl', ['disable', 'kiosk-update.timer'])
+  // Stop a oneshot update that may already be running before files disappear.
+  run('systemctl', ['stop', 'kiosk-update.service'])
   run('systemctl', ['stop', APP_SERVICE])
   run('systemctl', ['disable', APP_SERVICE])
   run('systemctl', ['stop', KIOSK_SERVICE])
   run('systemctl', ['disable', KIOSK_SERVICE])
   const files = [
     '/etc/systemd/system/dscos.service',
+    '/etc/systemd/system/kiosk-update.service',
+    '/etc/systemd/system/kiosk-update.timer',
     '/etc/systemd/system/kiosk-standby-on.service',
     '/etc/systemd/system/kiosk-standby-on.timer',
     '/etc/systemd/system/kiosk-standby-off.service',
@@ -571,6 +988,7 @@ async function cmdUninstall(ctx: Ctx): Promise<number> {
   run('systemctl', ['daemon-reload'])
   try { fs.rmSync('/etc/kiosk', { recursive: true, force: true }) } catch (e: unknown) { failures.push(`/etc/kiosk: ${e instanceof Error ? e.message : String(e)}`) }
   try { fs.rmSync('/usr/local/lib/kiosk', { recursive: true, force: true }) } catch (e: unknown) { failures.push(`/usr/local/lib/kiosk: ${e instanceof Error ? e.message : String(e)}`) }
+  try { fs.rmSync('/var/lib/dscos-updates', { recursive: true, force: true }) } catch (e: unknown) { failures.push(`/var/lib/dscos-updates: ${e instanceof Error ? e.message : String(e)}`) }
   run('userdel', ['-r', 'kiosk'])
   if (failures.length) {
     for (const f of failures) err(ctx, f)

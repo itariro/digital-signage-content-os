@@ -330,16 +330,35 @@ probe; they are not yet wired to the service's environment.
 ### Updates
 
 ```text
-kiosk update check                       Channel and version report
-kiosk update apply [--version V]         Not yet supported
-kiosk update rollback                    Not yet supported
+kiosk update check                       Check GitHub releases for updates
+kiosk update apply [--version V] [--yes] Download and apply an update
+kiosk update rollback                    Roll back to last known good
+kiosk update enable|disable              Toggle daily auto-update timer
+kiosk update status                      Show auto-update timer status
 ```
 
-Version comparison logic exists (`lib/kiosk/updates.ts`), but no update
-server is wired up, so `apply` and `rollback` exit with an explicit
-"not supported" error. Today's upgrade path is the source refresh described
-in "Choosing the installed version". The design intent is that a failed
-update never destroys the last known good version.
+`apply` verifies the staged app and its version, snapshots the installed
+runtime helpers and unit files, refreshes them, switches `/opt/dscos`,
+restarts `dscos`, and checks `/api/health`. If the helper install, the switch,
+the state write, the restart, or the health check fails, it restores both the
+previous app and the previous runtime files. `rollback` restores the app and
+runtime backup saved by the last successful apply and health-checks them.
+Backups live under `/var/lib/dscos-updates/backup/` and
+`/var/lib/dscos-updates/runtime-backup/`, and update state is in
+`/var/lib/dscos-updates/state.json`.
+
+An apply that stops during the runtime refresh leaves its snapshot marked
+incomplete. The next apply restores that snapshot before it takes a new one, so
+a retry never saves partly replaced helpers as the rollback target. Snapshots
+from finished updates are kept for rollback but are not restored. If recovery
+cannot move the old app back, or cannot restore the helpers, the backup and
+snapshot stay recorded in `state.json`; `kiosk update rollback` resumes from
+where recovery stopped.
+
+The update lock is an OS-held SQLite lock at
+`/var/lib/dscos-updates/lock.db`. The kernel releases it when the update
+process exits, so an interrupted update does not block the next manual or
+scheduled run.
 
 ### Device
 
@@ -354,11 +373,12 @@ command on a machine that may have no keyboard attached.
 
 ## Low-level session helper: `kiosk-ctl`
 
-`kiosk uninstall --yes` now removes services, units, config, and the kiosk
-user. To take a frame back manually: stop and disable
-`dscos.service`, the two standby timer units, `lightdm`, delete
-`/etc/kiosk`, `/usr/local/bin/kiosk`, `/usr/local/bin/kiosk-ctl`,
-`/usr/local/lib/kiosk`, `/etc/chromium/policies/managed/kiosk.json`,
+`kiosk uninstall --yes` now removes services, update timer units, config, and
+the kiosk user. To take a frame back manually: stop and disable
+`dscos.service`, `kiosk-update.timer`, the two standby timer units,
+`lightdm`, delete `/etc/kiosk`, `/usr/local/bin/kiosk`,
+`/usr/local/bin/kiosk-ctl`, `/usr/local/lib/kiosk`,
+`/etc/chromium/policies/managed/kiosk.json`, `/var/lib/dscos-updates`,
 `/opt/dscos`, and the `kiosk` user.
 
 For browser-session problems that the `kiosk` CLI does not cover:

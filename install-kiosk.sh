@@ -30,6 +30,8 @@
 #   -n, --dry-run          preview the installer UI; changes nothing, needs no root
 #       --plain            no colours, spinners or screen clearing (auto in pipes)
 #       --fast             no pacing delays between steps
+#       --update-runtime   refresh installed helpers and unit files only
+#       --runtime-files    print the files that --update-runtime replaces
 #   -h, --help             show this help
 #
 # After installation, settings live in /etc/kiosk/kiosk.conf; change them and
@@ -49,6 +51,21 @@ readonly LIB_DIR="/usr/local/lib/kiosk"
 readonly DEFAULT_LOG="/var/log/kiosk-install.log"
 readonly MIN_FREE_KB=1500000
 readonly MIN_RAM_KB=1000000
+
+# Files replaced by --update-runtime. Keep in sync with t_install_cli,
+# t_write_session, t_write_ctl, t_xsession, t_write_app_service,
+# t_write_update_timer and t_write_standby_scripts.
+RUNTIME_FILES=(
+    /usr/local/bin/kiosk
+    "${LIB_DIR}/session.sh"
+    /usr/local/bin/kiosk-ctl
+    /usr/share/xsessions/kiosk.desktop
+    /etc/systemd/system/dscos.service
+    /etc/systemd/system/kiosk-update.service
+    /etc/systemd/system/kiosk-update.timer
+    /usr/local/bin/kiosk-standby-on
+    /usr/local/bin/kiosk-standby-off
+)
 
 # UI state (defaults keep die()/usage() usable before the UI is initialised)
 UI_LIVE=0; USE_COLOR=0; C_MODE=none; UTF8=0; FANCY=0
@@ -106,6 +123,8 @@ YES=0
 REBOOT=0
 DRY=0
 PLAIN=0
+UPDATE_RUNTIME=0
+PRINT_RUNTIME_FILES=0
 
 while (($#)); do
     case "$1" in
@@ -124,11 +143,18 @@ while (($#)); do
         -n|--dry-run)       DRY=1; shift ;;
         --plain)            PLAIN=1; shift ;;
         --fast)             PACE_MS=0; shift ;;
+        --update-runtime)   UPDATE_RUNTIME=1; shift ;;
+        --runtime-files)    PRINT_RUNTIME_FILES=1; shift ;;
         -h|--help)          usage; exit 0 ;;
         -*)                 die "unknown option: $1 (see --help)" ;;
         *)                  [[ -z $URL ]] || die "unexpected extra argument: $1"; URL=$1; shift ;;
     esac
 done
+
+if (( PRINT_RUNTIME_FILES )); then
+    printf '%s\n' "${RUNTIME_FILES[@]}"
+    exit 0
+fi
 
 url_re='^(https?://|file:///)[^[:space:]]+$'
 if [[ -z $URL ]]; then URL='http://127.0.0.1:3000/frame/home'; fi
@@ -148,6 +174,9 @@ fi
 if (( ! DRY )); then
     [[ $EUID -eq 0 ]] || die "run as root: sudo bash $0 ${URL}"
     [[ -z $TZ_NAME ]] || [[ -f /usr/share/zoneinfo/$TZ_NAME ]] || die "unknown timezone: $TZ_NAME"
+fi
+if (( UPDATE_RUNTIME && DRY )); then
+    die "--update-runtime cannot be combined with --dry-run"
 fi
 
 # ==========================================================================
@@ -1049,7 +1078,42 @@ SVC_EOF
     mkdir -p /var/lib/dscos/data
     chown -R kiosk:kiosk /var/lib/dscos
     systemctl daemon-reload
-    systemctl enable dscos.service
+    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
+        systemctl enable dscos.service
+    fi
+}
+
+t_write_update_timer() {
+    cat > /etc/systemd/system/kiosk-update.service <<'SVC_EOF'
+[Unit]
+Description=Digital Signage Kiosk auto-update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kiosk update apply --yes
+SVC_EOF
+    cat > /etc/systemd/system/kiosk-update.timer <<'TIMER_EOF'
+[Unit]
+Description=Daily kiosk update check
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=kiosk-update.service
+[Install]
+WantedBy=timers.target
+TIMER_EOF
+    systemctl daemon-reload
+    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
+        systemctl enable --now kiosk-update.timer || true
+    fi
+}
+
+t_write_installer_version() {
+    echo "${INSTALLER_VERSION}" > /etc/kiosk/installer.version
+    chown root:kiosk /etc/kiosk/installer.version 2>/dev/null || true
+    chmod 0644 /etc/kiosk/installer.version
 }
 
 t_write_standby_scripts() {
@@ -1297,6 +1361,21 @@ finish_screen() {
 # ==========================================================================
 # Main
 # ==========================================================================
+if (( UPDATE_RUNTIME )); then
+    # Reinstall only the generated runtime files. Settings in
+    # /etc/kiosk/kiosk.conf and /etc/dscos/frame.env stay untouched.
+    t_install_cli
+    t_write_session
+    t_write_ctl
+    t_xsession
+    t_write_app_service
+    t_write_update_timer
+    t_write_standby_scripts
+    systemctl daemon-reload
+    echo "kiosk runtime updated to ${INSTALLER_VERSION}"
+    exit 0
+fi
+
 if (( DRY )); then
     LOG=$(mktemp /tmp/kiosk-install-dryrun.XXXXXX)
 else
@@ -1422,6 +1501,8 @@ task "Deploying application" t_deploy_app
 task "Enrolling frame" t_enroll_frame
 task "Building application" t_build_app
 task "Configuring application service" t_write_app_service
+task "Configuring update timer" t_write_update_timer
+task "Writing installer version" t_write_installer_version
 task "Configuring standby scripts" t_write_standby_scripts
 step_end
 
