@@ -128,7 +128,7 @@ kiosk status            Service state plus full config (secrets redacted)
 kiosk doctor            Diagnostics: config validity, process, port, HTTP
 kiosk enroll            Pair the frame with the console (see "Pair the frame")
 kiosk password          Set the frame-local admin password (management-port mutations)
-kiosk uninstall --yes   Recorded but not implemented yet (see below)
+kiosk uninstall --yes   Remove kiosk services, config, and user (destructive)
 ```
 
 Global options: `--json` for machine-readable output (most commands already
@@ -354,8 +354,8 @@ command on a machine that may have no keyboard attached.
 
 ## Low-level session helper: `kiosk-ctl`
 
-`kiosk uninstall` currently acknowledges the request and exits; it does not
-yet remove services. To take a frame back manually: stop and disable
+`kiosk uninstall --yes` now removes services, units, config, and the kiosk
+user. To take a frame back manually: stop and disable
 `dscos.service`, the two standby timer units, `lightdm`, delete
 `/etc/kiosk`, `/usr/local/bin/kiosk`, `/usr/local/bin/kiosk-ctl`,
 `/usr/local/lib/kiosk`, `/etc/chromium/policies/managed/kiosk.json`,

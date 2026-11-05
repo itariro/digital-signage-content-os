@@ -325,8 +325,11 @@ async function cmdDevice(ctx: Ctx, sub: string, args: string[]): Promise<number>
 
 async function cmdStandby(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   const config: any = readConfig(ctx)
-  const _errs = validateConfig(config)
-  if (_errs.length) { if (ctx.json) out(ctx, JSON.stringify({ configErrors: _errs }, null, 2)); else for (const e of _errs) err(ctx, `${e.field}: ${e.message}`); return 1 }
+  const repairing = sub === 'schedule' && args[0] === 'set'
+  if (!repairing) {
+    const _errs = validateConfig(config)
+    if (_errs.length) { if (ctx.json) out(ctx, JSON.stringify({ configErrors: _errs }, null, 2)); else for (const e of _errs) err(ctx, `${e.field}: ${e.message}`); return 1 }
+  }
   if (sub === 'status') {
     const sched = config.standby
     const now = new Date()
@@ -486,10 +489,17 @@ async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number
 async function cmdVersion(ctx: Ctx): Promise<number> {
   const fs = require('node:fs')
   let appVersion = process.env.DSCOS_VERSION || 'unknown'
-  try {
-    const pkg = JSON.parse(fs.readFileSync('/opt/dscos/package.json', 'utf8'))
-    if (pkg?.version) appVersion = pkg.version
-  } catch { /* keep fallback */ }
+  const candidatePaths = [
+    process.env.DSCOS_APP_DIR ? `${process.env.DSCOS_APP_DIR}/package.json` : null,
+    require('node:path').join(__dirname, '..', '..', 'package.json'),
+    '/opt/dscos/package.json',
+  ].filter(Boolean) as string[]
+  for (const cp of candidatePaths) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(cp, 'utf8'))
+      if (pkg?.version) { appVersion = pkg.version; break }
+    } catch { /* try next */ }
+  }
   const installerVersion = '2.0'
   const osRelease = fs.existsSync('/etc/os-release') ? fs.readFileSync('/etc/os-release', 'utf8') : ''
   const osPretty = (osRelease.match(/^PRETTY_NAME=(.*)$/m)?.[1] || '').replace(/^"|"$/g, '') || 'unknown'
@@ -520,7 +530,10 @@ async function cmdReset(ctx: Ctx): Promise<number> {
   if (!ctx.yes) { err(ctx, 'reset requires --yes'); return 2 }
   const fs = require('node:fs')
   const p = configPath()
-  try { if (fs.existsSync(p)) fs.copyFileSync(p, p + '.bak') } catch {}
+  if (fs.existsSync(p)) {
+    try { fs.copyFileSync(p, p + '.bak') }
+    catch (e: unknown) { err(ctx, `could not back up config: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+  }
   writeConfig(ctx, defaultConfig())
   out(ctx, `config reset to defaults; backup at ${p}.bak`)
   return 0
@@ -528,18 +541,42 @@ async function cmdReset(ctx: Ctx): Promise<number> {
 
 async function cmdUninstall(ctx: Ctx): Promise<number> {
   if (process.platform !== 'linux') { err(ctx, 'uninstall only supported on Linux frames'); return 1 }
-  execCmd('systemctl', ['stop', APP_SERVICE])
-  execCmd('systemctl', ['disable', APP_SERVICE])
-  execCmd('systemctl', ['stop', KIOSK_SERVICE])
-  execCmd('systemctl', ['disable', KIOSK_SERVICE])
   const fs = require('node:fs')
-  for (const f of ['/etc/systemd/system/dscos.service','/etc/systemd/system/kiosk-standby-on.service','/etc/systemd/system/kiosk-standby-on.timer','/etc/systemd/system/kiosk-standby-off.service','/etc/systemd/system/kiosk-standby-off.timer']) {
-    try { fs.rmSync(f, { force: true }) } catch {}
+  if (typeof process.getuid === 'function' && process.getuid() !== 0) {
+    err(ctx, 'uninstall requires root privileges (run with sudo)')
+    return 1
   }
-  execCmd('systemctl', ['daemon-reload'])
-  try { fs.rmSync('/etc/kiosk', { recursive: true, force: true }) } catch {}
-  try { fs.rmSync('/usr/local/lib/kiosk', { recursive: true, force: true }) } catch {}
-  execCmd('userdel', ['-r', 'kiosk'])
+  const failures: string[] = []
+  const run = (cmd: string, args: string[]) => {
+    const r = execCmd(cmd, args)
+    if (r.status !== 0) failures.push(`${cmd} ${args.join(' ')}: ${r.stderr || r.status}`)
+  }
+  run('systemctl', ['stop', APP_SERVICE])
+  run('systemctl', ['disable', APP_SERVICE])
+  run('systemctl', ['stop', KIOSK_SERVICE])
+  run('systemctl', ['disable', KIOSK_SERVICE])
+  const files = [
+    '/etc/systemd/system/dscos.service',
+    '/etc/systemd/system/kiosk-standby-on.service',
+    '/etc/systemd/system/kiosk-standby-on.timer',
+    '/etc/systemd/system/kiosk-standby-off.service',
+    '/etc/systemd/system/kiosk-standby-off.timer',
+    '/etc/lightdm/lightdm.conf.d/50-kiosk.conf',
+    '/usr/share/xsessions/kiosk.desktop',
+    '/etc/chromium/policies/managed/kiosk.json',
+  ]
+  for (const f of files) {
+    try { fs.rmSync(f, { force: true }) } catch (e: unknown) { failures.push(`rm ${f}: ${e instanceof Error ? e.message : String(e)}`) }
+  }
+  run('systemctl', ['daemon-reload'])
+  try { fs.rmSync('/etc/kiosk', { recursive: true, force: true }) } catch (e: unknown) { failures.push(`/etc/kiosk: ${e instanceof Error ? e.message : String(e)}`) }
+  try { fs.rmSync('/usr/local/lib/kiosk', { recursive: true, force: true }) } catch (e: unknown) { failures.push(`/usr/local/lib/kiosk: ${e instanceof Error ? e.message : String(e)}`) }
+  run('userdel', ['-r', 'kiosk'])
+  if (failures.length) {
+    for (const f of failures) err(ctx, f)
+    err(ctx, `uninstall completed with ${failures.length} failure(s)`)
+    return 1
+  }
   out(ctx, 'kiosk uninstalled')
   return 0
 }
@@ -631,7 +668,7 @@ if (process.env.KIOSK_CLI_ENTRY === '1') {
     .then((r) => {
       if (r.stdout) process.stdout.write(r.stdout + '\n')
       if (r.stderr) process.stderr.write(r.stderr + '\n')
-      process.exit(r.exitCode)
+      process.exitCode = r.exitCode
     })
     .catch((e: unknown) => {
       console.error(e instanceof Error ? e.message : String(e))
