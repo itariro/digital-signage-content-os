@@ -30,6 +30,7 @@
 #   -n, --dry-run          preview the installer UI; changes nothing, needs no root
 #       --plain            no colours, spinners or screen clearing (auto in pipes)
 #       --fast             no pacing delays between steps
+#       --update-runtime   refresh installed helpers and unit files only
 #   -h, --help             show this help
 #
 # After installation, settings live in /etc/kiosk/kiosk.conf; change them and
@@ -106,6 +107,7 @@ YES=0
 REBOOT=0
 DRY=0
 PLAIN=0
+UPDATE_RUNTIME=0
 
 while (($#)); do
     case "$1" in
@@ -124,6 +126,7 @@ while (($#)); do
         -n|--dry-run)       DRY=1; shift ;;
         --plain)            PLAIN=1; shift ;;
         --fast)             PACE_MS=0; shift ;;
+        --update-runtime)   UPDATE_RUNTIME=1; shift ;;
         -h|--help)          usage; exit 0 ;;
         -*)                 die "unknown option: $1 (see --help)" ;;
         *)                  [[ -z $URL ]] || die "unexpected extra argument: $1"; URL=$1; shift ;;
@@ -148,6 +151,9 @@ fi
 if (( ! DRY )); then
     [[ $EUID -eq 0 ]] || die "run as root: sudo bash $0 ${URL}"
     [[ -z $TZ_NAME ]] || [[ -f /usr/share/zoneinfo/$TZ_NAME ]] || die "unknown timezone: $TZ_NAME"
+fi
+if (( UPDATE_RUNTIME && DRY )); then
+    die "--update-runtime cannot be combined with --dry-run"
 fi
 
 # ==========================================================================
@@ -1049,7 +1055,9 @@ SVC_EOF
     mkdir -p /var/lib/dscos/data
     chown -R kiosk:kiosk /var/lib/dscos
     systemctl daemon-reload
-    systemctl enable dscos.service
+    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
+        systemctl enable dscos.service
+    fi
 }
 
 t_write_update_timer() {
@@ -1074,7 +1082,9 @@ Unit=kiosk-update.service
 WantedBy=timers.target
 TIMER_EOF
     systemctl daemon-reload
-    systemctl enable --now kiosk-update.timer || true
+    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
+        systemctl enable --now kiosk-update.timer || true
+    fi
 }
 
 t_write_installer_version() {
@@ -1328,6 +1338,21 @@ finish_screen() {
 # ==========================================================================
 # Main
 # ==========================================================================
+if (( UPDATE_RUNTIME )); then
+    # Reinstall only the generated runtime files. Settings in
+    # /etc/kiosk/kiosk.conf and /etc/dscos/frame.env stay untouched.
+    t_install_cli
+    t_write_session
+    t_write_ctl
+    t_xsession
+    t_write_app_service
+    t_write_update_timer
+    t_write_standby_scripts
+    systemctl daemon-reload
+    echo "kiosk runtime updated to ${INSTALLER_VERSION}"
+    exit 0
+fi
+
 if (( DRY )); then
     LOG=$(mktemp /tmp/kiosk-install-dryrun.XXXXXX)
 else

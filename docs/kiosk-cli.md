@@ -335,17 +335,15 @@ kiosk update apply [--version V] [--yes] Download and apply an update
 kiosk update rollback                    Roll back to last known good
 kiosk update enable|disable              Toggle daily auto-update timer
 kiosk update status                      Show auto-update timer status
-
-Updates download a prebuilt release from GitHub, validate it, switch the app
-directory, and restart the service. On failure the previous app is restored
-automatically. Use `kiosk update rollback` to revert manually.
 ```
 
-Version comparison logic exists (`lib/kiosk/updates.ts`), but no update
-server is wired up, so `apply` and `rollback` exit with an explicit
-"not supported" error. Today's upgrade path is the source refresh described
-in "Choosing the installed version". The design intent is that a failed
-update never destroys the last known good version.
+`apply` verifies the staged app and its version, refreshes the runtime
+helpers, switches `/opt/dscos`, restarts `dscos`, and checks `/api/health`.
+If the restart or health check fails, it restores the previous app and checks
+that the restored app is healthy. `rollback` restores the backup saved by the
+last successful apply and health-checks it. Backups live under
+`/var/lib/dscos-updates/backup/`, and update state is in
+`/var/lib/dscos-updates/state.json`.
 
 ### Device
 
@@ -360,11 +358,12 @@ command on a machine that may have no keyboard attached.
 
 ## Low-level session helper: `kiosk-ctl`
 
-`kiosk uninstall --yes` now removes services, units, config, and the kiosk
-user. To take a frame back manually: stop and disable
-`dscos.service`, the two standby timer units, `lightdm`, delete
-`/etc/kiosk`, `/usr/local/bin/kiosk`, `/usr/local/bin/kiosk-ctl`,
-`/usr/local/lib/kiosk`, `/etc/chromium/policies/managed/kiosk.json`,
+`kiosk uninstall --yes` now removes services, update timer units, config, and
+the kiosk user. To take a frame back manually: stop and disable
+`dscos.service`, `kiosk-update.timer`, the two standby timer units,
+`lightdm`, delete `/etc/kiosk`, `/usr/local/bin/kiosk`,
+`/usr/local/bin/kiosk-ctl`, `/usr/local/lib/kiosk`,
+`/etc/chromium/policies/managed/kiosk.json`, `/var/lib/dscos-updates`,
 `/opt/dscos`, and the `kiosk` user.
 
 For browser-session problems that the `kiosk` CLI does not cover:
