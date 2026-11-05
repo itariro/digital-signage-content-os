@@ -2,7 +2,16 @@ import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { validateStaging, switchRelease, rollbackRelease, acquireUpdateLock } from '../updater'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
+import {
+  validateStaging,
+  switchRelease,
+  rollbackRelease,
+  acquireUpdateLock,
+  backupRuntimeFiles,
+  restoreRuntimeFiles,
+} from '../updater'
 
 function makeStaging(version = '1.0.0'): string {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'stg-'))
@@ -94,26 +103,17 @@ describe('updater', () => {
   describe('update lock', () => {
     it('creates and releases a lock', async () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-'))
-      const lockPath = path.join(dir, 'lock')
+      const lockPath = path.join(dir, 'lock.db')
       const lock = await acquireUpdateLock(lockPath, { timeoutMs: 0 })
       expect(lock).not.toBeNull()
       expect(fs.existsSync(lockPath)).toBe(true)
       lock!.release()
-      expect(fs.existsSync(lockPath)).toBe(false)
-    })
-
-    it('recovers a lock left by a dead process', async () => {
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-'))
-      const lockPath = path.join(dir, 'lock')
-      fs.writeFileSync(lockPath, JSON.stringify({ token: 'old', pid: 999999, startedAt: 1, bootId: null, startTime: null }))
-      const lock = await acquireUpdateLock(lockPath, { timeoutMs: 0 })
-      expect(lock).not.toBeNull()
-      lock!.release()
+      expect(await acquireUpdateLock(lockPath, { timeoutMs: 0 })).not.toBeNull()
     })
 
     it('does not take a lock held by a live process', async () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-'))
-      const lockPath = path.join(dir, 'lock')
+      const lockPath = path.join(dir, 'lock.db')
       const first = await acquireUpdateLock(lockPath, { timeoutMs: 0 })
       expect(first).not.toBeNull()
       const second = await acquireUpdateLock(lockPath, { timeoutMs: 0 })
@@ -121,15 +121,71 @@ describe('updater', () => {
       first!.release()
     })
 
-    it('does not release a lock owned by another process', async () => {
+    it('drops an abandoned lock when its process dies', async () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-'))
-      const lockPath = path.join(dir, 'lock')
-      const first = await acquireUpdateLock(lockPath, { timeoutMs: 0 })
-      expect(first).not.toBeNull()
-      const replacement = { token: 'replacement', pid: process.pid, startedAt: 1, bootId: null, startTime: null }
-      fs.writeFileSync(lockPath, JSON.stringify(replacement))
-      first!.release()
-      expect(fs.existsSync(lockPath)).toBe(true)
+      const lockPath = path.join(dir, 'lock.db')
+      const child = await startLockHolder(lockPath)
+      try {
+        expect(await acquireUpdateLock(lockPath, { timeoutMs: 0 })).toBeNull()
+      } finally {
+        child.kill('SIGKILL')
+      }
+      await once(child, 'exit')
+      const lock = await acquireUpdateLock(lockPath, { timeoutMs: 0 })
+      expect(lock).not.toBeNull()
+      lock!.release()
+    })
+  })
+
+  describe('runtime files', () => {
+    it('restores contents and modes, and removes files that did not exist', () => {
+      const base = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'))
+      const bin = path.join(base, 'bin')
+      fs.mkdirSync(bin)
+      const present = path.join(bin, 'kiosk')
+      const missing = path.join(bin, 'standby')
+      const snapshot = path.join(base, 'snapshot')
+      fs.writeFileSync(present, 'old', { mode: 0o755 })
+
+      expect(backupRuntimeFiles([present, missing], snapshot)).toEqual({ ok: true })
+      fs.writeFileSync(present, 'new')
+      fs.chmodSync(present, 0o644)
+      fs.writeFileSync(missing, 'new', { mode: 0o755 })
+
+      expect(restoreRuntimeFiles(snapshot)).toEqual({ ok: true })
+      expect(fs.readFileSync(present, 'utf8')).toBe('old')
+      expect(fs.statSync(present).mode & 0o777).toBe(0o755)
+      expect(fs.existsSync(missing)).toBe(false)
+    })
+
+    it('fails when the snapshot has no manifest', () => {
+      const base = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'))
+      const result = restoreRuntimeFiles(path.join(base, 'missing'))
+      expect(result.ok).toBe(false)
     })
   })
 })
+
+async function startLockHolder(lockPath: string) {
+  const script = `
+    const Database = require('better-sqlite3')
+    const db = new Database(process.argv[1])
+    db.pragma('busy_timeout = 0')
+    db.exec('BEGIN EXCLUSIVE')
+    process.stdout.write('ready\\n')
+    setInterval(() => {}, 1000)
+  `
+  const child = spawn(process.execPath, ['-e', script, lockPath], {
+    cwd: process.cwd(),
+    stdio: ['ignore', 'pipe', 'inherit'],
+  })
+  await new Promise<void>((resolve, reject) => {
+    let output = ''
+    child.stdout!.on('data', (chunk) => {
+      output += chunk
+      if (output.includes('ready')) resolve()
+    })
+    child.once('exit', (code) => reject(new Error(`lock holder exited early (${code})`)))
+  })
+  return child
+}

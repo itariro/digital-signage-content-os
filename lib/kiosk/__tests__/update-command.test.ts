@@ -10,6 +10,7 @@ const originalEnv = {
   KIOSK_UPDATE_ROOT: process.env.KIOSK_UPDATE_ROOT,
   KIOSK_UPDATE_STATE: process.env.KIOSK_UPDATE_STATE,
   KIOSK_INSTALLER_VERSION_FILE: process.env.KIOSK_INSTALLER_VERSION_FILE,
+  KIOSK_RUNTIME_ROOT: process.env.KIOSK_RUNTIME_ROOT,
   DSCOS_APP_DIR: process.env.DSCOS_APP_DIR,
   KIOSK_CONFIG_PATH: process.env.KIOSK_CONFIG_PATH,
   FAKE_LOG: process.env.FAKE_LOG,
@@ -26,6 +27,7 @@ interface Harness {
   logPath: string
   updateRoot: string
   statePath: string
+  runtimeRoot: string
   tarPath: string
 }
 
@@ -60,14 +62,22 @@ function setupHarness(opts: { version?: string; installerVersion?: string } = {}
   const logPath = path.join(root, 'commands.log')
   const updateRoot = path.join(root, 'updates')
   const statePath = path.join(updateRoot, 'state.json')
+  const runtimeRoot = path.join(root, 'runtime')
 
-  for (const dir of [path.join(appDir, 'lib', 'kiosk'), path.join(appDir, '.next'), path.join(appDir, 'node_modules'), binDir]) {
+  for (const dir of [
+    path.join(appDir, 'lib', 'kiosk'),
+    path.join(appDir, '.next'),
+    path.join(appDir, 'node_modules'),
+    path.join(runtimeRoot, 'usr', 'local', 'bin'),
+    binDir,
+  ]) {
     fs.mkdirSync(dir, { recursive: true })
   }
   fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify({ version: '0.8.0' }))
   fs.writeFileSync(path.join(appDir, 'lib', 'kiosk', 'cli.ts'), '// old cli')
   fs.writeFileSync(cfgPath, 'KIOSK_PORT=3000\n')
   fs.writeFileSync(versionFile, '2.0\n')
+  fs.writeFileSync(path.join(runtimeRoot, 'usr', 'local', 'bin', 'kiosk'), 'old runtime\n', { mode: 0o755 })
 
   writeExecutable(path.join(binDir, 'systemctl'), `
 echo "systemctl $*" >> "$FAKE_LOG"
@@ -83,7 +93,14 @@ exit 0
   writeExecutable(path.join(binDir, 'curl'), 'echo 200')
   writeExecutable(path.join(binDir, 'bash'), `
 echo "bash $*" >> "$FAKE_LOG"
-if [ "\${FAKE_BASH_FAIL:-0}" = "1" ]; then echo "runtime boom" >&2; exit 1; fi
+if [ "$2" = "--runtime-files" ]; then
+  printf '%s\\n' "$KIOSK_RUNTIME_ROOT/usr/local/bin/kiosk"
+  exit 0
+fi
+if [ "$2" = "--update-runtime" ]; then
+  echo "new runtime" > "$KIOSK_RUNTIME_ROOT/usr/local/bin/kiosk"
+  if [ "\${FAKE_BASH_FAIL:-0}" = "1" ]; then echo "runtime boom" >&2; exit 1; fi
+fi
 `)
 
   const tarPath = makeReleaseTar(root, version, installerVersion)
@@ -91,6 +108,7 @@ if [ "\${FAKE_BASH_FAIL:-0}" = "1" ]; then echo "runtime boom" >&2; exit 1; fi
   process.env.KIOSK_UPDATE_ROOT = updateRoot
   process.env.KIOSK_UPDATE_STATE = statePath
   process.env.KIOSK_INSTALLER_VERSION_FILE = versionFile
+  process.env.KIOSK_RUNTIME_ROOT = runtimeRoot
   process.env.DSCOS_APP_DIR = appDir
   process.env.KIOSK_CONFIG_PATH = cfgPath
   process.env.FAKE_LOG = logPath
@@ -98,7 +116,7 @@ if [ "\${FAKE_BASH_FAIL:-0}" = "1" ]; then echo "runtime boom" >&2; exit 1; fi
   delete process.env.FAKE_RESTART_FAIL
   delete process.env.FAKE_BASH_FAIL
 
-  return { root, appDir, binDir, cfgPath, versionFile, logPath, updateRoot, statePath, tarPath }
+  return { root, appDir, binDir, cfgPath, versionFile, logPath, updateRoot, statePath, runtimeRoot, tarPath }
 }
 
 function mockRelease(h: Harness, version = '0.9.0'): void {
@@ -123,6 +141,10 @@ function mockRelease(h: Harness, version = '0.9.0'): void {
 
 function appVersion(h: Harness, dir = h.appDir): string {
   return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).version
+}
+
+function runtimeKiosk(h: Harness): string {
+  return path.join(h.runtimeRoot, 'usr', 'local', 'bin', 'kiosk')
 }
 
 describe('update command', () => {
@@ -153,18 +175,22 @@ describe('update command', () => {
     expect(appVersion(h, path.join(h.updateRoot, 'backup', '0.9.0'))).toBe('0.8.0')
     expect(fs.readFileSync(h.versionFile, 'utf8').trim()).toBe('2.1')
     expect(fs.readFileSync(h.logPath, 'utf8')).toContain('--update-runtime')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('new runtime')
     const state = JSON.parse(fs.readFileSync(h.statePath, 'utf8'))
     expect(state.lastBackup).toBe(path.join(h.updateRoot, 'backup', '0.9.0'))
+    expect(state.runtimeBackup).toBe(path.join(h.updateRoot, 'runtime-backup', '0.9.0'))
 
     const rollback = await runCli(['update', 'rollback', '--yes'])
     expect(rollback.exitCode).toBe(0)
     expect(rollback.stdout).toContain('rolled back')
     expect(appVersion(h)).toBe('0.8.0')
     expect(fs.readFileSync(h.versionFile, 'utf8').trim()).toBe('2.0')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
+    expect(fs.existsSync(state.runtimeBackup)).toBe(false)
     expect(JSON.parse(fs.readFileSync(h.statePath, 'utf8')).lastBackup).toBeNull()
   })
 
-  it('restores the previous app when the restart fails', async () => {
+  it('restores the previous app and runtime when the restart fails', async () => {
     h = setupHarness()
     mockRelease(h)
     process.env.FAKE_RESTART_FAIL = '1'
@@ -174,21 +200,37 @@ describe('update command', () => {
     expect(result.stderr).toMatch(/rollback|rolled back/)
     expect(appVersion(h)).toBe('0.8.0')
     expect(fs.readFileSync(h.versionFile, 'utf8').trim()).toBe('2.0')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
   })
 
-  it('keeps the old app when the runtime helper install fails', async () => {
+  it('restores the previous runtime when the helper install fails', async () => {
     h = setupHarness()
     mockRelease(h)
     process.env.FAKE_BASH_FAIL = '1'
 
     const result = await runCli(['update', 'apply', '--yes'])
     expect(result.exitCode).toBe(1)
-    expect(result.stderr).toContain('runtime update failed')
+    expect(result.stderr).toContain('previous runtime restored')
     expect(appVersion(h)).toBe('0.8.0')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
     expect(fs.existsSync(path.join(h.updateRoot, 'backup'))).toBe(false)
+    expect(fs.existsSync(path.join(h.updateRoot, 'runtime-backup', '0.9.0'))).toBe(false)
   })
 
-  it('keeps the app when the switch cannot create its backup', async () => {
+  it('restores the previous app and runtime when the state write fails', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    fs.mkdirSync(h.statePath, { recursive: true })
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('could not record update state')
+    expect(appVersion(h)).toBe('0.8.0')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
+    expect(fs.readFileSync(h.versionFile, 'utf8').trim()).toBe('2.0')
+  })
+
+  it('restores the previous runtime when the switch cannot create its backup', async () => {
     h = setupHarness()
     mockRelease(h)
     fs.mkdirSync(path.join(h.updateRoot, 'backup'), { recursive: true })
@@ -197,22 +239,25 @@ describe('update command', () => {
     const result = await runCli(['update', 'apply', '--yes'])
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('switch failed')
+    expect(result.stderr).toContain('previous runtime restored')
     expect(appVersion(h)).toBe('0.8.0')
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
     expect(fs.existsSync(path.join(h.appDir, '.next'))).toBe(true)
   })
 
-  it('recovers an abandoned lock from a previous update', async () => {
+  it('acquires a lock left behind by an exited process', async () => {
     h = setupHarness()
     mockRelease(h)
     fs.mkdirSync(h.updateRoot, { recursive: true })
-    fs.writeFileSync(path.join(h.updateRoot, 'lock'), JSON.stringify({
-      token: 'abandoned', pid: 999999, startedAt: 1, bootId: null, startTime: null,
-    }))
+    const Database = require('better-sqlite3')
+    const db = new Database(path.join(h.updateRoot, 'lock.db'))
+    db.pragma('busy_timeout = 0')
+    db.exec('BEGIN EXCLUSIVE')
+    db.close()
 
     const result = await runCli(['update', 'apply', '--yes'])
     expect(result.exitCode).toBe(0)
     expect(appVersion(h)).toBe('0.9.0')
-    expect(fs.existsSync(path.join(h.updateRoot, 'lock'))).toBe(false)
   })
 
   it('releases the lock when the release fetch fails', async () => {
@@ -222,7 +267,11 @@ describe('update command', () => {
     const result = await runCli(['update', 'apply', '--yes'])
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('fetch failed')
-    expect(fs.existsSync(path.join(h.updateRoot, 'lock'))).toBe(false)
+
+    mockRelease(h)
+    const retry = await runCli(['update', 'apply', '--yes'])
+    expect(retry.exitCode).toBe(0)
+    expect(appVersion(h)).toBe('0.9.0')
   })
 
   it('downloads the requested tag instead of the latest release', async () => {

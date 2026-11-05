@@ -31,6 +31,7 @@
 #       --plain            no colours, spinners or screen clearing (auto in pipes)
 #       --fast             no pacing delays between steps
 #       --update-runtime   refresh installed helpers and unit files only
+#       --runtime-files    print the files that --update-runtime replaces
 #   -h, --help             show this help
 #
 # After installation, settings live in /etc/kiosk/kiosk.conf; change them and
@@ -50,6 +51,21 @@ readonly LIB_DIR="/usr/local/lib/kiosk"
 readonly DEFAULT_LOG="/var/log/kiosk-install.log"
 readonly MIN_FREE_KB=1500000
 readonly MIN_RAM_KB=1000000
+
+# Files replaced by --update-runtime. Keep in sync with t_install_cli,
+# t_write_session, t_write_ctl, t_xsession, t_write_app_service,
+# t_write_update_timer and t_write_standby_scripts.
+RUNTIME_FILES=(
+    /usr/local/bin/kiosk
+    "${LIB_DIR}/session.sh"
+    /usr/local/bin/kiosk-ctl
+    /usr/share/xsessions/kiosk.desktop
+    /etc/systemd/system/dscos.service
+    /etc/systemd/system/kiosk-update.service
+    /etc/systemd/system/kiosk-update.timer
+    /usr/local/bin/kiosk-standby-on
+    /usr/local/bin/kiosk-standby-off
+)
 
 # UI state (defaults keep die()/usage() usable before the UI is initialised)
 UI_LIVE=0; USE_COLOR=0; C_MODE=none; UTF8=0; FANCY=0
@@ -108,6 +124,7 @@ REBOOT=0
 DRY=0
 PLAIN=0
 UPDATE_RUNTIME=0
+PRINT_RUNTIME_FILES=0
 
 while (($#)); do
     case "$1" in
@@ -127,11 +144,17 @@ while (($#)); do
         --plain)            PLAIN=1; shift ;;
         --fast)             PACE_MS=0; shift ;;
         --update-runtime)   UPDATE_RUNTIME=1; shift ;;
+        --runtime-files)    PRINT_RUNTIME_FILES=1; shift ;;
         -h|--help)          usage; exit 0 ;;
         -*)                 die "unknown option: $1 (see --help)" ;;
         *)                  [[ -z $URL ]] || die "unexpected extra argument: $1"; URL=$1; shift ;;
     esac
 done
+
+if (( PRINT_RUNTIME_FILES )); then
+    printf '%s\n' "${RUNTIME_FILES[@]}"
+    exit 0
+fi
 
 url_re='^(https?://|file:///)[^[:space:]]+$'
 if [[ -z $URL ]]; then URL='http://127.0.0.1:3000/frame/home'; fi

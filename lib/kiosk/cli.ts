@@ -17,6 +17,10 @@ import {
   readInstallerVersion,
   parseInstallerVersion,
   installerVersionFile,
+  runtimeBackupDir,
+  runtimeFiles,
+  backupRuntimeFiles,
+  restoreRuntimeFiles,
 } from './updater'
 import { parseOsRelease, isSupportedDebian, checkPrerequisites, formatBytes } from './device'
 
@@ -427,6 +431,41 @@ function writeUpdateState(state: Record<string, unknown>): void {
   fs.writeFileSync(p, JSON.stringify(state, null, 2))
 }
 
+function restoreRuntimeSnapshot(snapshot: string | null): string | null {
+  if (!snapshot) return null
+  const result = restoreRuntimeFiles(snapshot)
+  if (!result.ok) return result.error ?? 'runtime restore failed'
+  const reload = execCmd('systemctl', ['daemon-reload'])
+  if (reload.status !== 0) return `daemon-reload failed: ${reload.stderr || reload.status}`
+  return null
+}
+
+function discardRuntimeSnapshot(snapshot: string | null): void {
+  if (!snapshot) return
+  try { require('node:fs').rmSync(snapshot, { recursive: true, force: true }) } catch {}
+}
+
+// Put the previous app and runtime back after a post-switch failure. The
+// caller reports the original error; this returns why recovery itself failed,
+// if it did.
+function restorePreviousCheckout(opts: {
+  appDir: string
+  backup: string
+  currentVersion: string
+  runtimeSnapshot: string | null
+  config: any
+}): { ok: boolean; error?: string } {
+  const rollback = rollbackRelease({ appDir: opts.appDir, backup: opts.backup })
+  const runtimeError = restoreRuntimeSnapshot(opts.runtimeSnapshot)
+  const health = rollback.ok ? restartAndCheckHealth(opts.config) : { ok: false }
+  try { writeUpdateState({ lastBackup: null, installedVersion: opts.currentVersion }) } catch {}
+  if (!rollback.ok) return { ok: false, error: `rollback failed: ${rollback.error}` }
+  if (runtimeError) return { ok: false, error: `runtime restore failed: ${runtimeError}` }
+  if (!health.ok) return { ok: false, error: 'rolled back but restored app failed its health check' }
+  discardRuntimeSnapshot(opts.runtimeSnapshot)
+  return { ok: true }
+}
+
 async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<number> {
   const versionIdx = args.indexOf('--version')
   const targetVersion = versionIdx >= 0 ? args[versionIdx + 1] : null
@@ -505,46 +544,79 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
 
   // Refresh installed helpers and unit files from the release's installer.
   // This preserves /etc/kiosk/kiosk.conf and /etc/dscos/frame.env.
-  let nextInstallerVersion: string | null = null
   const downloadedInstaller = path.join(staging, 'install-kiosk.sh')
-  nextInstallerVersion = parseInstallerVersion(downloadedInstaller)
+  const nextInstallerVersion = parseInstallerVersion(downloadedInstaller)
   if (!nextInstallerVersion) {
     err(ctx, 'release installer has no readable INSTALLER_VERSION')
     return 1
   }
+
+  // Save every helper the installer is about to replace. The union of the
+  // known list and the release installer's own list covers files that either
+  // side adds or drops.
+  const previousInstallerVersion = readInstallerVersion()
+  const runtimeSnapshot = runtimeBackupDir(version)
+  const runtimeFileList = new Set(runtimeFiles())
+  const listed = execCmd('bash', [downloadedInstaller, '--runtime-files'])
+  if (listed.status === 0) {
+    for (const line of listed.stdout.split('\n')) {
+      const file = line.trim()
+      if (file) runtimeFileList.add(file)
+    }
+  }
+  const savedRuntime = backupRuntimeFiles([...runtimeFileList], runtimeSnapshot)
+  if (!savedRuntime.ok) {
+    err(ctx, `could not save runtime files: ${savedRuntime.error}`)
+    return 1
+  }
+
   const r = execCmd('bash', [downloadedInstaller, '--update-runtime', '--yes'], {
     timeoutMs: 120000,
     env: { ...process.env, KIOSK_RUNTIME_UPDATE: '1', DSCOS_APP_DIR: appDir },
   })
   if (r.status !== 0) {
-    err(ctx, `runtime update failed: ${r.stderr || r.status}`)
+    const restoreError = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (restoreError) {
+      err(ctx, `runtime update failed: ${r.stderr || r.status}; runtime restore failed: ${restoreError} (snapshot: ${runtimeSnapshot})`)
+    } else {
+      discardRuntimeSnapshot(runtimeSnapshot)
+      err(ctx, `runtime update failed; previous runtime restored: ${r.stderr || r.status}`)
+    }
     return 1
   }
 
-  const previousInstallerVersion = readInstallerVersion()
   const sw = switchRelease({ appDir, staging, backup, expectedVersion: version })
   if (!sw.ok) {
-    err(ctx, `switch failed: ${sw.error}`)
+    const restoreError = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (restoreError) {
+      err(ctx, `switch failed: ${sw.error}; runtime restore failed: ${restoreError} (snapshot: ${runtimeSnapshot})`)
+    } else {
+      discardRuntimeSnapshot(runtimeSnapshot)
+      err(ctx, `switch failed: ${sw.error}; previous runtime restored`)
+    }
     return 1
   }
-  writeUpdateState({
-    lastBackup: backup,
-    previousVersion: currentVersion,
-    installedVersion: version,
-    previousInstallerVersion,
-    installerVersion: nextInstallerVersion,
-  })
+
+  try {
+    writeUpdateState({
+      lastBackup: backup,
+      runtimeBackup: runtimeSnapshot,
+      previousVersion: currentVersion,
+      installedVersion: version,
+      previousInstallerVersion,
+      installerVersion: nextInstallerVersion,
+    })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e)
+    const recovery = restorePreviousCheckout({ appDir, backup, currentVersion, runtimeSnapshot, config })
+    err(ctx, `could not record update state: ${message}; ${recovery.ok ? `rolled back to ${currentVersion}` : recovery.error}`)
+    return 1
+  }
 
   const health = restartAndCheckHealth(config)
   if (!health.ok) {
-    const rb = rollbackRelease({ appDir, backup })
-    const restored = rb.ok ? restartAndCheckHealth(config) : { ok: false }
-    if (rb.ok && restored.ok) {
-      writeUpdateState({ lastBackup: null, installedVersion: currentVersion })
-      err(ctx, `${health.error}; rolled back to ${currentVersion}`)
-    } else {
-      err(ctx, `${health.error}; rollback failed: ${rb.error || 'restored app unhealthy'}`)
-    }
+    const recovery = restorePreviousCheckout({ appDir, backup, currentVersion, runtimeSnapshot, config })
+    err(ctx, `${health.error}; ${recovery.ok ? `rolled back to ${currentVersion}` : recovery.error}`)
     return 1
   }
 
@@ -553,7 +625,9 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
       fs.mkdirSync(path.dirname(installerVersionFile()), { recursive: true })
       fs.writeFileSync(installerVersionFile(), `${nextInstallerVersion}\n`, { mode: 0o644 })
     } catch (e: unknown) {
-      err(ctx, `could not record installer version: ${e instanceof Error ? e.message : String(e)}`)
+      const message = e instanceof Error ? e.message : String(e)
+      const recovery = restorePreviousCheckout({ appDir, backup, currentVersion, runtimeSnapshot, config })
+      err(ctx, `could not record installer version: ${message}; ${recovery.ok ? `rolled back to ${currentVersion}` : recovery.error}`)
       return 1
     }
   }
@@ -574,6 +648,8 @@ async function rollbackUpdate(ctx: Ctx, config: any): Promise<number> {
     err(ctx, `rollback failed: ${rb.error}`)
     return 1
   }
+  const runtimeSnapshot = typeof state?.runtimeBackup === 'string' ? state.runtimeBackup : null
+  const runtimeError = restoreRuntimeSnapshot(runtimeSnapshot)
   const health = restartAndCheckHealth(config)
   if (!health.ok) {
     err(ctx, `restored app failed: ${health.error}`)
@@ -584,6 +660,11 @@ async function rollbackUpdate(ctx: Ctx, config: any): Promise<number> {
     try { fs.writeFileSync(installerVersionFile(), `${state.previousInstallerVersion}\n`, { mode: 0o644 }) } catch {}
   }
   writeUpdateState({ lastBackup: null, installedVersion: state?.previousVersion ?? 'unknown' })
+  if (runtimeError) {
+    err(ctx, `app rolled back, but runtime restore failed: ${runtimeError} (snapshot: ${runtimeSnapshot})`)
+    return 1
+  }
+  discardRuntimeSnapshot(runtimeSnapshot)
   out(ctx, 'rolled back')
   return 0
 }

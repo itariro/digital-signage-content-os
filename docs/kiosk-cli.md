@@ -337,13 +337,20 @@ kiosk update enable|disable              Toggle daily auto-update timer
 kiosk update status                      Show auto-update timer status
 ```
 
-`apply` verifies the staged app and its version, refreshes the runtime
-helpers, switches `/opt/dscos`, restarts `dscos`, and checks `/api/health`.
-If the restart or health check fails, it restores the previous app and checks
-that the restored app is healthy. `rollback` restores the backup saved by the
-last successful apply and health-checks it. Backups live under
-`/var/lib/dscos-updates/backup/`, and update state is in
+`apply` verifies the staged app and its version, snapshots the installed
+runtime helpers and unit files, refreshes them, switches `/opt/dscos`,
+restarts `dscos`, and checks `/api/health`. If the helper install, the switch,
+the state write, the restart, or the health check fails, it restores both the
+previous app and the previous runtime files. `rollback` restores the app and
+runtime backup saved by the last successful apply and health-checks them.
+Backups live under `/var/lib/dscos-updates/backup/` and
+`/var/lib/dscos-updates/runtime-backup/`, and update state is in
 `/var/lib/dscos-updates/state.json`.
+
+The update lock is an OS-held SQLite lock at
+`/var/lib/dscos-updates/lock.db`. The kernel releases it when the update
+process exits, so an interrupted update does not block the next manual or
+scheduled run.
 
 ### Device
 

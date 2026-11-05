@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import crypto from 'node:crypto'
+import Database from 'better-sqlite3'
 import { parseLatestRelease, ReleaseInfo } from './updates'
 
 // Root-owned parent that the kiosk user cannot replace.
@@ -22,10 +22,34 @@ export function stateFile(): string {
   return process.env.KIOSK_UPDATE_STATE || path.join(updateRoot(), 'state.json')
 }
 export function lockFile(): string {
-  return path.join(updateRoot(), 'lock')
+  return path.join(updateRoot(), 'lock.db')
 }
 export function installerVersionFile(): string {
   return process.env.KIOSK_INSTALLER_VERSION_FILE || '/etc/kiosk/installer.version'
+}
+
+// Files written by `install-kiosk.sh --update-runtime`. The release installer
+// also prints its own list with `--runtime-files`; taking the union protects
+// helpers that an older or newer release adds or removes.
+export const RUNTIME_FILES = [
+  '/usr/local/bin/kiosk',
+  '/usr/local/lib/kiosk/session.sh',
+  '/usr/local/bin/kiosk-ctl',
+  '/usr/share/xsessions/kiosk.desktop',
+  '/etc/systemd/system/dscos.service',
+  '/etc/systemd/system/kiosk-update.service',
+  '/etc/systemd/system/kiosk-update.timer',
+  '/usr/local/bin/kiosk-standby-on',
+  '/usr/local/bin/kiosk-standby-off',
+]
+
+export function runtimeFiles(): string[] {
+  const root = process.env.KIOSK_RUNTIME_ROOT || ''
+  return RUNTIME_FILES.map((file) => (root ? path.join(root, file) : file))
+}
+
+export function runtimeBackupDir(version: string): string {
+  return path.join(updateRoot(), 'runtime-backup', version)
 }
 
 export function stagingDir(version: string): string {
@@ -81,6 +105,90 @@ export function parseInstallerVersion(scriptPath: string): string | null {
   }
 }
 
+export interface RuntimeFileResult {
+  ok: boolean
+  error?: string
+}
+
+interface RuntimeManifestEntry {
+  path: string
+  present: boolean
+  mode?: number
+  blob?: string
+}
+
+// Copy the installed runtime files into `dest` before an update replaces
+// them. Missing files are recorded too, so a rollback removes helpers that
+// the old release did not have.
+export function backupRuntimeFiles(files: string[], dest: string): RuntimeFileResult {
+  try {
+    fs.rmSync(dest, { recursive: true, force: true })
+    fs.mkdirSync(path.join(dest, 'files'), { recursive: true })
+    const manifest: RuntimeManifestEntry[] = []
+    files.forEach((file, index) => {
+      if (!path.isAbsolute(file)) throw new Error(`runtime file path is not absolute: ${file}`)
+      try {
+        const stat = fs.statSync(file)
+        if (!stat.isFile()) {
+          manifest.push({ path: file, present: false })
+          return
+        }
+        const blob = `f${index}`
+        fs.copyFileSync(file, path.join(dest, 'files', blob))
+        fs.chmodSync(path.join(dest, 'files', blob), stat.mode & 0o7777)
+        manifest.push({ path: file, present: true, mode: stat.mode & 0o7777, blob })
+      } catch (e: unknown) {
+        if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') {
+          manifest.push({ path: file, present: false })
+          return
+        }
+        throw e
+      }
+    })
+    fs.writeFileSync(path.join(dest, 'manifest.json'), JSON.stringify({ files: manifest }, null, 2), { mode: 0o600 })
+    return { ok: true }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export function restoreRuntimeFiles(dest: string): RuntimeFileResult {
+  const errors: string[] = []
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(dest, 'manifest.json'), 'utf8'))
+    const files: RuntimeManifestEntry[] = Array.isArray(manifest?.files) ? manifest.files : []
+    for (const entry of files) {
+      try {
+        if (typeof entry?.path !== 'string' || !path.isAbsolute(entry.path)) {
+          throw new Error('invalid manifest path')
+        }
+        if (!entry.present) {
+          fs.rmSync(entry.path, { force: true })
+          continue
+        }
+        if (typeof entry.blob !== 'string' || !/^f\d+$/.test(entry.blob)) {
+          throw new Error('invalid manifest blob')
+        }
+        fs.mkdirSync(path.dirname(entry.path), { recursive: true })
+        const tmp = `${entry.path}.dscos-restore-${process.pid}`
+        try {
+          fs.copyFileSync(path.join(dest, 'files', entry.blob), tmp)
+          fs.chmodSync(tmp, typeof entry.mode === 'number' ? entry.mode : 0o644)
+          fs.renameSync(tmp, entry.path)
+        } catch (e: unknown) {
+          try { fs.rmSync(tmp, { force: true }) } catch {}
+          throw e
+        }
+      } catch (e: unknown) {
+        errors.push(`${entry?.path ?? 'unknown'}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+  return errors.length ? { ok: false, error: errors.join('; ') } : { ok: true }
+}
+
 export async function fetchLatestRelease(fetchFn: typeof fetch, version?: string): Promise<ReleaseInfo> {
   const url = version
     ? `https://api.github.com/repos/itariro/digital-signage-content-os/releases/tags/v${version}`
@@ -98,139 +206,34 @@ export interface UpdateLock {
   release: () => void
 }
 
-interface LockOwner {
-  token: string
-  pid: number
-  startedAt: number
-  bootId: string | null
-  startTime: string | null
-}
-
-function readBootId(): string | null {
-  try {
-    return fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim() || null
-  } catch {
-    return null
-  }
-}
-
-function readProcessStartTime(pid: number): string | null {
-  try {
-    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8')
-    const end = stat.lastIndexOf(')')
-    if (end < 0) return null
-    // Field 3 is the state, field 22 is the process start time.
-    const fields = stat.slice(end + 2).trim().split(/\s+/)
-    return fields[19] ?? null
-  } catch {
-    return null
-  }
-}
-
-function processAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (e: unknown) {
-    // EPERM means the process exists but belongs to another user.
-    return (e as NodeJS.ErrnoException)?.code === 'EPERM'
-  }
-}
-
-function readLockOwner(lockPath: string, f: typeof fs): LockOwner | null {
-  try {
-    const raw = f.readFileSync(lockPath, 'utf8')
-    const owner = JSON.parse(raw)
-    if (!owner || typeof owner.token !== 'string') return null
-    return owner as LockOwner
-  } catch {
-    return null
-  }
-}
-
-function inspectLock(lockPath: string, f: typeof fs): { stale: boolean; owner: LockOwner | null } {
-  const owner = readLockOwner(lockPath, f)
-  // A missing or malformed owner cannot identify a live process.
-  if (!owner) return { stale: true, owner: null }
-  const bootId = readBootId()
-  if (bootId && owner.bootId && bootId !== owner.bootId) return { stale: true, owner }
-  if (!processAlive(owner.pid)) return { stale: true, owner }
-  const startTime = readProcessStartTime(owner.pid)
-  // Catch PID reuse: the same pid now belongs to a different process.
-  if (startTime && owner.startTime && startTime !== owner.startTime) return { stale: true, owner }
-  return { stale: false, owner }
-}
-
 export interface LockOptions {
   timeoutMs?: number
-  pollMs?: number
-  fsImpl?: typeof fs
-  pid?: number
-  now?: () => number
 }
 
-// The lock file carries the owner PID, boot id and process start time. A
-// crashed or powered-off update leaves a stale record that the next run
-// detects and removes. Normal exits release it in a finally block.
+// SQLite holds an exclusive lock on this database for as long as the
+// connection is open. The kernel releases it when the process exits, so a
+// crash or power loss never leaves an update blocked. A second run waits on
+// `busy_timeout` instead of polling a lock file.
 export async function acquireUpdateLock(lockPath: string, opts: LockOptions = {}): Promise<UpdateLock | null> {
-  const f = opts.fsImpl ?? fs
-  const timeoutMs = opts.timeoutMs ?? 30_000
-  const pollMs = opts.pollMs ?? 250
-  const now = opts.now ?? Date.now
-  const pid = opts.pid ?? process.pid
-  const deadline = now() + timeoutMs
-  f.mkdirSync(path.dirname(lockPath), { recursive: true })
-
-  for (;;) {
-    const owner: LockOwner = {
-      token: crypto.randomUUID(),
-      pid,
-      startedAt: now(),
-      bootId: readBootId(),
-      startTime: readProcessStartTime(pid),
-    }
-    // Write the owner to a private file first, then hard-link it into place.
-    // link(2) is atomic, so another process never sees a half-written lock.
-    const tmp = `${lockPath}.${pid}.${owner.token}.tmp`
-    try {
-      f.writeFileSync(tmp, JSON.stringify(owner), { mode: 0o600, flag: 'wx' })
-      f.linkSync(tmp, lockPath)
-      return {
-        path: lockPath,
-        release: () => releaseUpdateLock(lockPath, owner.token, f),
-      }
-    } catch (e: unknown) {
-      if ((e as NodeJS.ErrnoException)?.code !== 'EEXIST') throw e
-    } finally {
-      try { f.rmSync(tmp, { force: true }) } catch {}
-    }
-    const inspection = inspectLock(lockPath, f)
-    if (inspection.stale) {
-      // Only remove the record we inspected. If another run replaced it in
-      // the meantime, leave the new lock alone and retry.
-      const current = readLockOwner(lockPath, f)
-      const sameOwner = inspection.owner
-        ? current?.token === inspection.owner.token
-        : current === null
-      if (sameOwner) {
-        try { f.rmSync(lockPath, { force: true }) } catch {}
-      }
-      continue
-    }
-    if (now() >= deadline) return null
-    await new Promise((resolve) => setTimeout(resolve, pollMs))
-  }
-}
-
-function releaseUpdateLock(lockPath: string, token: string, f: typeof fs): void {
-  const owner = readLockOwner(lockPath, f)
-  // Never remove a lock that another run acquired after ours disappeared.
-  if (owner && owner.token !== token) return
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true })
+  const db = new Database(lockPath)
   try {
-    f.rmSync(lockPath, { force: true })
-  } catch {
-    /* best effort */
+    db.pragma(`busy_timeout = ${opts.timeoutMs ?? 30_000}`)
+    db.exec('BEGIN EXCLUSIVE')
+  } catch (e: unknown) {
+    try { db.close() } catch {}
+    if ((e as NodeJS.ErrnoException)?.code === 'SQLITE_BUSY') return null
+    throw e
+  }
+  let released = false
+  return {
+    path: lockPath,
+    release: () => {
+      if (released) return
+      released = true
+      try { db.exec('COMMIT') } catch {}
+      try { db.close() } catch {}
+    },
   }
 }
 
