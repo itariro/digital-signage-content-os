@@ -518,7 +518,7 @@ curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/
 
 `install.sh` fetches the app source to `/opt/dscos` and runs `install-kiosk.sh`; installer options pass through `sudo bash -s --`. From a checkout you can still run `sudo bash install-kiosk.sh` directly. To refresh an installed frame's source, delete `/opt/dscos` and re-run; set `KIOSK_REF` (between `sudo` and `bash`) to select a branch or tag.
 
-- Default frame URL: `http://localhost:3000/frame/home`
+- Default frame URL: `http://127.0.0.1:3000/frame/home`
 - The application runs as `dscos.service` on port 3000.
 - The kiosk browser launches after the configured local URL responds.
 - Overnight standby defaults to 22:00-06:00 (device local time) via systemd timers.

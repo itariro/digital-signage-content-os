@@ -32,7 +32,7 @@ export interface KioskConfig {
   secrets: Record<string, string>
 }
 
-export const DEFAULT_FRAME_URL = 'http://localhost:3000/frame/home'
+export const DEFAULT_FRAME_URL = 'http://127.0.0.1:3000/frame/home'
 export const DEFAULT_APP_PORT = 3000
 export const DEFAULT_MGMT_PORT = 8808
 export const DEFAULT_STANDBY_START = '22:00'

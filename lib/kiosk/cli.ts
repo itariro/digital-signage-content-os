@@ -260,7 +260,7 @@ async function cmdApp(ctx: Ctx, sub: string, args: string[]): Promise<number> {
     const config: any = readConfig(ctx)
     const port = Number(config.appPort)
     if (!Number.isInteger(port) || port < 1) { err(ctx, 'invalid app port'); return 1 }
-    const r = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://localhost:${port}/api/health`])
+    const r = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${port}/api/health`])
     const code = parseInt(r.stdout.trim(), 10)
     const httpOk = code >= 200 && code < 300
     const proc = execCmd('systemctl', ['is-active', APP_SERVICE])
@@ -499,7 +499,7 @@ export async function runCli(argv: string[]): Promise<RunResult> {
       const portOpen = portR.status === 0
       let httpOk = false
       if (portOpen) {
-        const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://localhost:${config.appPort}/api/health`])
+        const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
         const c = parseInt(hr.stdout.trim(), 10)
         httpOk = c >= 200 && c < 300
       }
