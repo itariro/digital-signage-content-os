@@ -13,6 +13,7 @@ describe('updater', () => {
     const d = fs.mkdtempSync(path.join(os.tmpdir(), 'stg-'))
     fs.writeFileSync(path.join(d, 'package.json'), JSON.stringify({ version: '1.0.0' }))
     fs.mkdirSync(path.join(d, '.next'))
+    fs.mkdirSync(path.join(d, 'node_modules'))
     expect(validateStaging(d)).toBe(true)
   })
   it('switchRelease moves staging to appDir', () => {
@@ -21,7 +22,7 @@ describe('updater', () => {
     const staging = path.join(base, 'stg')
     const backup = path.join(base, 'bak')
     fs.mkdirSync(appDir); fs.writeFileSync(path.join(appDir, 'old'), 'x')
-    fs.mkdirSync(staging); fs.writeFileSync(path.join(staging, 'package.json'), JSON.stringify({ version: '1.0.0' })); fs.mkdirSync(path.join(staging, '.next'))
+    fs.mkdirSync(staging); fs.writeFileSync(path.join(staging, 'package.json'), JSON.stringify({ version: '1.0.0' })); fs.mkdirSync(path.join(staging, '.next')); fs.mkdirSync(path.join(staging, 'node_modules'))
     const r = switchRelease({ appDir, staging, backup })
     expect(r.ok).toBe(true)
     expect(fs.existsSync(path.join(appDir, 'package.json'))).toBe(true)

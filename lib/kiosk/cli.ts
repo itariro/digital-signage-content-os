@@ -374,7 +374,16 @@ async function cmdStandby(ctx: Ctx, sub: string, args: string[]): Promise<number
 
 async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   const config: any = readConfig(ctx)
-  if (sub === 'check' || sub === 'status') {
+  if (sub === 'status') {
+    const r = execCmd('systemctl', ['is-active', 'kiosk-update.timer'])
+    const active = r.stdout.trim() === 'active'
+    const last = execCmd('systemctl', ['show', 'kiosk-update.timer', '--property=LastTriggerUSec', '--value'])
+    const payload = { timerActive: active, lastTrigger: last.stdout.trim() || 'never' }
+    if (ctx.json) out(ctx, JSON.stringify(payload, null, 2))
+    else out(ctx, `timer: ${active ? 'enabled' : 'disabled'}  last: ${payload.lastTrigger}`)
+    return 0
+  }
+  if (sub === 'check') {
     let latest = 'unknown'
     let updateAvailable = false
     let assetUrl: string | null = null
@@ -394,62 +403,134 @@ async function cmdUpdate(ctx: Ctx, sub: string, args: string[]): Promise<number>
       err(ctx, `update check failed: ${e instanceof Error ? e.message : String(e)}`)
       return 1
     }
+    // skip download if already current
+    if (!updateAvailable) {
+      const payload = { channel: config.updateChannel, current: 'current', latest, updateAvailable: false, assetUrl }
+      if (ctx.json) out(ctx, JSON.stringify(payload, null, 2))
+      else out(ctx, `already up to date (${latest})`)
+      return 0
+    }
     const payload = { channel: config.updateChannel, latest, updateAvailable, assetUrl }
     if (ctx.json) out(ctx, JSON.stringify(payload, null, 2))
     else out(ctx, `latest: ${latest}  updateAvailable: ${updateAvailable}`)
     return 0
   }
   if (sub === 'enable') {
-    execCmd('systemctl', ['enable', '--now', 'kiosk-update.timer'])
+    const r = execCmd('systemctl', ['enable', '--now', 'kiosk-update.timer'])
+    if (r.status !== 0) { err(ctx, r.stderr || 'failed to enable timer'); return r.status || 1 }
     out(ctx, 'auto-update enabled')
     return 0
   }
   if (sub === 'disable') {
-    execCmd('systemctl', ['disable', '--now', 'kiosk-update.timer'])
+    const r = execCmd('systemctl', ['disable', '--now', 'kiosk-update.timer'])
+    if (r.status !== 0) { err(ctx, r.stderr || 'failed to disable timer'); return r.status || 1 }
     out(ctx, 'auto-update disabled')
     return 0
   }
   if (sub === 'apply') {
     const versionIdx = args.indexOf('--version')
     const targetVersion = versionIdx >= 0 ? args[versionIdx + 1] : null
-    if (!ctx.yes) {
-      // allow non-interactive cron; manual without --yes prompts
-      if (process.stdin.isTTY) { err(ctx, 'apply requires --yes (or run non-interactively)'); return 2 }
-    }
+    if (!ctx.yes && process.stdin.isTTY) { err(ctx, 'apply requires --yes (or run non-interactively)'); return 2 }
     let info: any
-    try { info = await fetchLatestRelease(globalThis.fetch) } catch (e: unknown) { err(ctx, `fetch failed: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+    try { info = await fetchLatestRelease(globalThis.fetch, targetVersion || undefined) } catch (e: unknown) { err(ctx, `fetch failed: ${e instanceof Error ? e.message : String(e)}`); return 1 }
     const version = targetVersion || info.version
+    // skip if already current
+    const appVersion = ((): string => {
+      const fs = require('node:fs')
+      const paths = [process.env.DSCOS_APP_DIR ? `${process.env.DSCOS_APP_DIR}/package.json` : null, '/opt/dscos/package.json']
+      for (const p of paths) { if (!p) continue; try { const pkg = JSON.parse(fs.readFileSync(p, 'utf8')); if (pkg?.version) return pkg.version } catch {} }
+      return 'unknown'
+    })()
+    if (appVersion === version) {
+      out(ctx, `already up to date (${version})`)
+      return 0
+    }
     const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
     const staging = stagingDir(version)
     const backup = backupDir(version)
-    // download
     const fs = require('node:fs')
     const path = require('node:path')
+    // never trust pre-existing staging
+    try { fs.rmSync(staging, { recursive: true, force: true }) } catch {}
     fs.mkdirSync(staging, { recursive: true })
+    const tarPath = path.join(staging, 'release.tar.gz')
     if (info.assetUrl) {
       try {
         const res = await globalThis.fetch(info.assetUrl)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const buf = Buffer.from(await res.arrayBuffer())
-        fs.writeFileSync(path.join(staging, 'release.tar.gz'), buf)
+        fs.writeFileSync(tarPath, buf)
       } catch (e: unknown) { err(ctx, `download failed: ${e instanceof Error ? e.message : String(e)}`); return 1 }
+    } else {
+      err(ctx, 'no release asset found'); return 1
     }
-    if (!validateStaging(staging)) {
-      err(ctx, 'staging validation failed (missing package.json/.next)')
+    // extract
+    const ex = execCmd('tar', ['-xzf', tarPath, '-C', staging])
+    if (ex.status !== 0) { err(ctx, `extract failed: ${ex.stderr}`); return 1 }
+    fs.rmSync(tarPath, { force: true })
+    // prepare dependencies if missing
+    if (!fs.existsSync(path.join(staging, 'node_modules'))) {
+      const r = execCmd('pnpm', ['install', '--frozen-lockfile', '--dir', staging])
+      if (r.status !== 0) { err(ctx, `dependency install failed: ${r.stderr}`); return 1 }
+    }
+    if (!validateStaging(staging, version)) {
+      err(ctx, 'staging validation failed (missing package.json/.next/node_modules or version mismatch)')
       return 1
     }
+    // record backup pointer
+    const statePath = '/var/lib/dscos-updates/state.json'
+    try { fs.mkdirSync('/var/lib/dscos-updates', { recursive: true }) } catch {}
     const sw = switchRelease({ appDir, staging, backup })
     if (!sw.ok) { err(ctx, `switch failed: ${sw.error}`); return 1 }
-    execCmd('systemctl', ['restart', APP_SERVICE])
+    try { fs.writeFileSync(statePath, JSON.stringify({ lastBackup: backup, lastVersion: version }, null, 2)) } catch {}
+    // restart + health
+    const rr = execCmd('systemctl', ['restart', APP_SERVICE])
+    if (rr.status !== 0) {
+      // rollback
+      rollbackRelease({ appDir, backup })
+      execCmd('systemctl', ['restart', APP_SERVICE])
+      err(ctx, `restart failed; rolled back: ${rr.stderr}`)
+      return 1
+    }
+    // health check
+    let healthy = false
+    for (let i = 0; i < 10; i++) {
+      const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
+      const c = parseInt(hr.stdout.trim(), 10)
+      if (c >= 200 && c < 300) { healthy = true; break }
+      execCmd('sleep', ['2'])
+    }
+    if (!healthy) {
+      rollbackRelease({ appDir, backup })
+      execCmd('systemctl', ['restart', APP_SERVICE])
+      err(ctx, 'health check failed; rolled back')
+      return 1
+    }
+    // update installer version
+    try { fs.writeFileSync('/etc/kiosk/installer.version', '2.0') } catch {}
     out(ctx, `updated to ${version}`)
     return 0
   }
   if (sub === 'rollback') {
     const appDir = process.env.DSCOS_APP_DIR || '/opt/dscos'
-    const backup = backupDir('last-known-good')
+    let backup = backupDir('last-known-good')
+    try {
+      const state = JSON.parse(require('node:fs').readFileSync('/var/lib/dscos-updates/state.json', 'utf8'))
+      if (state?.lastBackup) backup = state.lastBackup
+    } catch {}
     const rb = rollbackRelease({ appDir, backup })
     if (!rb.ok) { err(ctx, `rollback failed: ${rb.error}`); return 1 }
-    execCmd('systemctl', ['restart', APP_SERVICE])
+    const rr = execCmd('systemctl', ['restart', APP_SERVICE])
+    if (rr.status !== 0) { err(ctx, `restart failed: ${rr.stderr}`); return 1 }
+    // health check restored
+    let healthy = false
+    for (let i = 0; i < 10; i++) {
+      const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
+      const c = parseInt(hr.stdout.trim(), 10)
+      if (c >= 200 && c < 300) { healthy = true; break }
+      execCmd('sleep', ['2'])
+    }
+    if (!healthy) { err(ctx, 'restored app failed health check'); return 1 }
     out(ctx, 'rolled back')
     return 0
   }
@@ -619,12 +700,16 @@ async function cmdUninstall(ctx: Ctx): Promise<number> {
     const r = execCmd(cmd, args)
     if (r.status !== 0) failures.push(`${cmd} ${args.join(' ')}: ${r.stderr || r.status}`)
   }
+  run('systemctl', ['stop', 'kiosk-update.timer'])
+  run('systemctl', ['disable', 'kiosk-update.timer'])
   run('systemctl', ['stop', APP_SERVICE])
   run('systemctl', ['disable', APP_SERVICE])
   run('systemctl', ['stop', KIOSK_SERVICE])
   run('systemctl', ['disable', KIOSK_SERVICE])
   const files = [
     '/etc/systemd/system/dscos.service',
+    '/etc/systemd/system/kiosk-update.service',
+    '/etc/systemd/system/kiosk-update.timer',
     '/etc/systemd/system/kiosk-standby-on.service',
     '/etc/systemd/system/kiosk-standby-on.timer',
     '/etc/systemd/system/kiosk-standby-off.service',

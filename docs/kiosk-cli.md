@@ -335,6 +335,10 @@ kiosk update apply [--version V] [--yes] Download and apply an update
 kiosk update rollback                    Roll back to last known good
 kiosk update enable|disable              Toggle daily auto-update timer
 kiosk update status                      Show auto-update timer status
+
+Updates download a prebuilt release from GitHub, validate it, switch the app
+directory, and restart the service. On failure the previous app is restored
+automatically. Use `kiosk update rollback` to revert manually.
 ```
 
 Version comparison logic exists (`lib/kiosk/updates.ts`), but no update
