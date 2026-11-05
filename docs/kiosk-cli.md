@@ -347,9 +347,10 @@ Backups live under `/var/lib/dscos-updates/backup/` and
 `/var/lib/dscos-updates/runtime-backup/`, and update state is in
 `/var/lib/dscos-updates/state.json`.
 
-An apply that stops during the runtime refresh leaves its snapshot in place.
-The next apply restores that snapshot before it takes a new one, so a retry
-never saves partly replaced helpers as the rollback target. If recovery
+An apply that stops during the runtime refresh leaves its snapshot marked
+incomplete. The next apply restores that snapshot before it takes a new one, so
+a retry never saves partly replaced helpers as the rollback target. Snapshots
+from finished updates are kept for rollback but are not restored. If recovery
 cannot move the old app back, or cannot restore the helpers, the backup and
 snapshot stay recorded in `state.json`; `kiosk update rollback` resumes from
 where recovery stopped.

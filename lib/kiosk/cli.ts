@@ -21,6 +21,8 @@ import {
   runtimeFiles,
   backupRuntimeFiles,
   restoreRuntimeFiles,
+  isRuntimeBackupIncomplete,
+  markRuntimeBackupComplete,
 } from './updater'
 import { parseOsRelease, isSupportedDebian, checkPrerequisites, formatBytes } from './device'
 
@@ -571,8 +573,10 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
   const runtimeSnapshot = runtimeBackupDir(version)
   // An earlier attempt for this version may have stopped during
   // --update-runtime. Put its clean snapshot back before taking a new one, or
-  // the retry would save half-updated helpers as the rollback target.
-  if (fs.existsSync(runtimeSnapshot) && fs.existsSync(path.join(runtimeSnapshot, 'manifest.json'))) {
+  // the retry would save half-updated helpers as the rollback target. A
+  // snapshot without the marker belongs to a finished update and is only a
+  // rollback target, so leave the current helpers alone.
+  if (isRuntimeBackupIncomplete(runtimeSnapshot)) {
     const recovered = restoreRuntimeSnapshot(runtimeSnapshot)
     if (recovered) {
       err(ctx, `could not recover the interrupted update: ${recovered}`)
@@ -653,6 +657,12 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
       err(ctx, `could not record installer version: ${message}; ${recovery.ok ? `rolled back to ${currentVersion}` : recovery.error}`)
       return 1
     }
+  }
+  // The update is complete, so the snapshot is now a finished rollback target
+  // rather than a possible half-refreshed helper set.
+  const finalized = markRuntimeBackupComplete(runtimeSnapshot)
+  if (!finalized.ok) {
+    err(ctx, `warning: could not finalize runtime backup: ${finalized.error}`)
   }
   out(ctx, `updated to ${version}`)
   return 0

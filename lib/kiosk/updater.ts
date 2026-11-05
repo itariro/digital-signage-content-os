@@ -43,6 +43,8 @@ export const RUNTIME_FILES = [
   '/usr/local/bin/kiosk-standby-off',
 ]
 
+export const RUNTIME_INCOMPLETE_MARKER = 'incomplete'
+
 export function runtimeFiles(): string[] {
   const root = process.env.KIOSK_RUNTIME_ROOT || ''
   return RUNTIME_FILES.map((file) => (root ? path.join(root, file) : file))
@@ -146,6 +148,22 @@ export function backupRuntimeFiles(files: string[], dest: string): RuntimeFileRe
       }
     })
     fs.writeFileSync(path.join(dest, 'manifest.json'), JSON.stringify({ files: manifest }, null, 2), { mode: 0o600 })
+    // A snapshot with this marker may belong to a half-finished runtime
+    // refresh. Completed snapshots drop it and are safe rollback targets only.
+    fs.writeFileSync(path.join(dest, RUNTIME_INCOMPLETE_MARKER), '', { mode: 0o600 })
+    return { ok: true }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export function isRuntimeBackupIncomplete(dest: string): boolean {
+  return fs.existsSync(path.join(dest, RUNTIME_INCOMPLETE_MARKER))
+}
+
+export function markRuntimeBackupComplete(dest: string): RuntimeFileResult {
+  try {
+    fs.rmSync(path.join(dest, RUNTIME_INCOMPLETE_MARKER), { force: true })
     return { ok: true }
   } catch (e: unknown) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }

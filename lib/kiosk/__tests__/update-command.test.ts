@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { runCli } from '../cli'
-import { backupRuntimeFiles } from '../updater'
+import { backupRuntimeFiles, markRuntimeBackupComplete, RUNTIME_INCOMPLETE_MARKER } from '../updater'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -180,6 +180,7 @@ describe('update command', () => {
     const state = JSON.parse(fs.readFileSync(h.statePath, 'utf8'))
     expect(state.lastBackup).toBe(path.join(h.updateRoot, 'backup', '0.9.0'))
     expect(state.runtimeBackup).toBe(path.join(h.updateRoot, 'runtime-backup', '0.9.0'))
+    expect(fs.existsSync(path.join(state.runtimeBackup, RUNTIME_INCOMPLETE_MARKER))).toBe(false)
 
     const rollback = await runCli(['update', 'rollback', '--yes'])
     expect(rollback.exitCode).toBe(0)
@@ -285,6 +286,22 @@ describe('update command', () => {
     const rollback = await runCli(['update', 'rollback', '--yes'])
     expect(rollback.exitCode).toBe(0)
     expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
+  })
+
+  it('does not restore a completed snapshot on a later apply', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    const snapshot = path.join(h.updateRoot, 'runtime-backup', '0.9.0')
+    expect(backupRuntimeFiles([runtimeKiosk(h)], snapshot)).toEqual({ ok: true })
+    expect(markRuntimeBackupComplete(snapshot)).toEqual({ ok: true })
+    fs.writeFileSync(runtimeKiosk(h), 'current runtime\n')
+
+    const apply = await runCli(['update', 'apply', '--yes'])
+    expect(apply.exitCode).toBe(0)
+
+    const rollback = await runCli(['update', 'rollback', '--yes'])
+    expect(rollback.exitCode).toBe(0)
+    expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('current runtime')
   })
 
   it('finishes a recovery that could not restore the runtime', async () => {
