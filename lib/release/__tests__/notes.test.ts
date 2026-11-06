@@ -45,4 +45,32 @@ describe('release notes', () => {
   it('throws when the section is empty', () => {
     expect(() => extractReleaseNotes('## Release notes\n\n## Test plan\n')).toThrow(/empty/)
   })
+
+  it('keeps inner fence lines inside a longer outer fence', () => {
+    const body = [
+      '## Release notes',
+      '````',
+      '```',
+      '## not a heading',
+      '```',
+      'After',
+      '````',
+      '## Next',
+    ].join('\n')
+    expect(extractReleaseNotes(body)).toBe('````\n```\n## not a heading\n```\nAfter\n````')
+  })
+
+  it('keeps a tilde fence inside a backtick fence', () => {
+    const body = [
+      '## Release notes',
+      '```',
+      '~~~',
+      '## not a heading',
+      '~~~',
+      'After',
+      '```',
+      '## Next',
+    ].join('\n')
+    expect(extractReleaseNotes(body)).toBe('```\n~~~\n## not a heading\n~~~\nAfter\n```')
+  })
 })
