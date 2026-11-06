@@ -524,6 +524,9 @@ curl -fsSL https://raw.githubusercontent.com/itariro/digital-signage-content-os/
 - Overnight standby defaults to 22:00-06:00 (device local time) via systemd timers.
 - Management is performed with the `kiosk` CLI: `kiosk status` for a quick check, `kiosk doctor` for diagnostics, `kiosk config set <key> <value>` to change settings. Full lifecycle reference: `docs/kiosk-cli.md`.
 
+Release maintainers: `docs/releasing.md` covers the release PR, the Release
+workflow, dry runs, and draft publication.
+
 
 This repository is connected to a Vercel project and can be deployed through Vercel or the linked v0 workflow. Configure the production database and environment variables in the deployment project before publishing.
 

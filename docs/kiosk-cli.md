@@ -92,17 +92,20 @@ existing `/opt/dscos` reuse that tree and never download.
 
 The product is in beta until a polished release earns `v1.0`. Until then:
 
-- Releases are tagged `v0.x` (for example `v0.8`). The `v1.0` tag is
-  reserved for the first primetime release.
-- `package.json` `version` moves with the tag: tag `v0.8` ships version
-  `0.8.0`. Wire updates read the bundled `package.json` version and compare
-  it against tags (`lib/kiosk/updates.ts`), so the two must not drift apart.
-- Pins follow the same rule: `KIOSK_REF=v0.8`, never a `v1.0` example,
-  until `v1.0` actually exists.
-
-The installer's own `INSTALLER_VERSION` (in `install-kiosk.sh`) and the sync
-wire protocol's `apiVersion` are separate version spaces and do not track
-product tags.
+- Releases use full semver tags: `vX.Y.Z`, optionally with a prerelease
+  suffix such as `v0.9.0-rc.1`. `package.json` `version` is the tag without
+  the `v`, so tag `v0.9.0` ships version `0.9.0`.
+- `v0.8` was the last two-part tag and is read as `0.8.0`. New releases always
+  use three parts.
+- Prereleases are GitHub prereleases. `kiosk update check` and the daily timer
+  use `/releases/latest`, which excludes them. Install one explicitly with
+  `kiosk update apply --version 0.9.0-rc.1 --yes`.
+- Publishing a stable release makes it the latest release. Publishing a
+  prerelease never does.
+- Pins follow the tag: `KIOSK_REF=v0.8` today, `KIOSK_REF=v0.9.0` after the
+  first full-semver release.
+- The installer's `INSTALLER_VERSION` (`2.0`) and the sync protocol's
+  `apiVersion` are separate version spaces. They do not track product tags.
 
 ### What the installer sets up
 
@@ -359,6 +362,14 @@ The update lock is an OS-held SQLite lock at
 `/var/lib/dscos-updates/lock.db`. The kernel releases it when the update
 process exits, so an interrupted update does not block the next manual or
 scheduled run.
+
+`update check` and the daily timer follow the latest stable GitHub release.
+Prereleases are never selected automatically. To install one on a test frame,
+name it explicitly:
+
+```bash
+sudo kiosk update apply --version 0.9.0-rc.1 --yes
+```
 
 ### Device
 
