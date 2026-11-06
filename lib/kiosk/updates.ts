@@ -1,19 +1,10 @@
+import { compareVersions } from '../semver'
+export { compareVersions }
+
 export interface VersionInfo {
   current: string
   latest: string
   channel: string
-}
-
-export function compareVersions(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
-  const pb = b.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
-  const len = Math.max(pa.length, pb.length)
-  for (let i = 0; i < len; i++) {
-    const x = pa[i] ?? 0
-    const y = pb[i] ?? 0
-    if (x !== y) return x < y ? -1 : 1
-  }
-  return 0
 }
 
 export function isUpdateAvailable(current: string, latest: string): boolean {

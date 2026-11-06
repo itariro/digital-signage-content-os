@@ -19,3 +19,6 @@ node_modules
 # Single lockfile policy: pnpm only (packageManager in package.json)
 package-lock.json
 yarn.lock
+
+# Local release output
+dist/

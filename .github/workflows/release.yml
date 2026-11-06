@@ -1,0 +1,236 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the v prefix, for example 0.9.0 or 0.9.0-rc.1'
+        required: true
+        type: string
+      release_pr:
+        description: 'Merged release PR number with a ## Release notes section'
+        required: true
+        type: number
+      dry_run:
+        description: 'Validate, build, and package without tagging or creating a release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION_INPUT: ${{ inputs.version }}
+      RELEASE_PR: ${{ inputs.release_pr }}
+
+    steps:
+      - name: Check out the dispatched commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Require main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "release must be dispatched from main (got $GITHUB_REF)" >&2
+            exit 1
+          fi
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: |
+          PNPM_VERSION=$(node -p "require('./package.json').packageManager.replace(/^pnpm@/, '')")
+          npm install -g "pnpm@$PNPM_VERSION"
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate release
+        id: release
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/release.ts check "$VERSION_INPUT" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Verify release PR and extract notes
+        run: |
+          set -o pipefail
+          STATE=$(gh pr view "$RELEASE_PR" --json state --jq .state)
+          if [ "$STATE" != "MERGED" ]; then
+            echo "release PR #$RELEASE_PR is $STATE, not MERGED" >&2
+            exit 1
+          fi
+
+          MERGE_SHA=$(gh pr view "$RELEASE_PR" --json mergeCommit --jq .mergeCommit.oid)
+          if [ -z "$MERGE_SHA" ] || [ "$MERGE_SHA" = "null" ]; then
+            echo "release PR #$RELEASE_PR has no merge commit" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$MERGE_SHA" "$GITHUB_SHA"; then
+            echo "release PR #$RELEASE_PR merge commit $MERGE_SHA is not in $GITHUB_SHA" >&2
+            exit 1
+          fi
+
+          gh pr view "$RELEASE_PR" --json body --jq .body \
+            | pnpm exec tsx scripts/release.ts notes > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "release notes are empty" >&2
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package
+        id: package
+        run: |
+          set -o pipefail
+          pnpm exec tsx scripts/release.ts package "${{ steps.release.outputs.version }}" --out dist \
+            | tee -a "$GITHUB_OUTPUT"
+
+      - name: Smoke-install the archive
+        env:
+          ASSET: ${{ steps.package.outputs.asset }}
+        run: |
+          TMP=$(mktemp -d)
+          trap 'rm -rf "$TMP"' EXIT
+          tar -xzf "$ASSET" -C "$TMP"
+          cd "$TMP"
+          pnpm install --frozen-lockfile
+          test -f package.json
+          test -f .next/BUILD_ID
+          test -f lib/kiosk/cli.ts
+          test -f install-kiosk.sh
+
+      - name: Report dry run
+        if: ${{ inputs.dry_run }}
+        env:
+          ASSET: ${{ steps.package.outputs.asset }}
+        run: |
+          {
+            echo "## Release dry run"
+            echo ""
+            echo "- Version: \`${{ steps.release.outputs.version }}\`"
+            echo "- Tag: \`${{ steps.release.outputs.tag }}\`"
+            echo "- Asset: \`${{ steps.package.outputs.asset }}\`"
+            echo "- SHA-256: \`${{ steps.package.outputs.sha256 }}\`"
+            echo ""
+            echo "### Archive entries"
+            echo ""
+            tar -tzf "$ASSET" | sed 's/^/- /'
+            echo ""
+            echo "### Release notes"
+            echo ""
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git fetch --tags origin
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            EXISTING=$(git rev-list -n1 "$TAG")
+            if [ "$EXISTING" != "$GITHUB_SHA" ]; then
+              echo "tag $TAG points at $EXISTING, expected $GITHUB_SHA" >&2
+              exit 1
+            fi
+            echo "tag $TAG already points at $GITHUB_SHA"
+          else
+            git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
+          fi
+
+      - name: Generate release notes
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          PREVIOUS=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
+          if [ -n "$PREVIOUS" ]; then
+            gh api "repos/$GH_REPO/releases/generate-notes" \
+              -f tag_name="$TAG" \
+              -f previous_tag_name="$PREVIOUS" \
+              --jq .body > generated-notes.md
+          else
+            gh api "repos/$GH_REPO/releases/generate-notes" \
+              -f tag_name="$TAG" \
+              --jq .body > generated-notes.md
+          fi
+
+          {
+            cat release-notes.md
+            if [ -s generated-notes.md ]; then
+              printf '\n\n---\n\n'
+              cat generated-notes.md
+            fi
+          } > full-release-notes.md
+
+      - name: Create or update draft release
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          ASSET: ${{ steps.package.outputs.asset }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq .isDraft)
+            if [ "$IS_DRAFT" != "true" ]; then
+              echo "release $TAG is already published; refusing to change it" >&2
+              exit 1
+            fi
+            gh release upload "$TAG" "$ASSET" --clobber
+            gh release edit "$TAG" \
+              --title "$TAG" \
+              --notes-file full-release-notes.md \
+              --prerelease="$PRERELEASE"
+          else
+            gh release create "$TAG" "$ASSET" \
+              --verify-tag \
+              --draft \
+              --title "$TAG" \
+              --notes-file full-release-notes.md \
+              --prerelease="$PRERELEASE"
+          fi
+
+      - name: Report draft
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          URL=$(gh release view "$TAG" --json url --jq .url)
+          {
+            echo "## Draft release"
+            echo ""
+            echo "$URL"
+            echo ""
+            echo "- SHA-256: \`${{ steps.package.outputs.sha256 }}\`"
+            echo ""
+            echo 'Publish from the GitHub Releases page. Keep "Set as the latest release" checked for a stable release.'
+          } >> "$GITHUB_STEP_SUMMARY"
