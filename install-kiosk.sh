@@ -599,7 +599,7 @@ t_apt_install() {
     # Purge stale kernels; never touch the running one (uname -r).
     local current
     current=$(uname -r)
-    dpkg -l 'linux-image-*' | awk '/^ii/{print $2}' | grep -vx "$current" | xargs -r apt-get purge -y
+    dpkg -l 'linux-image-*' | awk '/^ii/{print $2}' | grep -vx "$current" | xargs -r apt-get purge -y || true
 }
 t_apt_zram()    { apt_run install -y --no-install-recommends systemd-zram-generator; }
 
