@@ -1275,7 +1275,8 @@ EOF
 
 t_validate() {
     bash -n "$LIB_DIR/session.sh"
-    [[ -f /usr/share/xsessions/kiosk.desktop ]]
+    [[ -x /usr/local/bin/kiosk-xinit ]]
+    [[ -f /etc/systemd/system/getty@tty1.service.d/override.conf ]]
     # shellcheck disable=SC1090
     ( . "$CONFIG_FILE" && [[ -n ${KIOSK_URL:-} ]] )
 }
