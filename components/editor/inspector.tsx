@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   AlignCenterHorizontal,
   AlignCenterVertical,
@@ -24,12 +25,13 @@ import {
   Ungroup,
   Unlock,
 } from 'lucide-react'
-import type { Album, Widget, WidgetStyle } from '@/lib/types'
+import type { Album, GradientDef, ShadowPresetId, TextFill, Widget, WidgetStyle } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { BUILTIN_FONTS, customFontId, fontStack } from '@/lib/fonts'
 import { getDefinition } from '@/lib/widgets'
+import { normalizeWidgetStyle } from '@/lib/text-effects'
 import type { EditorApi } from '@/hooks/use-editor'
-import { ColorField, IconButton, NumberField, Section, Segmented, SelectField, SliderField, ThemeSwatches, ToggleField } from './controls'
+import { AngleDial, ColorField, GradientStopPicker, IconButton, ImageFillField, NumberField, Section, Segmented, SelectField, SliderField, ThemeSwatches, ToggleField } from './controls'
 import { LayoutSettingsPanel } from './layout-settings'
 import { WidgetPreview } from './widget-preview'
 import { cn } from '@/lib/utils'
@@ -54,6 +56,9 @@ export function Inspector({ editor, customFonts, albums, onOpenAlbums, onSavePre
       {selection.length === 1 && <TemplateSection editor={editor} widget={selection[0]} />}
       {selection.length === 1 && selection[0].type === 'sticker' && <StickerLayersSection editor={editor} widget={selection[0]} />}
       {selection.length === 1 && <ContentSection editor={editor} widget={selection[0]} />}
+      {selection.length === 1 && (selection[0].type === 'text' || selection[0].type === 'sticker') && (
+        <TextEffectsSections editor={editor} widget={selection[0]} />
+      )}
       {selection.length > 1 && <ArrangeSection editor={editor} selection={selection} />}
       <StyleSections editor={editor} selection={selection} customFonts={customFonts} />
       {selection.length === 1 && <GeometrySection editor={editor} widget={selection[0]} />}
@@ -205,6 +210,211 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
         )
       })}
     </Section>
+  )
+}
+
+const GRADIENT_PRESETS: { label: string; gradient: GradientDef }[] = [
+  { label: 'Sunset', gradient: { type: 'linear', angle: 135, stops: [{ color: '#ff8fa3', position: 0 }, { color: '#ffb86b', position: 55 }, { color: '#ffd36e', position: 100 }] } },
+  { label: 'Ocean', gradient: { type: 'linear', angle: 160, stops: [{ color: '#7cc4ff', position: 0 }, { color: '#3a86ff', position: 100 }] } },
+  { label: 'Forest', gradient: { type: 'linear', angle: 120, stops: [{ color: '#9be7c4', position: 0 }, { color: '#2d6a4f', position: 100 }] } },
+]
+
+const DEFAULT_GRADIENT: GradientDef = { type: 'linear', angle: 135, stops: [{ color: '#ff8fa3', position: 0 }, { color: '#7cc4ff', position: 100 }] }
+
+function TextEffectsSections({ editor, widget }: { editor: EditorApi; widget: Widget }) {
+  const commit = () => editor.checkpoint()
+  if (widget.type === 'sticker') {
+    return <StickerEffectsSections editor={editor} widget={widget} commit={commit} />
+  }
+  const style = normalizeWidgetStyle({ ...widget.style })
+  const patch = (p: Partial<WidgetStyle>, record = true) => editor.updateStyle([widget.id], p, record)
+  return <EffectControls style={style} onPatch={patch} commit={commit} />
+}
+
+function StickerEffectsSections({ editor, widget, commit }: { editor: EditorApi; widget: Widget; commit: () => void }) {
+  const layers = widget.layers ?? []
+  const [activeId, setActiveId] = useState(layers[0]?.id ?? '')
+  const active = layers.find((l) => l.id === activeId) ?? layers[0]
+  const patchLayer = (p: Partial<WidgetStyle>, record = true) => {
+    if (!active) return
+    editor.updateWidgets(
+      [widget.id],
+      (w) => ({
+        ...w,
+        layers: (w.layers ?? []).map((layer) =>
+          layer.id === active.id ? { ...layer, style: { ...layer.style, ...p } } : layer,
+        ),
+      }),
+      record,
+    )
+  }
+  if (!active) return null
+  const style = normalizeWidgetStyle({ ...active.style })
+  return (
+    <>
+      {layers.length > 1 && (
+        <Section title="Text effects layer">
+          <Segmented
+            label="Sticker layer"
+            value={active.id}
+            onChange={setActiveId}
+            options={layers.map((l, i) => ({ value: l.id, label: `Layer ${i + 1}` }))}
+          />
+        </Section>
+      )}
+      <EffectControls style={style} onPatch={patchLayer} commit={commit} />
+    </>
+  )
+}
+
+function EffectControls({
+  style,
+  onPatch,
+  commit,
+}: {
+  style: WidgetStyle
+  onPatch: (patch: Partial<WidgetStyle>, record?: boolean) => void
+  commit: () => void
+}) {
+  const fill: TextFill = style.fill ?? { kind: 'solid', color: style.color }
+  const stroke = style.textStrokeCfg ?? { enabled: false, color: '#ffffff', thickness: 2, opacity: 100, align: 'outside' as const }
+  const shadow = style.lightingShadow ?? { preset: 'none' as const, distance: 0, blur: 0, opacity: 0, angle: 0, color: '#000000' }
+
+  const setFill = (next: TextFill, record = true) => {
+    if (next.kind === 'solid') onPatch({ fill: next, color: next.color }, record)
+    else onPatch({ fill: next }, record)
+  }
+  const setGradient = (gradient: GradientDef, record = true) => setFill({ kind: 'gradient', gradient }, record)
+  const gradient: GradientDef = fill.kind === 'gradient' ? fill.gradient : DEFAULT_GRADIENT
+
+  const shadowSlide = (key: 'distance' | 'blur' | 'opacity' | 'angle' | 'steps' | 'spread') => (v: number) =>
+    onPatch({ lightingShadow: { ...shadow, [key]: v } }, false)
+
+  return (
+    <>
+      <Section title="Text fill">
+        <Segmented<'solid' | 'gradient' | 'image'>
+          label="Fill type"
+          value={fill.kind}
+          onChange={(kind) => {
+            if (kind === 'solid') setFill({ kind: 'solid', color: style.color })
+            else if (kind === 'gradient') setFill({ kind: 'gradient', gradient })
+            else
+              setFill({
+                kind: 'image',
+                image: fill.kind === 'image' ? fill.image : { url: '/curated/text-fills/marble-01.jpg', fit: 'cover', scale: 100, position: 50 },
+              })
+          }}
+          options={[
+            { value: 'solid', label: 'Solid' },
+            { value: 'gradient', label: 'Gradient' },
+            { value: 'image', label: 'Image' },
+          ]}
+        />
+        {fill.kind === 'solid' && <ColorField label="Fill color" value={fill.color} onChange={(v) => setFill({ kind: 'solid', color: v })} />}
+        {fill.kind === 'gradient' && (
+          <>
+            <div className="grid grid-cols-3 gap-1.5">
+              {GRADIENT_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setGradient(preset.gradient)}
+                  className="rounded-lg bg-secondary px-2 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/70"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <GradientStopPicker stops={gradient.stops} onCommit={commit} onChange={(stops) => setGradient({ ...gradient, stops }, false)} />
+            <Segmented<'linear' | 'radial'>
+              label="Gradient type"
+              value={gradient.type}
+              onChange={(type) => setGradient({ ...gradient, type })}
+              options={[
+                { value: 'linear', label: 'Linear' },
+                { value: 'radial', label: 'Radial' },
+              ]}
+            />
+            {gradient.type === 'linear' && (
+              <>
+                <AngleDial label="Gradient angle" value={gradient.angle} onCommit={commit} onChange={(angle) => setGradient({ ...gradient, angle }, false)} />
+                <SliderField label="Angle" value={gradient.angle} min={0} max={359} suffix="°" onCommit={commit} onChange={(angle) => setGradient({ ...gradient, angle }, false)} />
+              </>
+            )}
+          </>
+        )}
+        {fill.kind === 'image' && (
+          <ImageFillField
+            image={fill.image}
+            onCommit={commit}
+            onChange={(image) => setFill({ kind: 'image', image }, false)}
+          />
+        )}
+      </Section>
+
+      <Section title="Text stroke">
+        <ToggleField label="Stroke" checked={stroke.enabled} onChange={(enabled) => onPatch({ textStrokeCfg: { ...stroke, enabled } })} />
+        {stroke.enabled && (
+          <>
+            <ColorField label="Stroke color" value={stroke.color} onChange={(v) => onPatch({ textStrokeCfg: { ...stroke, color: v } })} />
+            <SliderField label="Thickness" value={stroke.thickness} min={0} max={24} suffix="px" onCommit={commit} onChange={(v) => onPatch({ textStrokeCfg: { ...stroke, thickness: v } }, false)} />
+            <SliderField label="Opacity" value={stroke.opacity} min={0} max={100} suffix="%" onCommit={commit} onChange={(v) => onPatch({ textStrokeCfg: { ...stroke, opacity: v } }, false)} />
+            <Segmented<'inside' | 'center' | 'outside'>
+              label="Stroke alignment"
+              value={stroke.align}
+              onChange={(align) => onPatch({ textStrokeCfg: { ...stroke, align } })}
+              options={[
+                { value: 'inside', label: 'Inside' },
+                { value: 'center', label: 'Centre' },
+                { value: 'outside', label: 'Outside' },
+              ]}
+            />
+          </>
+        )}
+      </Section>
+
+      <Section title="Text shadow">
+        <Segmented<ShadowPresetId>
+          label="Shadow preset"
+          value={shadow.preset}
+          onChange={(preset) =>
+            onPatch({
+              lightingShadow: {
+                ...shadow,
+                preset,
+                ...(preset === 'drop' && shadow.preset === 'none'
+                  ? { distance: 6, blur: 14, opacity: 35, angle: 90 }
+                  : {}),
+              },
+            })
+          }
+          options={[
+            { value: 'none', label: 'None' },
+            { value: 'drop', label: 'Drop' },
+            { value: 'contact', label: 'Contact' },
+            { value: 'long', label: 'Long' },
+            { value: 'curved', label: 'Curved' },
+          ]}
+        />
+        {shadow.preset !== 'none' && (
+          <>
+            <SliderField label="Distance" value={shadow.distance} min={0} max={60} suffix="px" onCommit={commit} onChange={shadowSlide('distance')} />
+            <SliderField label="Blur" value={shadow.blur} min={0} max={80} suffix="px" onCommit={commit} onChange={shadowSlide('blur')} />
+            <SliderField label="Opacity" value={shadow.opacity} min={0} max={100} suffix="%" onCommit={commit} onChange={shadowSlide('opacity')} />
+            <AngleDial label="Light angle" value={shadow.angle} onCommit={commit} onChange={shadowSlide('angle')} />
+            <SliderField label="Angle" value={shadow.angle} min={0} max={359} suffix="°" onCommit={commit} onChange={shadowSlide('angle')} />
+            <ColorField label="Shadow color" value={shadow.color} onChange={(v) => onPatch({ lightingShadow: { ...shadow, color: v } })} />
+            {shadow.preset === 'long' && (
+              <SliderField label="Steps" value={shadow.steps ?? 40} min={12} max={120} onCommit={commit} onChange={shadowSlide('steps')} />
+            )}
+            {(shadow.preset === 'contact' || shadow.preset === 'curved') && (
+              <SliderField label="Spread" value={shadow.spread ?? 8} min={0} max={40} suffix="px" onCommit={commit} onChange={shadowSlide('spread')} />
+            )}
+          </>
+        )}
+      </Section>
+    </>
   )
 }
 
