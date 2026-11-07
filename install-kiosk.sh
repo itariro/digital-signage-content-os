@@ -600,7 +600,7 @@ t_apt_install() {
     # Purge stale kernels; never touch the running one (uname -r).
     local current
     current=$(uname -r)
-    dpkg -l 'linux-image-*' | awk '/^ii/{print $2}' | grep -vx "$current" | xargs -r apt-get purge -y || true
+    dpkg -l 'linux-image-*' | awk '/^ii/{print $2}' | grep -E '^linux-image-[0-9]' | grep -Fvx "linux-image-${current}" | xargs -r apt-get purge -y || true
 }
 t_apt_zram()    { apt_run install -y --no-install-recommends systemd-zram-generator; }
 
@@ -689,11 +689,15 @@ set -u
 
 export WEBKIT_DISABLE_COMPOSITING_MODE=1
 export WEBKIT_FORCE_SANDBOX=0
+export DISPLAY=:0
+export XAUTHORITY=/home/kiosk/.Xauthority
 
 CONFIG_FILE=/etc/kiosk/kiosk.conf
-RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}
+RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u 2>/dev/null || echo 0)}
+mkdir -p "$RUNTIME_DIR" 2>/dev/null || RUNTIME_DIR=/tmp
 SURF_LOG="${RUNTIME_DIR}/kiosk-surf.log"
 CACHE_DIR="${RUNTIME_DIR}/kiosk-surf-cache"   # tmpfs: spares the eMMC
+export XDG_CACHE_HOME="$CACHE_DIR"
 WM_PID=""
 BROWSER_PID=""
 
@@ -1228,9 +1232,18 @@ t_xinit() {
 # Start Xorg on tty1 as root (vt access), then run the kiosk session as kiosk.
 export DISPLAY=:0
 export XAUTHORITY=/home/kiosk/.Xauthority
-/usr/bin/Xorg :0 -nolisten tcp -s 0 -dpms vt1 &
-sleep 2
-exec su - kiosk -c 'exec /usr/local/lib/kiosk/session.sh'
+touch /home/kiosk/.Xauthority
+chown kiosk:kiosk /home/kiosk/.Xauthority
+chmod 600 /home/kiosk/.Xauthority
+while true; do
+    /usr/bin/Xorg :0 -nolisten tcp -s 0 -dpms vt1 &
+    XORG_PID=$!
+    sleep 2
+    su - kiosk -c 'exec /usr/local/lib/kiosk/session.sh'
+    kill "$XORG_PID" 2>/dev/null || true
+    wait "$XORG_PID" 2>/dev/null || true
+    sleep 2
+done
 EOF
     # Root profile guard: autologin lands on /dev/tty1 and starts X.
     local prof=/root/.profile
