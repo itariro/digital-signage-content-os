@@ -1040,22 +1040,42 @@ t_install_node() {
     /usr/bin/node --version
 }
 
+# Precompile the CLI to plain JavaScript so `kiosk` starts with bare
+# `node` instead of re-transpiling the TypeScript sources through tsx on
+# every invocation. The wrapper falls back to tsx when no build exists
+# (e.g. before the app tree has dependencies installed).
+build_kiosk_cli() {
+    local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
+    local tsc="${app_dir}/node_modules/.bin/tsc"
+    [[ -x "$tsc" && -f "${app_dir}/lib/kiosk/cli.ts" ]] || return 0
+    install -d -m 0755 /usr/local/lib/kiosk
+    ( cd "$app_dir" && "$tsc" lib/kiosk/cli.ts \
+        --outDir /usr/local/lib/kiosk \
+        --module commonjs --target es2022 \
+        --moduleResolution node --esModuleInterop --skipLibCheck \
+        --declaration false --sourceMap false ) || true
+}
+
 t_install_cli() {
     install -d -m 0755 /usr/local/bin
     cat > /usr/local/bin/kiosk <<'KIOSK_EOF'
 #!/bin/sh
 export KIOSK_CONFIG_PATH=/etc/kiosk/kiosk.conf
 export KIOSK_CLI_ENTRY=1
-if command -v tsx >/dev/null 2>&1; then
-    exec tsx "${DSCOS_APP_DIR:-/opt/dscos}/lib/kiosk/cli.ts" "$@"
+APP_DIR="${DSCOS_APP_DIR:-/opt/dscos}"
+if [ -f /usr/local/lib/kiosk/kiosk/cli.js ]; then
+    NODE_PATH="${APP_DIR}/node_modules" exec /usr/bin/node /usr/local/lib/kiosk/kiosk/cli.js "$@"
+elif command -v tsx >/dev/null 2>&1; then
+    exec tsx "${APP_DIR}/lib/kiosk/cli.ts" "$@"
 elif command -v npx >/dev/null 2>&1; then
-    exec npx --yes tsx "${DSCOS_APP_DIR:-/opt/dscos}/lib/kiosk/cli.ts" "$@"
+    exec npx --yes tsx "${APP_DIR}/lib/kiosk/cli.ts" "$@"
 else
     echo "tsx is required to run kiosk CLI" >&2
     exit 1
 fi
 KIOSK_EOF
     chmod 0755 /usr/local/bin/kiosk
+    build_kiosk_cli
     # convenience alias used by docs
 }
 
@@ -1086,6 +1106,10 @@ t_deploy_app() {
         fi
         pnpm install --frozen-lockfile
     fi
+    # t_install_cli runs before this task, so build the compiled CLI now
+    # that node_modules (and therefore tsc) exist. Without it the kiosk
+    # wrapper transparently falls back to running through tsx.
+    build_kiosk_cli
 }
 
 t_enroll_frame() {
