@@ -53,13 +53,14 @@ readonly MIN_FREE_KB=1500000
 readonly MIN_RAM_KB=1000000
 
 # Files replaced by --update-runtime. Keep in sync with t_install_cli,
-# t_write_session, t_write_ctl, t_xsession, t_write_app_service,
+# t_write_session, t_write_ctl, t_xinit, t_getty, t_write_app_service,
 # t_write_update_timer and t_write_standby_scripts.
 RUNTIME_FILES=(
     /usr/local/bin/kiosk
     "${LIB_DIR}/session.sh"
     /usr/local/bin/kiosk-ctl
-    /usr/share/xsessions/kiosk.desktop
+    /usr/local/bin/kiosk-xinit
+    /etc/systemd/system/getty@tty1.service.d/override.conf
     /etc/systemd/system/dscos.service
     /etc/systemd/system/kiosk-update.service
     /etc/systemd/system/kiosk-update.timer
@@ -345,7 +346,7 @@ splash() {
     gradient_rule 36
     printf '  %s\n' "$REPLY"
     printf '  %s%sDigital Signage Kiosk Installer%s  %sv%s%s\n' "$BOLD" "$ACCENT" "$RST" "$MUTED" "$INSTALLER_VERSION" "$RST"
-    printf '  %sChromium %s Openbox %s LightDM %s portrait-ready%s\n\n' "$MUTED" "$G_SEP" "$G_SEP" "$G_SEP" "$RST"
+    printf '  %sSurf %s Openbox %s Getty %s portrait-ready%s\n\n' "$MUTED" "$G_SEP" "$G_SEP" "$G_SEP" "$RST"
 }
 
 info()  { printf '    %s%s%s\n' "$MUTED" "$*" "$RST"; }
@@ -934,7 +935,7 @@ case "${1:-status}" in
         systemctl restart getty@tty1
         ;;
     status)
-        printf 'lightdm : '; systemctl is-active lightdm || true
+        printf 'getty   : '; systemctl is-active getty@tty1 || true
         printf 'surf    : '; pgrep -u "$KIOSK_USER" -x surf >/dev/null && echo running || echo "not running"
         echo "displays:"
         DISPLAY=:0 XAUTHORITY="/home/$KIOSK_USER/.Xauthority" xrandr --query 2>/dev/null \
@@ -1211,65 +1212,37 @@ EOF
     systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer
 }
 
-t_xsession() {
-    write_file /usr/share/xsessions/kiosk.desktop 0644 <<EOF
-[Desktop Entry]
-Name=Kiosk
-Comment=Chromium kiosk session
-Exec=${LIB_DIR}/session.sh
-Type=Application
+t_getty() {
+    install -d -m 0755 /etc/systemd/system/getty@tty1.service.d
+    write_file /etc/systemd/system/getty@tty1.service.d/override.conf 0644 <<'EOF'
+[Service]
+ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
 EOF
+    systemctl disable lightdm.service 2>/dev/null || true
+    systemctl daemon-reload
 }
 
-t_lightdm() {
-    install -d -m 0755 /etc/lightdm/lightdm.conf.d
-    # -nocursor hides the pointer; -s 0 / -dpms stop screen blanking at server level.
-    # Delete '-nocursor' if you need a visible mouse pointer.
-    write_file /etc/lightdm/lightdm.conf.d/50-kiosk.conf 0644 <<'EOF'
-[Seat:*]
-autologin-user=kiosk
-autologin-user-timeout=0
-autologin-session=kiosk
-user-session=kiosk
-allow-guest=false
-xserver-command=X -nocursor -nolisten tcp -s 0
+t_xinit() {
+    write_file /usr/local/bin/kiosk-xinit 0755 <<'EOF'
+#!/bin/sh
+# Start Xorg on tty1 as root (vt access), then run the kiosk session as kiosk.
+export DISPLAY=:0
+export XAUTHORITY=/home/kiosk/.Xauthority
+/usr/bin/Xorg :0 -nolisten tcp -s 0 -dpms vt1 &
+sleep 2
+exec su - kiosk -c 'exec /usr/local/lib/kiosk/session.sh'
 EOF
-    echo /usr/sbin/lightdm >/etc/X11/default-display-manager
-}
-
-t_policy() {
-    install -d -m 0755 /etc/chromium/policies/managed
-    write_file /etc/chromium/policies/managed/kiosk.json 0644 <<'EOF'
-{
-  "PasswordManagerEnabled": false,
-  "AutofillAddressEnabled": false,
-  "AutofillCreditCardEnabled": false,
-  "TranslateEnabled": false,
-  "SpellcheckEnabled": false,
-  "SyncDisabled": true,
-  "BrowserSignin": 0,
-  "MetricsReportingEnabled": false,
-  "PromotionalTabsEnabled": false,
-  "DefaultBrowserSettingEnabled": false,
-  "BackgroundModeEnabled": false,
-  "BookmarkBarEnabled": false,
-  "BrowserAddPersonEnabled": false,
-  "IncognitoModeAvailability": 1,
-  "PrintingEnabled": false,
-  "DownloadRestrictions": 3,
-  "DeveloperToolsAvailability": 2,
-  "ExtensionInstallBlocklist": ["*"],
-  "URLBlocklist": ["chrome://*", "view-source:*"]
-}
-EOF
-}
-
-t_policy_check() {
-    if command -v python3 >/dev/null 2>&1; then
-        python3 -m json.tool /etc/chromium/policies/managed/kiosk.json >/dev/null
-    else
-        echo "python3 not installed; skipping JSON validation"
+    # Root profile guard: autologin lands on /dev/tty1 and starts X.
+    local prof=/root/.profile
+    [[ -f $prof ]] || prof=/root/.bash_profile
+    if ! grep -q "kiosk-xinit" "$prof" 2>/dev/null; then
+        printf '\n# Kiosk: start X + Surf on tty1\nif [ "$(tty)" = /dev/tty1 ]; then exec /usr/local/bin/kiosk-xinit; fi\n' >>"$prof"
     fi
+}
+
+t_policy_note() {
+    # Surf has no policy surface; this is a no-op checkpoint that documents why.
+    echo "surf: minimal WebKit viewer, no extensions/sign-in; single-URL fullscreen enforced by session.sh"
 }
 
 t_journald() {
@@ -1309,7 +1282,7 @@ t_validate() {
 
 t_enable_boot() {
     systemctl set-default graphical.target
-    systemctl enable lightdm.service
+    systemctl enable lightdm.service 2>/dev/null || true
 }
 
 t_apt_clean() { apt-get clean; apt-get autoremove --purge -y; }
@@ -1360,7 +1333,7 @@ finish_screen() {
 
     kv "Dashboard" "$URL"
     kv "Display" "${orient} (rotate ${ROTATE})"
-    kv "Browser" "$( ((DRY)) && echo "(dry run)" || chromium --version 2>/dev/null || echo unknown )"
+    kv "Browser" "$( ((DRY)) && echo "(dry run)" || surf --version 2>/dev/null || surf -v 2>&1 | head -n 1 || echo unknown )"
     kv "Free disk" "$( df -h / 2>/dev/null | awk 'NR==2 {print $4 " free of " $2}' )"
     printf '\n  %sWhat happens next%s\n' "$BOLD" "$RST"
     next_step 1 "Reboot. The machine logs in automatically and starts the dashboard."
@@ -1406,7 +1379,8 @@ if (( UPDATE_RUNTIME )); then
     t_install_cli
     t_write_session
     t_write_ctl
-    t_xsession
+    t_getty
+    t_xinit
     t_write_app_service
     t_write_update_timer
     t_write_standby_scripts
@@ -1505,17 +1479,16 @@ else
     disp_txt="The screen is kept in '${ROTATE}' orientation. At every start the session waits for the monitor to report in and keeps re-checking it."
 fi
 step 2 \
-    "Registers a 'Kiosk' login session and tells LightDM to sign in automatically, with the mouse pointer hidden and screen blanking disabled." \
+    "Configures getty to sign in automatically on tty1, starting Xorg and the Surf browser fullscreen, with the mouse pointer hidden and screen blanking disabled." \
     "$disp_txt"
-task "Registering the Kiosk session" t_xsession
-task "Enabling auto-login in LightDM" t_lightdm
+task "Configuring getty autologin" t_getty
+task "Installing the X launcher" t_xinit
 step_end
 
 # ---- 7/9 --------------------------------------------------------------------
-step 2 \
-    "A managed Chromium policy turns off sign-in, password prompts, translate, printing, downloads, extensions, developer tools and the internal chrome:// pages, so the screen can only show your dashboard."
-task "Writing the Chromium lock-down policy" t_policy
-task "Validating the policy file" t_policy_check
+step 1 \
+    "Surf is a minimal WebKit viewer with no extension, sign-in, or policy surface. Lockdown is hardware-level: it can only open one URL fullscreen, and the supervisor respawns it if it crashes."
+task "Confirming Surf lockdown (no policy needed)" t_policy_note
 step_end
 
 # ---- 8/9 --------------------------------------------------------------------
