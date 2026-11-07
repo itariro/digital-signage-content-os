@@ -30,7 +30,7 @@
 #   -n, --dry-run          preview the installer UI; changes nothing, needs no root
 #       --plain            no colours, spinners or screen clearing (auto in pipes)
 #       --fast             no pacing delays between steps
-#       --update-runtime   refresh installed helpers and unit files only
+#       --update-runtime   ensure Node >=24, refresh installed helpers and unit files only
 #       --runtime-files    print the files that --update-runtime replaces
 #   -h, --help             show this help
 #
@@ -986,7 +986,7 @@ t_install_tsx() {
 # (better-sqlite3 >= 13 requires Node >= 22; target the Node 24 LTS line).
 # Debian's packaged nodejs is too old, so pull Node 24 LTS from NodeSource.
 t_install_node() {
-    local need_install=0 node_bin npm_bin major
+    local need_install=0 node_bin npm_bin major usr_major
     node_bin=$(command -v node 2>/dev/null || true)
     npm_bin=$(command -v npm 2>/dev/null || true)
 
@@ -995,6 +995,17 @@ t_install_node() {
     else
         major=$("$node_bin" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
         if (( major < 24 )); then need_install=1; fi
+    fi
+
+    # The service runs /usr/bin/node by absolute path, so a new enough node
+    # elsewhere on PATH does not help if /usr/bin/node itself is old (e.g.
+    # Node 24 on PATH with a stale Node 22 under /usr/bin). Probe the
+    # absolute path too and reinstall when it is present but too old, even
+    # when PATH already reports Node 24; a missing /usr/bin/node is handled
+    # by the linking step below.
+    if [[ -x /usr/bin/node ]]; then
+        usr_major=$(/usr/bin/node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+        if (( usr_major < 24 )); then need_install=1; fi
     fi
 
     # The app service invokes /usr/bin/npm (and /usr/bin/node) by absolute path,
@@ -1411,6 +1422,9 @@ finish_screen() {
 if (( UPDATE_RUNTIME )); then
     # Reinstall only the generated runtime files. Settings in
     # /etc/kiosk/kiosk.conf and /etc/dscos/frame.env stay untouched.
+    # The new bundle needs Node >=24 at /usr/bin/node|npm (the service path),
+    # so ensure it before refreshing the helpers that will run against it.
+    t_install_node
     t_install_cli
     t_write_session
     t_write_ctl

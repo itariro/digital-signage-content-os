@@ -17,6 +17,11 @@ const originalEnv = {
   FAKE_LOG: process.env.FAKE_LOG,
   FAKE_RESTART_FAIL: process.env.FAKE_RESTART_FAIL,
   FAKE_BASH_FAIL: process.env.FAKE_BASH_FAIL,
+  FAKE_NODE_VERSION: process.env.FAKE_NODE_VERSION,
+  FAKE_HEALTH_FAIL: process.env.FAKE_HEALTH_FAIL,
+  FAKE_HEALTH_CODE: process.env.FAKE_HEALTH_CODE,
+  FAKE_HEALTH_SLOW: process.env.FAKE_HEALTH_SLOW,
+  FAKE_SERVICE_STATE: process.env.FAKE_SERVICE_STATE,
 }
 
 interface Harness {
@@ -70,6 +75,7 @@ function setupHarness(opts: { version?: string; installerVersion?: string } = {}
     path.join(appDir, '.next'),
     path.join(appDir, 'node_modules'),
     path.join(runtimeRoot, 'usr', 'local', 'bin'),
+    path.join(runtimeRoot, 'usr', 'bin'),
     binDir,
   ]) {
     fs.mkdirSync(dir, { recursive: true })
@@ -79,6 +85,14 @@ function setupHarness(opts: { version?: string; installerVersion?: string } = {}
   fs.writeFileSync(cfgPath, 'KIOSK_PORT=3000\n')
   fs.writeFileSync(versionFile, '2.0\n')
   fs.writeFileSync(path.join(runtimeRoot, 'usr', 'local', 'bin', 'kiosk'), 'old runtime\n', { mode: 0o755 })
+  // Stand-in for the frame's /usr/bin/node|npm. FAKE_NODE_VERSION simulates a
+  // frame whose runtime predates the Node 24 floor.
+  writeExecutable(path.join(runtimeRoot, 'usr', 'bin', 'node'), `
+if [ "$1" = "-p" ]; then echo "\${FAKE_NODE_VERSION:-24.0.0}"; exit 0; fi
+if [ "$1" = "--version" ]; then echo "v\${FAKE_NODE_VERSION:-24.0.0}"; exit 0; fi
+echo "fake node $*" >&2; exit 1
+`)
+  writeExecutable(path.join(runtimeRoot, 'usr', 'bin', 'npm'), 'exit 0')
 
   writeExecutable(path.join(binDir, 'systemctl'), `
 echo "systemctl $*" >> "$FAKE_LOG"
@@ -86,12 +100,29 @@ if [ "$1" = "restart" ] && [ "\${FAKE_RESTART_FAIL:-0}" = "1" ]; then
   echo "restart failed" >&2
   exit 1
 fi
-if [ "$1" = "is-active" ]; then echo active; exit 0; fi
+if [ "$1" = "is-active" ]; then
+  if [ -n "\${FAKE_SERVICE_STATE:-}" ]; then echo "$FAKE_SERVICE_STATE"; [ "$FAKE_SERVICE_STATE" = "active" ] && exit 0 || exit 3; fi
+  echo active; exit 0
+fi
 if [ "$1" = "is-enabled" ]; then echo enabled; exit 0; fi
 if [ "$1" = "show" ]; then echo "Thu 2026-11-06 03:00:00 UTC"; exit 0; fi
 exit 0
 `)
-  writeExecutable(path.join(binDir, 'curl'), 'echo 200')
+  writeExecutable(path.join(binDir, 'curl'), `
+echo "curl $*" >> "$FAKE_LOG"
+if [ "\${FAKE_HEALTH_FAIL:-0}" = "1" ]; then echo "\${FAKE_HEALTH_CODE:-503}"; exit 0; fi
+if [ -n "\${FAKE_HEALTH_SLOW:-}" ]; then
+  count=0
+  if [ -f "$FAKE_LOG.count" ]; then count=$(cat "$FAKE_LOG.count" 2>/dev/null || echo 0); fi
+  count=$((count + 1))
+  echo "$count" > "$FAKE_LOG.count"
+  if [ "$count" -le "\${FAKE_HEALTH_SLOW}" ]; then echo "\${FAKE_HEALTH_CODE:-503}"; else echo 200; fi
+  exit 0
+fi
+echo 200
+`)
+  // Keep the poll loop bounded in tests: the fake sleep never waits.
+  writeExecutable(path.join(binDir, 'sleep'), 'exit 0')
   writeExecutable(path.join(binDir, 'bash'), `
 echo "bash $*" >> "$FAKE_LOG"
 if [ "$2" = "--runtime-files" ]; then
@@ -116,6 +147,11 @@ fi
   process.env.PATH = `${binDir}:${originalPath}`
   delete process.env.FAKE_RESTART_FAIL
   delete process.env.FAKE_BASH_FAIL
+  delete process.env.FAKE_NODE_VERSION
+  delete process.env.FAKE_HEALTH_FAIL
+  delete process.env.FAKE_HEALTH_CODE
+  delete process.env.FAKE_HEALTH_SLOW
+  delete process.env.FAKE_SERVICE_STATE
 
   return { root, appDir, binDir, cfgPath, versionFile, logPath, updateRoot, statePath, runtimeRoot, tarPath }
 }
@@ -190,6 +226,71 @@ describe('update command', () => {
     expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
     expect(fs.existsSync(state.runtimeBackup)).toBe(false)
     expect(JSON.parse(fs.readFileSync(h.statePath, 'utf8')).lastBackup).toBeNull()
+  })
+
+  it('fails fast before the app switch when Node is below 24', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    process.env.FAKE_NODE_VERSION = '22.14.0'
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('Node >=24 required (found 22.14.0); run installer')
+    expect(appVersion(h)).toBe('0.8.0')
+    expect(fs.existsSync(path.join(h.updateRoot, 'backup'))).toBe(false)
+  })
+
+  it('reports health failure detail with HTTP code, port, and journal hint', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    process.env.FAKE_HEALTH_FAIL = '1'
+    process.env.FAKE_HEALTH_CODE = '503'
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('health check failed (HTTP 503 on 127.0.0.1:3000); see: journalctl -u dscos -n 30')
+    expect(result.stderr).toMatch(/rolled back/)
+    expect(appVersion(h)).toBe('0.8.0')
+  })
+
+  it('reports HTTP 000 when the app never listens', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    process.env.FAKE_HEALTH_FAIL = '1'
+    process.env.FAKE_HEALTH_CODE = '000'
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('health check failed (HTTP 000 on 127.0.0.1:3000); see: journalctl -u dscos -n 30')
+    expect(appVersion(h)).toBe('0.8.0')
+  })
+
+  it('waits past ten polls for a slow Next.js cold start', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    process.env.FAKE_HEALTH_SLOW = '12'
+    process.env.FAKE_HEALTH_CODE = '503'
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('updated to 0.9.0')
+    expect(appVersion(h)).toBe('0.9.0')
+  })
+
+  it('stops probing quickly when the service is not active', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    process.env.FAKE_SERVICE_STATE = 'failed'
+    process.env.FAKE_HEALTH_FAIL = '1'
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('health check failed')
+    expect(result.stderr).toContain('journalctl -u dscos -n 30')
+    // Gated on is-active, the prober fails fast instead of burning ~90s.
+    const log = fs.existsSync(h.logPath) ? fs.readFileSync(h.logPath, 'utf8') : ''
+    expect(log.split('\n').filter((line) => line.startsWith('curl ')).length).toBeLessThan(5)
+    expect(appVersion(h)).toBe('0.8.0')
   })
 
   it('restores the previous app and runtime when the restart fails', async () => {
