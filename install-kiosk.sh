@@ -42,7 +42,7 @@
 set -Eeuo pipefail
 umask 022
 
-readonly INSTALLER_VERSION="2.2"
+readonly INSTALLER_VERSION="2.3"
 readonly KIOSK_USER="kiosk"
 readonly KIOSK_GROUP="kiosk"
 readonly KIOSK_HOME="/home/${KIOSK_USER}"
