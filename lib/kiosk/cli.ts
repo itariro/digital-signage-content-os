@@ -405,6 +405,33 @@ async function cmdStandby(ctx: Ctx, sub: string, args: string[]): Promise<number
   return 2
 }
 
+// The nodejs floor of the current release (better-sqlite3 13 / Next 16). The
+// app service runs /usr/bin/node by absolute path, so the check probes that
+// binary, not whatever `node` happens to resolve to on PATH.
+const MIN_NODE_MAJOR = 24
+
+function usrBinDir(): string {
+  const path = require('node:path')
+  const root = process.env.KIOSK_RUNTIME_ROOT || ''
+  return root ? path.join(root, 'usr', 'bin') : '/usr/bin'
+}
+
+function checkNodeRuntime(): { ok: boolean; error?: string } {
+  const fs = require('node:fs')
+  const path = require('node:path')
+  const bin = usrBinDir()
+  const nodeBin = path.join(bin, 'node')
+  const found = fs.existsSync(nodeBin)
+    ? execCmd(nodeBin, ['-p', 'process.versions.node']).stdout.trim()
+    : ''
+  const major = parseInt(found.split('.')[0], 10)
+  const hasNpm = fs.existsSync(path.join(bin, 'npm'))
+  if (!Number.isInteger(major) || major < MIN_NODE_MAJOR || !hasNpm) {
+    return { ok: false, error: `Node >=24 required (found ${found || 'unknown'}); run installer` }
+  }
+  return { ok: true }
+}
+
 function restartAndCheckHealth(config: any): { ok: boolean; error?: string } {
   const rr = execCmd('systemctl', ['restart', APP_SERVICE])
   if (rr.status !== 0) return { ok: false, error: `restart failed: ${rr.stderr || rr.status}` }
@@ -608,6 +635,21 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
     } else {
       discardRuntimeSnapshot(runtimeSnapshot)
       err(ctx, `runtime update failed; previous runtime restored: ${r.stderr || r.status}`)
+    }
+    return 1
+  }
+
+  // The new bundle needs Node >=24 (and /usr/bin/node|npm for the service).
+  // Check after --update-runtime so an installer upgrade counts, then abort
+  // before the app switch instead of rolling back after a failed health probe.
+  const nodeCheck = checkNodeRuntime()
+  if (!nodeCheck.ok) {
+    const restoreError = restoreRuntimeSnapshot(runtimeSnapshot)
+    if (restoreError) {
+      err(ctx, `${nodeCheck.error}; runtime restore failed: ${restoreError} (snapshot: ${runtimeSnapshot})`)
+    } else {
+      discardRuntimeSnapshot(runtimeSnapshot)
+      err(ctx, `${nodeCheck.error}; previous runtime restored`)
     }
     return 1
   }

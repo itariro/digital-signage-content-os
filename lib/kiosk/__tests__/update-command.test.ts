@@ -17,6 +17,7 @@ const originalEnv = {
   FAKE_LOG: process.env.FAKE_LOG,
   FAKE_RESTART_FAIL: process.env.FAKE_RESTART_FAIL,
   FAKE_BASH_FAIL: process.env.FAKE_BASH_FAIL,
+  FAKE_NODE_VERSION: process.env.FAKE_NODE_VERSION,
 }
 
 interface Harness {
@@ -70,6 +71,7 @@ function setupHarness(opts: { version?: string; installerVersion?: string } = {}
     path.join(appDir, '.next'),
     path.join(appDir, 'node_modules'),
     path.join(runtimeRoot, 'usr', 'local', 'bin'),
+    path.join(runtimeRoot, 'usr', 'bin'),
     binDir,
   ]) {
     fs.mkdirSync(dir, { recursive: true })
@@ -79,6 +81,14 @@ function setupHarness(opts: { version?: string; installerVersion?: string } = {}
   fs.writeFileSync(cfgPath, 'KIOSK_PORT=3000\n')
   fs.writeFileSync(versionFile, '2.0\n')
   fs.writeFileSync(path.join(runtimeRoot, 'usr', 'local', 'bin', 'kiosk'), 'old runtime\n', { mode: 0o755 })
+  // Stand-in for the frame's /usr/bin/node|npm. FAKE_NODE_VERSION simulates a
+  // frame whose runtime predates the Node 24 floor.
+  writeExecutable(path.join(runtimeRoot, 'usr', 'bin', 'node'), `
+if [ "$1" = "-p" ]; then echo "\${FAKE_NODE_VERSION:-24.0.0}"; exit 0; fi
+if [ "$1" = "--version" ]; then echo "v\${FAKE_NODE_VERSION:-24.0.0}"; exit 0; fi
+echo "fake node $*" >&2; exit 1
+`)
+  writeExecutable(path.join(runtimeRoot, 'usr', 'bin', 'npm'), 'exit 0')
 
   writeExecutable(path.join(binDir, 'systemctl'), `
 echo "systemctl $*" >> "$FAKE_LOG"
@@ -116,6 +126,7 @@ fi
   process.env.PATH = `${binDir}:${originalPath}`
   delete process.env.FAKE_RESTART_FAIL
   delete process.env.FAKE_BASH_FAIL
+  delete process.env.FAKE_NODE_VERSION
 
   return { root, appDir, binDir, cfgPath, versionFile, logPath, updateRoot, statePath, runtimeRoot, tarPath }
 }
@@ -190,6 +201,18 @@ describe('update command', () => {
     expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
     expect(fs.existsSync(state.runtimeBackup)).toBe(false)
     expect(JSON.parse(fs.readFileSync(h.statePath, 'utf8')).lastBackup).toBeNull()
+  })
+
+  it('fails fast before the app switch when Node is below 24', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    process.env.FAKE_NODE_VERSION = '22.14.0'
+
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('Node >=24 required (found 22.14.0); run installer')
+    expect(appVersion(h)).toBe('0.8.0')
+    expect(fs.existsSync(path.join(h.updateRoot, 'backup'))).toBe(false)
   })
 
   it('restores the previous app and runtime when the restart fails', async () => {

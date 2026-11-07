@@ -30,7 +30,7 @@
 #   -n, --dry-run          preview the installer UI; changes nothing, needs no root
 #       --plain            no colours, spinners or screen clearing (auto in pipes)
 #       --fast             no pacing delays between steps
-#       --update-runtime   refresh installed helpers and unit files only
+#       --update-runtime   ensure Node >=24, refresh installed helpers and unit files only
 #       --runtime-files    print the files that --update-runtime replaces
 #   -h, --help             show this help
 #
@@ -1411,6 +1411,9 @@ finish_screen() {
 if (( UPDATE_RUNTIME )); then
     # Reinstall only the generated runtime files. Settings in
     # /etc/kiosk/kiosk.conf and /etc/dscos/frame.env stay untouched.
+    # The new bundle needs Node >=24 at /usr/bin/node|npm (the service path),
+    # so ensure it before refreshing the helpers that will run against it.
+    t_install_node
     t_install_cli
     t_write_session
     t_write_ctl
