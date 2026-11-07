@@ -1,72 +1,98 @@
 'use client'
 
-import { ChevronUp, LayoutGrid, MoreHorizontal, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Grid3x3, MoonStar, Scan, Search } from 'lucide-react'
 import { WIDGETS } from '@/lib/widgets'
 import type { WidgetType } from '@/lib/types'
 import type { DropPayload, Overlay } from './canvas'
+import { Segmented } from './controls'
 import { cn } from '@/lib/utils'
 
-const groups = [
-  { label: 'Widgets', categories: ['Time', 'Weather'] },
-  { label: 'Planner', categories: ['Planner'] },
-  { label: 'Decor', categories: ['Decor', 'Family'] },
-] as const
+const CHIPS = ['All', 'Time', 'Weather', 'Planner', 'Decor', 'Family'] as const
+type Chip = (typeof CHIPS)[number]
 
 type WidgetToolbarProps = {
   onAdd: (payload: DropPayload) => void
-  overlay?: Overlay
-  onOverlayChange?: (v: Overlay) => void
-  nightPreview?: boolean
-  onToggleNight?: () => void
+  overlay: Overlay
+  onOverlayChange: (v: Overlay) => void
+  nightPreview: boolean
+  onToggleNight: () => void
 }
 
-export function WidgetToolbar({ onAdd }: WidgetToolbarProps) {
-  const [open, setOpen] = useState<string | null>(null)
+export function WidgetToolbar({ onAdd, overlay, onOverlayChange, nightPreview, onToggleNight }: WidgetToolbarProps) {
   const [query, setQuery] = useState('')
-  const visible = useMemo(
-    () => WIDGETS.filter((widget) => !query || `${widget.label} ${widget.description}`.toLowerCase().includes(query.toLowerCase())),
-    [query],
-  )
+  const [chip, setChip] = useState<Chip>('All')
+
+  const results = useMemo(() => {
+    const q = query.toLowerCase()
+    return WIDGETS.filter(
+      (w) => (!q || `${w.label} ${w.description} ${w.category}`.toLowerCase().includes(q)) && (chip === 'All' || w.category === chip),
+    )
+  }, [query, chip])
 
   return (
-    <div className="absolute bottom-3 right-3 z-10 flex max-w-[calc(100%-1.5rem)] items-center rounded-xl border border-border bg-card/95 p-1 shadow-lg backdrop-blur" aria-label="Widget tools">
-      <button type="button" className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-label="Select tool">
-        <LayoutGrid aria-hidden />
-      </button>
-      {groups.map((group) => {
-        const items = visible.filter((widget) => group.categories.includes(widget.category as never))
+    <div className="absolute bottom-4 left-1/2 z-10 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-2 py-1.5 shadow-xl backdrop-blur" role="toolbar" aria-label="Widget tools">
+      {/* 1. Unified search */}
+      <div className="flex items-center gap-2 rounded-lg bg-secondary px-2.5">
+        <Search className="size-4" aria-hidden />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search widgets…" className="h-9 w-44 bg-transparent outline-none" aria-label="Search widgets" />
+        {query && (
+          <button type="button" aria-label="Clear search" onClick={() => setQuery('')} className="text-muted-foreground hover:text-foreground">
+            ×
+          </button>
+        )}
+      </div>
+
+      {/* 2. Category chips */}
+      {CHIPS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          aria-pressed={chip === c}
+          onClick={() => setChip(c)}
+          className={cn('rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors', chip === c ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground')}
+        >
+          {c}
+        </button>
+      ))}
+
+      {/* 3. Quick-add icons (first 6) */}
+      {results.slice(0, 6).map((w) => {
+        const Icon = w.icon
         return (
-          <div key={group.label} className="relative flex items-center border-l border-border px-1.5 first:border-l-0">
-            {items.slice(0, 2).map((widget) => {
-              const Icon = widget.icon
-              return (
-                <button key={widget.type} type="button" title={widget.label} aria-label={`Add ${widget.label}`} onClick={() => onAdd({ kind: 'widget', type: widget.type as WidgetType })} className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-                  <Icon aria-hidden />
-                </button>
-              )
-            })}
-            <button type="button" aria-label={`More ${group.label}`} aria-expanded={open === group.label} onClick={() => setOpen(open === group.label ? null : group.label)} className={cn('flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground', open === group.label && 'bg-secondary text-foreground')}>
-              <ChevronUp aria-hidden />
-            </button>
-            {open === group.label && (
-              <div className="absolute bottom-12 left-0 w-64 rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-xl">
-                <div className="mb-2 flex items-center gap-2 rounded-lg bg-secondary px-2.5 text-sm text-muted-foreground">
-                  <Search aria-hidden />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search widgets" className="h-9 min-w-0 flex-1 bg-transparent outline-none" aria-label="Search widgets" />
-                </div>
-                <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
-                  {items.map((widget) => {
-                    const Icon = widget.icon
-                    return <button key={widget.type} type="button" onClick={() => { onAdd({ kind: 'widget', type: widget.type as WidgetType }); setOpen(null) }} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-secondary"><Icon aria-hidden /><span className="flex-1">{widget.label}</span><span className="text-xs text-muted-foreground">{widget.category}</span></button>
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            key={w.type}
+            type="button"
+            title={w.label}
+            aria-label={`Add ${w.label}`}
+            onClick={() => onAdd({ kind: 'widget', type: w.type as WidgetType })}
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Icon aria-hidden />
+          </button>
         )
       })}
-      <div className="border-l border-border pl-1.5"><button type="button" aria-label="More widget tools" className="flex size-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground"><MoreHorizontal aria-hidden /></button></div>
+
+      {/* 4. Guides + Night */}
+      <Segmented
+        label="Composition guides"
+        value={overlay}
+        onChange={onOverlayChange}
+        options={[
+          { value: 'none', label: 'No guides' },
+          { value: 'thirds', label: (<><Grid3x3 className="size-3.5" aria-hidden />Thirds</>) },
+          { value: 'safe', label: (<><Scan className="size-3.5" aria-hidden />Safe area</>) },
+        ]}
+      />
+      <button
+        type="button"
+        aria-pressed={nightPreview}
+        onClick={onToggleNight}
+        className={cn('flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors', nightPreview ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground')}
+      >
+        <MoonStar className="size-4" aria-hidden />
+        Night
+      </button>
     </div>
   )
 }
