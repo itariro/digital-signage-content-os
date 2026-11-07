@@ -1044,16 +1044,29 @@ t_install_node() {
 # `node` instead of re-transpiling the TypeScript sources through tsx on
 # every invocation. The wrapper falls back to tsx when no build exists
 # (e.g. before the app tree has dependencies installed).
+# The build publishes atomically: compile into a temp dir and swap it
+# into place only after success, so a power loss or compiler failure
+# never leaves `kiosk` pointing at a half-written build. The previous
+# build stays untouched when compilation fails.
 build_kiosk_cli() {
     local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
     local tsc="${app_dir}/node_modules/.bin/tsc"
     [[ -x "$tsc" && -f "${app_dir}/lib/kiosk/cli.ts" ]] || return 0
     install -d -m 0755 /usr/local/lib/kiosk
-    ( cd "$app_dir" && "$tsc" lib/kiosk/cli.ts \
-        --outDir /usr/local/lib/kiosk \
+    local tmp
+    tmp=$(mktemp -d /usr/local/lib/kiosk/.build.XXXXXX) || return 0
+    if ! ( cd "$app_dir" && "$tsc" lib/kiosk/cli.ts \
+        --outDir "$tmp" \
         --module commonjs --target es2022 \
         --moduleResolution node --esModuleInterop --skipLibCheck \
-        --declaration false --sourceMap false ) || true
+        --declaration false --sourceMap false ); then
+        rm -rf "$tmp"
+        return 0
+    fi
+    rm -rf /usr/local/lib/kiosk/.build.prev
+    [[ -d /usr/local/lib/kiosk/build ]] && mv /usr/local/lib/kiosk/build /usr/local/lib/kiosk/.build.prev
+    mv "$tmp" /usr/local/lib/kiosk/build
+    rm -rf /usr/local/lib/kiosk/.build.prev
 }
 
 t_install_cli() {
@@ -1063,8 +1076,8 @@ t_install_cli() {
 export KIOSK_CONFIG_PATH=/etc/kiosk/kiosk.conf
 export KIOSK_CLI_ENTRY=1
 APP_DIR="${DSCOS_APP_DIR:-/opt/dscos}"
-if [ -f /usr/local/lib/kiosk/kiosk/cli.js ]; then
-    NODE_PATH="${APP_DIR}/node_modules" exec /usr/bin/node /usr/local/lib/kiosk/kiosk/cli.js "$@"
+if [ -f /usr/local/lib/kiosk/build/kiosk/cli.js ]; then
+    NODE_PATH="${APP_DIR}/node_modules" exec /usr/bin/node /usr/local/lib/kiosk/build/kiosk/cli.js "$@"
 elif command -v tsx >/dev/null 2>&1; then
     exec tsx "${APP_DIR}/lib/kiosk/cli.ts" "$@"
 elif command -v npx >/dev/null 2>&1; then
