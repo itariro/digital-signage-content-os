@@ -1250,8 +1250,8 @@ t_journald() {
     write_file /etc/systemd/journald.conf.d/20-kiosk-storage.conf 0644 <<'EOF'
 [Journal]
 Storage=volatile
-RuntimeMaxUse=30M
-MaxRetentionSec=14day
+SystemMaxUse=50M
+RuntimeMaxUse=50M
 EOF
     systemctl restart systemd-journald || echo "could not restart journald (a reboot will apply it)"
 }
@@ -1268,9 +1268,16 @@ t_zram_conf() {
     write_file /etc/systemd/zram-generator.conf 0644 <<'EOF'
 [zram0]
 zram-size = ram / 2
-compression-algorithm = zstd
+compression-algorithm = lz4
 swap-priority = 100
 EOF
+    # Hardware longevity: fewer slow swaps onto eMMC.
+    if grep -q '^#\?vm\.swappiness=' /etc/sysctl.conf 2>/dev/null; then
+        sed -i 's/^#\?vm\.swappiness=.*/vm.swappiness=10/' /etc/sysctl.conf
+    else
+        printf '\nvm.swappiness=10\n' >>/etc/sysctl.conf
+    fi
+    sysctl -p >/dev/null 2>&1 || echo "could not apply sysctl now (a reboot will apply vm.swappiness=10)"
 }
 
 t_validate() {
