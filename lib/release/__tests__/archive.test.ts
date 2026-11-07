@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createReleaseArchive, verifyReleaseArchive } from '../archive'
+import { createReleaseArchive, normalizeBuildSymlinks, verifyReleaseArchive } from '../archive'
 
 function git(root: string, args: string[]): void {
   execFileSync('git', args, { cwd: root, stdio: 'pipe' })
@@ -77,5 +77,171 @@ describe('release archive', () => {
     expect(() => createReleaseArchive({ root, version: '0.9.0', outDir: out })).toThrow(
       /install-kiosk\.sh/,
     )
+  })
+})
+
+describe('build output symlink shims', () => {
+  // Turbopack externalizes native modules as alias symlinks under
+  // .next/node_modules/. If the build machine writes absolute targets
+  // (observed on GitHub Actions runners), the archive cannot resolve them on
+  // a frame and every request 500s. Packaging must rewrite them relative,
+  // and verification must reject absolute ones outright.
+  it('rewrites absolute shim symlinks to relative targets in the archive', () => {
+    const root = makeRepo()
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    const absTarget = path.join(root, 'node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3')
+    fs.symlinkSync(absTarget, path.join(shims, 'better-sqlite3-bfc5648742806807'))
+
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-out-'))
+    const archive = createReleaseArchive({ root, version: '0.9.0', outDir: out })
+
+    const extract = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-extract-'))
+    execFileSync('tar', ['-xzf', archive.path, '-C', extract], { stdio: 'pipe' })
+    const target = fs.readlinkSync(
+      path.join(extract, '.next/node_modules/better-sqlite3-bfc5648742806807'),
+    )
+    expect(target).not.toMatch(/^\//)
+    expect(target).toBe('../../node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3')
+    expect(() => verifyReleaseArchive({ path: archive.path, version: '0.9.0' })).not.toThrow()
+  })
+
+  it('keeps relative shim symlinks untouched', () => {
+    const root = makeRepo()
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    fs.symlinkSync(
+      '../../node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3',
+      path.join(shims, 'better-sqlite3-bfc5648742806807'),
+    )
+
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-out-'))
+    const archive = createReleaseArchive({ root, version: '0.9.0', outDir: out })
+
+    const extract = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-extract-'))
+    execFileSync('tar', ['-xzf', archive.path, '-C', extract], { stdio: 'pipe' })
+    expect(
+      fs.readlinkSync(path.join(extract, '.next/node_modules/better-sqlite3-bfc5648742806807')),
+    ).toBe('../../node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3')
+  })
+
+  it('rewrites a foreign CI-runner target (the v0.9.3 failure) to a relative link', () => {
+    const root = makeRepo()
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    fs.symlinkSync(
+      '/home/runner/work/digital-signage-content-os/digital-signage-content-os/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3',
+      path.join(shims, 'better-sqlite3-bfc5648742806807'),
+    )
+
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-out-'))
+    const archive = createReleaseArchive({ root, version: '0.9.0', outDir: out })
+
+    const extract = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-extract-'))
+    execFileSync('tar', ['-xzf', archive.path, '-C', extract], { stdio: 'pipe' })
+    expect(
+      fs.readlinkSync(path.join(extract, '.next/node_modules/better-sqlite3-bfc5648742806807')),
+    ).toBe('../../node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3')
+  })
+
+  it('rejects an archive that ships an absolute shim symlink', () => {
+    const root = makeRepo()
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    fs.symlinkSync(
+      '/home/runner/work/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3',
+      path.join(shims, 'better-sqlite3-bfc5648742806807'),
+    )
+    git(root, ['add', '-f', '.next/node_modules'])
+    git(root, ['commit', '-qm', 'ship absolute shim'])
+    // The hand-built tarball mirrors the whole tree; the forbidden node_modules
+    // check fires before the symlink check otherwise.
+    fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true })
+
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-out-'))
+    // Git-tracked symlinks still get copied by the build output pass and
+    // normalized, so verify against a hand-built archive where copyBuildOutput
+    // is bypassed: tar the original tree directly.
+    const handBuilt = path.join(out, 'hand.tar.gz')
+    execFileSync(
+      'tar',
+      ['-czf', handBuilt, '--exclude=.git', '--exclude=.next/cache', '-C', root, '.'],
+      { stdio: 'pipe' },
+    )
+    expect(() => verifyReleaseArchive({ path: handBuilt, version: '0.9.0' })).toThrow(
+      /absolute symlink/,
+    )
+  })
+
+  it('rejects a symlink whose name carries the listing separator', () => {
+    const root = makeRepo()
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    fs.symlinkSync('/etc/gone', path.join(shims, 'tricky -> name'))
+    fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true })
+
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-out-'))
+    const handBuilt = path.join(out, 'hand.tar.gz')
+    execFileSync(
+      'tar',
+      ['-czf', handBuilt, '--exclude=.git', '--exclude=.next/cache', '-C', root, '.'],
+      { stdio: 'pipe' },
+    )
+    expect(() => verifyReleaseArchive({ path: handBuilt, version: '0.9.0' })).toThrow(
+      /absolute symlink/,
+    )
+  })
+
+  it('accepts a relative in-tree symlink whose name carries the listing separator', () => {
+    const root = makeRepo()
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    fs.symlinkSync(
+      '../../node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3',
+      path.join(shims, 'tricky -> name'),
+    )
+    fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true })
+
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-out-'))
+    const handBuilt = path.join(out, 'hand.tar.gz')
+    execFileSync(
+      'tar',
+      ['-czf', handBuilt, '--exclude=.git', '--exclude=.next/cache', '-C', root, '.'],
+      { stdio: 'pipe' },
+    )
+    expect(() => verifyReleaseArchive({ path: handBuilt, version: '0.9.0' })).not.toThrow()
+  })
+
+  it('rejects a relative symlink that escapes the release tree', () => {
+    const root = makeRepo()
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    fs.symlinkSync('../../../outside', path.join(shims, 'escape'))
+    fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true })
+
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-release-out-'))
+    const handBuilt = path.join(out, 'hand.tar.gz')
+    execFileSync(
+      'tar',
+      ['-czf', handBuilt, '--exclude=.git', '--exclude=.next/cache', '-C', root, '.'],
+      { stdio: 'pipe' },
+    )
+    expect(() => verifyReleaseArchive({ path: handBuilt, version: '0.9.0' })).toThrow(
+      /escaping the release tree/,
+    )
+  })
+
+  it('rewrites a foreign target whose path contains a non-boundary node_modules segment', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-rewrite-'))
+    const shims = path.join(root, '.next/node_modules')
+    fs.mkdirSync(shims, { recursive: true })
+    const absTarget =
+      '/tmp/builds/v0-node_modules/.pnpm/junk/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3'
+    fs.symlinkSync(absTarget, path.join(shims, 'better-sqlite3-bfc5648742806807'))
+
+    expect(normalizeBuildSymlinks(path.join(root, '.next'))).toBe(1)
+    expect(
+      fs.readlinkSync(path.join(shims, 'better-sqlite3-bfc5648742806807')),
+    ).toBe('../../node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3')
   })
 })

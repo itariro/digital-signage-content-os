@@ -52,6 +52,14 @@ function makeReleaseTar(root: string, version: string, installerVersion: string)
     path.join(src, 'install-kiosk.sh'),
     `#!/usr/bin/env bash\nreadonly INSTALLER_VERSION="${installerVersion}"\n`,
   )
+  // Turbopack externalizes native packages as alias shims under
+  // .next/node_modules. A CI-built archive ships them with absolute targets
+  // from the packaging machine, which cannot resolve after install.
+  fs.mkdirSync(path.join(src, '.next', 'node_modules'), { recursive: true })
+  fs.symlinkSync(
+    '/home/runner/work/digital-signage-content-os/digital-signage-content-os/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3',
+    path.join(src, '.next/node_modules/better-sqlite3-bfc5648742806807'),
+  )
   const tarPath = path.join(root, `dscos-${version}.tar.gz`)
   execFileSync('tar', ['-czf', tarPath, '-C', src, '.'])
   return tarPath
@@ -234,6 +242,19 @@ describe('update command', () => {
     expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
     expect(fs.existsSync(state.runtimeBackup)).toBe(false)
     expect(JSON.parse(fs.readFileSync(h.statePath, 'utf8')).lastBackup).toBeNull()
+  })
+
+  it('rewrites CI-absolute external shims in the staged release before switching', async () => {
+    h = setupHarness()
+    mockRelease(h)
+
+    const apply = await runCli(['update', 'apply', '--yes'])
+    expect(apply.exitCode).toBe(0)
+    // The shipped alias pointed at /home/runner/work/...; after staging it
+    // must resolve inside the installed tree instead.
+    expect(
+      fs.readlinkSync(path.join(h.appDir, '.next/node_modules/better-sqlite3-bfc5648742806807')),
+    ).toBe('../../node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3')
   })
 
   it('fails fast before the app switch when Node is below 24', async () => {

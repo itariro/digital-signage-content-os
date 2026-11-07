@@ -124,6 +124,25 @@ jobs:
           test -f .next/BUILD_ID
           test -f lib/kiosk/cli.ts
           test -f install-kiosk.sh
+          # A packaged app must actually run, not merely unpack: v0.9.3 shipped
+          # a build whose externalized-module symlinks pointed at the CI
+          # runner, so every request 500ed on a frame and the update rolled
+          # back. Boot the packaged app and require a 200 from /api/health.
+          mkdir -p "$TMP/.data"
+          FRAME_DATA_DIR="$TMP/.data" node_modules/.bin/next start -p 3199 -H 127.0.0.1 &
+          SERVER_PID=$!
+          CODE=000
+          for _ in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/api/health || true)
+            if [ "$CODE" = "200" ]; then break; fi
+            sleep 1
+          done
+          kill "$SERVER_PID" 2>/dev/null || true
+          wait "$SERVER_PID" 2>/dev/null || true
+          if [ "$CODE" != "200" ]; then
+            echo "health check failed (last status: $CODE)" >&2
+            exit 1
+          fi
 
       - name: Report dry run
         if: ${{ inputs.dry_run }}

@@ -25,6 +25,7 @@ import {
   markRuntimeBackupComplete,
 } from './updater'
 import { parseOsRelease, isSupportedDebian, checkPrerequisites, formatBytes } from './device'
+import { normalizeBuildSymlinks } from '../release/archive'
 
 export function configPath(): string { return process.env.KIOSK_CONFIG_PATH || '/etc/kiosk/kiosk.conf' }
 export const APP_SERVICE = 'dscos'
@@ -602,6 +603,11 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
       return 1
     }
   }
+  // Defend against build artifacts whose external-module shims carry targets
+  // from the packaging machine (v0.9.3 shipped /home/runner/... links that
+  // 500ed every request on the frame). Whatever the archive contains, the
+  // staged tree must resolve its own .next/node_modules aliases.
+  normalizeBuildSymlinks(path.join(staging, '.next'))
   if (!validateStaging(staging, version)) {
     err(ctx, 'staging validation failed (missing package.json/.next/node_modules/lib or version mismatch)')
     return 1
