@@ -12,8 +12,11 @@ The tooling has two layers:
 | Runtime | `kiosk` CLI | Day-2 management on an installed frame |
 
 The `kiosk` CLI is a TypeScript program (`lib/kiosk/cli.ts`) installed to
-`/usr/local/bin/kiosk`. It runs through `tsx` against the deployed source in
-`/opt/dscos`, so it is always the version that matches the installed app.
+`/usr/local/bin/kiosk`. The installer precompiles it to plain JavaScript in
+`/usr/local/lib/kiosk`, so `kiosk` starts with bare `node` instead of
+re-transpiling the sources through `tsx` on every invocation. When no
+compiled build exists (for example before dependencies are installed), it
+falls back to running the deployed source in `/opt/dscos` through `tsx`.
 
 ## Install a frame
 

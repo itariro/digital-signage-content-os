@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import Database from 'better-sqlite3'
 import { parseLatestRelease, ReleaseInfo } from './updates'
 
 // Root-owned parent that the kiosk user cannot replace.
@@ -234,6 +233,10 @@ export interface LockOptions {
 // `busy_timeout` instead of polling a lock file.
 export async function acquireUpdateLock(lockPath: string, opts: LockOptions = {}): Promise<UpdateLock | null> {
   fs.mkdirSync(path.dirname(lockPath), { recursive: true })
+  // better-sqlite3 is a native module and only the update lock needs it.
+  // Requiring it here keeps every other CLI command (status, config,
+  // version, ...) free of the native load and of the hard dependency.
+  const Database = require('better-sqlite3')
   const db = new Database(lockPath)
   try {
     db.pragma(`busy_timeout = ${opts.timeoutMs ?? 30_000}`)

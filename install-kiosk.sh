@@ -32,6 +32,7 @@
 #       --fast             no pacing delays between steps
 #       --update-runtime   ensure Node >=24, refresh installed helpers and unit files only
 #       --runtime-files    print the files that --update-runtime replaces
+#       --build-cli        rebuild only the compiled management CLI
 #   -h, --help             show this help
 #
 # After installation, settings live in /etc/kiosk/kiosk.conf; change them and
@@ -125,6 +126,7 @@ DRY=0
 PLAIN=0
 UPDATE_RUNTIME=0
 PRINT_RUNTIME_FILES=0
+BUILD_CLI=0
 
 while (($#)); do
     case "$1" in
@@ -145,6 +147,7 @@ while (($#)); do
         --fast)             PACE_MS=0; shift ;;
         --update-runtime)   UPDATE_RUNTIME=1; shift ;;
         --runtime-files)    PRINT_RUNTIME_FILES=1; shift ;;
+        --build-cli)        BUILD_CLI=1; shift ;;
         -h|--help)          usage; exit 0 ;;
         -*)                 die "unknown option: $1 (see --help)" ;;
         *)                  [[ -z $URL ]] || die "unexpected extra argument: $1"; URL=$1; shift ;;
@@ -177,6 +180,9 @@ if (( ! DRY )); then
 fi
 if (( UPDATE_RUNTIME && DRY )); then
     die "--update-runtime cannot be combined with --dry-run"
+fi
+if (( BUILD_CLI && DRY )); then
+    die "--build-cli cannot be combined with --dry-run"
 fi
 
 # ==========================================================================
@@ -1040,22 +1046,64 @@ t_install_node() {
     /usr/bin/node --version
 }
 
+# Precompile the CLI to plain JavaScript so `kiosk` starts with bare
+# `node` instead of re-transpiling the TypeScript sources through tsx on
+# every invocation. The wrapper falls back to tsx when no build exists
+# (e.g. before the app tree has dependencies installed).
+# The build publishes atomically: compile into a temp dir and swap it
+# into place only after success, so a power loss or compiler failure
+# never leaves `kiosk` pointing at a half-written build. The previous
+# build stays untouched when compilation fails.
+build_kiosk_cli() {
+    local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
+    local tsc="${app_dir}/node_modules/.bin/tsc"
+    if [[ ! -x "$tsc" || ! -f "${app_dir}/lib/kiosk/cli.ts" ]]; then
+        # No build possible from this tree. Drop any previously compiled
+        # build so the wrapper falls back to this tree's sources through
+        # tsx instead of running a CLI that no longer matches the app.
+        rm -rf /usr/local/lib/kiosk/build
+        return 0
+    fi
+    install -d -m 0755 /usr/local/lib/kiosk
+    local tmp
+    tmp=$(mktemp -d /usr/local/lib/kiosk/.build.XXXXXX) || return 0
+    if ! ( cd "$app_dir" && "$tsc" lib/kiosk/cli.ts \
+        --outDir "$tmp" \
+        --module commonjs --target es2022 \
+        --moduleResolution node --esModuleInterop --skipLibCheck \
+        --declaration false --sourceMap false ); then
+        # Keep the previous build: the failure may be transient (disk
+        # full, power loss), and the old CLI stays safe to run.
+        rm -rf "$tmp"
+        return 0
+    fi
+    rm -rf /usr/local/lib/kiosk/.build.prev
+    [[ -d /usr/local/lib/kiosk/build ]] && mv /usr/local/lib/kiosk/build /usr/local/lib/kiosk/.build.prev
+    chmod 0755 "$tmp"
+    mv "$tmp" /usr/local/lib/kiosk/build
+    rm -rf /usr/local/lib/kiosk/.build.prev
+}
+
 t_install_cli() {
     install -d -m 0755 /usr/local/bin
     cat > /usr/local/bin/kiosk <<'KIOSK_EOF'
 #!/bin/sh
 export KIOSK_CONFIG_PATH=/etc/kiosk/kiosk.conf
 export KIOSK_CLI_ENTRY=1
-if command -v tsx >/dev/null 2>&1; then
-    exec tsx "${DSCOS_APP_DIR:-/opt/dscos}/lib/kiosk/cli.ts" "$@"
+APP_DIR="${DSCOS_APP_DIR:-/opt/dscos}"
+if [ -f /usr/local/lib/kiosk/build/kiosk/cli.js ]; then
+    NODE_PATH="${APP_DIR}/node_modules" exec /usr/bin/node /usr/local/lib/kiosk/build/kiosk/cli.js "$@"
+elif command -v tsx >/dev/null 2>&1; then
+    exec tsx "${APP_DIR}/lib/kiosk/cli.ts" "$@"
 elif command -v npx >/dev/null 2>&1; then
-    exec npx --yes tsx "${DSCOS_APP_DIR:-/opt/dscos}/lib/kiosk/cli.ts" "$@"
+    exec npx --yes tsx "${APP_DIR}/lib/kiosk/cli.ts" "$@"
 else
     echo "tsx is required to run kiosk CLI" >&2
     exit 1
 fi
 KIOSK_EOF
     chmod 0755 /usr/local/bin/kiosk
+    build_kiosk_cli
     # convenience alias used by docs
 }
 
@@ -1086,6 +1134,10 @@ t_deploy_app() {
         fi
         pnpm install --frozen-lockfile
     fi
+    # t_install_cli runs before this task, so build the compiled CLI now
+    # that node_modules (and therefore tsc) exist. Without it the kiosk
+    # wrapper transparently falls back to running through tsx.
+    build_kiosk_cli
 }
 
 t_enroll_frame() {
@@ -1419,6 +1471,14 @@ finish_screen() {
 # ==========================================================================
 # Main
 # ==========================================================================
+if (( BUILD_CLI )); then
+    # Rebuild only the compiled CLI. The update flow calls this after an
+    # app switch (and on rollback) so `kiosk` runs the CLI that matches
+    # the active app.
+    build_kiosk_cli
+    exit 0
+fi
+
 if (( UPDATE_RUNTIME )); then
     # Reinstall only the generated runtime files. Settings in
     # /etc/kiosk/kiosk.conf and /etc/dscos/frame.env stay untouched.
