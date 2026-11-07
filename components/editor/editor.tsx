@@ -439,9 +439,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               album={layoutAlbum}
               night={store.schedule.night}
               nightPreview={nightPreview}
-              onToggleNight={() => setNightPreview((v) => !v)}
               overlay={overlay}
-              onOverlayChange={setOverlay}
               onDrop={addItem}
             />
             <WidgetToolbar onAdd={addItem} overlay={overlay} onOverlayChange={setOverlay} nightPreview={nightPreview} onToggleNight={() => setNightPreview((v) => !v)} />

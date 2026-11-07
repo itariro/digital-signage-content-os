@@ -15,15 +15,13 @@ const toolbarSrc = readFileSync(path.join(root, 'components/editor/widget-toolba
 // prop-driven overlay/night path to target.
 
 describe('widget bar state lift', () => {
-  it('Canvas accepts overlay and onOverlayChange props', () => {
+  it('Canvas accepts overlay and nightPreview props (values only)', () => {
     expect(canvasSrc).toMatch(/overlay:\s*Overlay/)
-    expect(canvasSrc).toMatch(/onOverlayChange/)
-    expect(canvasSrc).toMatch(/export (type|const).*Overlay|export type Overlay/)
-  })
-
-  it('Canvas accepts nightPreview and onToggleNight props', () => {
     expect(canvasSrc).toMatch(/nightPreview:\s*boolean/)
-    expect(canvasSrc).toMatch(/onToggleNight/)
+    expect(canvasSrc).toMatch(/export (type|const).*Overlay|export type Overlay/)
+    // Callbacks live on WidgetToolbar only — Canvas must not require them
+    expect(canvasSrc).not.toMatch(/onOverlayChange/)
+    expect(canvasSrc).not.toMatch(/onToggleNight/)
   })
 
   it('Canvas has no internal overlay state and no Segmented control', () => {
@@ -31,10 +29,12 @@ describe('widget bar state lift', () => {
     expect(canvasSrc).not.toContain('Segmented')
   })
 
-  it('Editor lifts overlay state and passes it to Canvas', () => {
+  it('Editor lifts overlay state and passes the value to Canvas', () => {
     expect(editorSrc).toMatch(/const \[overlay,\s*setOverlay\]\s*=\s*useState<Overlay>/)
     expect(editorSrc).toMatch(/<Canvas[\s\S]*?overlay=\{overlay\}/)
-    expect(editorSrc).toMatch(/<Canvas[\s\S]*?onOverlayChange=\{setOverlay\}/)
+    // Canvas must not receive the callbacks — only WidgetToolbar does
+    expect(editorSrc).not.toMatch(/<Canvas[^>]*onOverlayChange/)
+    expect(editorSrc).not.toMatch(/<Canvas[^>]*onToggleNight/)
   })
 
   it('Editor passes overlay/night props to WidgetToolbar', () => {

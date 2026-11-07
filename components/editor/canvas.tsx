@@ -65,9 +65,7 @@ type CanvasProps = {
   album: Album | null
   night: NightMode
   nightPreview: boolean
-  onToggleNight: () => void
   overlay: Overlay
-  onOverlayChange: (v: Overlay) => void
   onDrop: (payload: DropPayload, point: { x: number; y: number }) => void
 }
 
