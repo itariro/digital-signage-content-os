@@ -1282,7 +1282,7 @@ EOF
 
 t_cron_reboot() {
     systemctl enable cron 2>/dev/null || true
-    ( crontab -l 2>/dev/null | grep -vF '/sbin/reboot' ; echo '0 3 * * * /sbin/reboot' ) | crontab -
+    ( crontab -l 2>/dev/null | grep -vF '/sbin/reboot' || true ; echo '0 3 * * * /sbin/reboot' ) | crontab -
 }
 
 t_validate() {
