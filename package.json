@@ -1,6 +1,6 @@
 {
   "name": "my-project",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "packageManager": "pnpm@12.3.4",
   "scripts": {
@@ -20,7 +20,7 @@
     "@clerk/ui": "^1.40.2",
     "@types/better-sqlite3": "^9.6.0",
     "@vercel/analytics": "1.6.1",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.3",

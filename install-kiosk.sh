@@ -41,7 +41,7 @@
 set -Eeuo pipefail
 umask 022
 
-readonly INSTALLER_VERSION="2.0"
+readonly INSTALLER_VERSION="2.1"
 readonly KIOSK_USER="kiosk"
 readonly KIOSK_GROUP="kiosk"
 readonly KIOSK_HOME="/home/${KIOSK_USER}"
@@ -982,6 +982,28 @@ t_install_tsx() {
     fi
 }
 
+# Install a Node.js runtime new enough for the app's native dependencies
+# (better-sqlite3 >= 13 requires Node >= 22). Debian's packaged nodejs is
+# too old, so pull Node 22 LTS from NodeSource.
+t_install_node() {
+    local need_install=0
+    if ! command -v node >/dev/null 2>&1; then
+        need_install=1
+    else
+        local major
+        major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+        if (( major < 22 )); then need_install=1; fi
+    fi
+    if (( need_install == 0 )); then
+        echo "Node.js $(node --version) already satisfies >= 22; leaving it in place"
+        return 0
+    fi
+    echo "Installing Node.js 22 LTS from NodeSource"
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    apt-get install -y nodejs
+    node --version
+}
+
 t_install_cli() {
     install -d -m 0755 /usr/local/bin
     cat > /usr/local/bin/kiosk <<'KIOSK_EOF'
@@ -1421,7 +1443,7 @@ PACKAGES=(
     curl ca-certificates
     fonts-dejavu-core fonts-noto-color-emoji
     systemd-timesyncd
-    nodejs npm git
+    git
     build-essential python3
 )
 if (( TOUCH )); then PACKAGES+=(xinput); fi
@@ -1493,8 +1515,9 @@ if (( ZRAM )); then task "Configuring zram swap" t_zram_conf; fi
 step_end
 
 # ---- 9/11 --------------------------------------------------------------------
-step 6 \
+step 10 \
     "Installs the management CLI, deploys the local application, and configures its service."
+task "Installing Node.js runtime" t_install_node
 task "Installing tsx runtime" t_install_tsx
 task "Installing kiosk CLI" t_install_cli
 task "Deploying application" t_deploy_app
