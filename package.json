@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node --max-old-space-size=512 --expose-gc node_modules/.bin/next start",
+    "start": "node --max-old-space-size=512 --expose-gc node_modules/next/dist/bin/next start",
     "test": "vitest run",
     "test:watch": "vitest",
     "release:check": "tsx scripts/release.ts check",
