@@ -2,11 +2,15 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const env = process.env as Record<string, string | undefined>
+const origNodeEnv = process.env.NODE_ENV
 
 afterEach(() => {
   delete env.KIOSK_MGMT_PORT
   delete env.FRAME_ADMIN_HASH
   delete env.FRAME_ADMIN_SECRET
+  delete env.ALLOW_INSECURE_LOCAL_WRITES
+  if (origNodeEnv === undefined) delete env.NODE_ENV
+  else env.NODE_ENV = origNodeEnv
 })
 
 function makeRequest(path: string, method = 'GET', host = 'localhost:3000') {
@@ -84,6 +88,70 @@ describe('proxy gate wiring', () => {
     if (res!.status === 404) {
       const body = await res!.json()
       expect(body.error).not.toBe('not_found')
+    }
+  })
+
+  it('loopback mgmt POST bypasses when no admin configured (dev)', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    env.NODE_ENV = 'development'
+    delete env.FRAME_ADMIN_HASH
+    delete env.FRAME_ADMIN_SECRET
+    delete env.ALLOW_INSECURE_LOCAL_WRITES
+    const mod = await import('@/proxy')
+    const res = await mod.default(makeRequest('/api/layouts', 'POST', '127.0.0.1:8808'), {} as any)
+    expect(res).toBeDefined()
+    // Bypass means the gate does not return the admin 401; the request
+    // falls through to the Clerk stage / downstream handler.
+    if (res!.status === 401) {
+      const body = await res!.json()
+      expect(body.error).not.toBe('admin_password_not_configured')
+    } else {
+      expect(res!.status).not.toBe(401)
+    }
+  })
+
+  it('LAN mgmt POST still returns admin_password_not_configured when no admin configured (dev)', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    env.NODE_ENV = 'development'
+    delete env.FRAME_ADMIN_HASH
+    delete env.FRAME_ADMIN_SECRET
+    delete env.ALLOW_INSECURE_LOCAL_WRITES
+    const mod = await import('@/proxy')
+    const res = await mod.default(makeRequest('/api/layouts', 'POST', '192.168.1.10:8808'), {} as any)
+    expect(res).toBeDefined()
+    expect(res!.status).toBe(401)
+    const body = await res!.json()
+    expect(body.error).toBe('admin_password_not_configured')
+  })
+
+  it('partial admin config still returns admin_password_not_configured on loopback (dev)', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    env.NODE_ENV = 'development'
+    env.FRAME_ADMIN_HASH = 'configured'
+    delete env.FRAME_ADMIN_SECRET
+    delete env.ALLOW_INSECURE_LOCAL_WRITES
+    const mod = await import('@/proxy')
+    const res = await mod.default(makeRequest('/api/layouts', 'POST', '127.0.0.1:8808'), {} as any)
+    expect(res).toBeDefined()
+    expect(res!.status).toBe(401)
+    const body = await res!.json()
+    expect(body.error).toBe('admin_password_not_configured')
+  })
+
+  it('ALLOW_INSECURE_LOCAL_WRITES=1 allows LAN mgmt POST when no admin configured', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    env.NODE_ENV = 'production'
+    env.ALLOW_INSECURE_LOCAL_WRITES = '1'
+    delete env.FRAME_ADMIN_HASH
+    delete env.FRAME_ADMIN_SECRET
+    const mod = await import('@/proxy')
+    const res = await mod.default(makeRequest('/api/layouts', 'POST', '192.168.1.10:8808'), {} as any)
+    expect(res).toBeDefined()
+    if (res!.status === 401) {
+      const body = await res!.json()
+      expect(body.error).not.toBe('admin_password_not_configured')
+    } else {
+      expect(res!.status).not.toBe(401)
     }
   })
 })

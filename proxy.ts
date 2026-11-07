@@ -1,7 +1,7 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import type { OrganizationCustomRoleKey } from "@clerk/shared/types";
 import { NextRequest, NextResponse } from "next/server";
-import { decideRequest, type GateDecision } from "@/lib/frame-gate";
+import { decideRequest, isLocalDevBypass, type GateDecision } from "@/lib/frame-gate";
 import { requestHasAdmin, adminAuthEnabled } from "@/lib/frame-admin";
 
 async function gateResponse(req: NextRequest, decision: GateDecision): Promise<NextResponse | null> {
@@ -9,6 +9,11 @@ async function gateResponse(req: NextRequest, decision: GateDecision): Promise<N
   if (decision.kind === "not_found") return NextResponse.json({ error: "not_found" }, { status: 404 });
   // admin_required
   if (!adminAuthEnabled()) {
+    // Local dev bypass: decideRequest already allows loopback/dev writes when
+    // no admin is configured; keep the same guard here so the 401 hint never
+    // fires for a bypassed request (e.g. if the gate is ever bypassed).
+    const adminConfigured = Boolean(process.env.FRAME_ADMIN_HASH) || Boolean(process.env.FRAME_ADMIN_SECRET);
+    if (!adminConfigured && isLocalDevBypass({ host: req.headers.get("host") ?? "", method: req.method, path: req.nextUrl.pathname })) return null;
     return NextResponse.json({ error: "admin_password_not_configured", hint: "run: sudo kiosk-ctl password <secret>" }, { status: 401 });
   }
   if (await requestHasAdmin(req.headers)) return null;
