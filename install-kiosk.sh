@@ -983,8 +983,8 @@ t_install_tsx() {
 }
 
 # Install a Node.js runtime new enough for the app's native dependencies
-# (better-sqlite3 >= 13 requires Node >= 22). Debian's packaged nodejs is
-# too old, so pull Node 22 LTS from NodeSource.
+# (better-sqlite3 >= 13 requires Node >= 22; target the Node 24 LTS line).
+# Debian's packaged nodejs is too old, so pull Node 24 LTS from NodeSource.
 t_install_node() {
     local need_install=0 node_bin npm_bin major
     node_bin=$(command -v node 2>/dev/null || true)
@@ -994,7 +994,7 @@ t_install_node() {
         need_install=1
     else
         major=$("$node_bin" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
-        if (( major < 22 )); then need_install=1; fi
+        if (( major < 24 )); then need_install=1; fi
     fi
 
     # The app service invokes /usr/bin/npm (and /usr/bin/node) by absolute path,
@@ -1006,8 +1006,8 @@ t_install_node() {
     fi
 
     if (( need_install == 1 )); then
-        echo "Installing Node.js 22 LTS from NodeSource"
-        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+        echo "Installing Node.js 24 LTS from NodeSource"
+        curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
         apt-get install -y nodejs
     fi
 
@@ -1022,8 +1022,8 @@ t_install_node() {
     [[ -x /usr/bin/npm ]]  || { echo "npm is not available at /usr/bin/npm" >&2; return 1; }
 
     major=$(/usr/bin/node -p 'process.versions.node.split(".")[0]')
-    if (( major < 22 )); then
-        echo "Node.js at /usr/bin/node is too old (need >= 22, have $(/usr/bin/node --version))" >&2
+    if (( major < 24 )); then
+        echo "Node.js at /usr/bin/node is too old (need >= 24, have $(/usr/bin/node --version))" >&2
         return 1
     fi
     /usr/bin/node --version
