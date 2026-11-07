@@ -986,22 +986,47 @@ t_install_tsx() {
 # (better-sqlite3 >= 13 requires Node >= 22). Debian's packaged nodejs is
 # too old, so pull Node 22 LTS from NodeSource.
 t_install_node() {
-    local need_install=0
-    if ! command -v node >/dev/null 2>&1; then
+    local need_install=0 node_bin npm_bin major
+    node_bin=$(command -v node 2>/dev/null || true)
+    npm_bin=$(command -v npm 2>/dev/null || true)
+
+    if [[ -z $node_bin || -z $npm_bin ]]; then
         need_install=1
     else
-        local major
-        major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+        major=$("$node_bin" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
         if (( major < 22 )); then need_install=1; fi
     fi
-    if (( need_install == 0 )); then
-        echo "Node.js $(node --version) already satisfies >= 22; leaving it in place"
-        return 0
+
+    # The app service invokes /usr/bin/npm (and /usr/bin/node) by absolute path,
+    # so a runtime found only under /usr/local/bin is not enough on its own.
+    if (( need_install == 0 )) && { [[ ! -x /usr/bin/node ]] || [[ ! -x /usr/bin/npm ]]; }; then
+        echo "Node.js runtime is new enough but missing from /usr/bin; linking it into place"
+        ln -sf "$node_bin" /usr/bin/node
+        ln -sf "$npm_bin" /usr/bin/npm
     fi
-    echo "Installing Node.js 22 LTS from NodeSource"
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-    apt-get install -y nodejs
-    node --version
+
+    if (( need_install == 1 )); then
+        echo "Installing Node.js 22 LTS from NodeSource"
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+        apt-get install -y nodejs
+    fi
+
+    # Final guard: the service and build must have the runtime at the paths they use.
+    if [[ ! -x /usr/bin/node || ! -x /usr/bin/npm ]]; then
+        if [[ -n $node_bin && -x $node_bin && -n $npm_bin && -x $npm_bin ]]; then
+            ln -sf "$node_bin" /usr/bin/node
+            ln -sf "$npm_bin" /usr/bin/npm
+        fi
+    fi
+    [[ -x /usr/bin/node ]] || { echo "node is not available at /usr/bin/node" >&2; return 1; }
+    [[ -x /usr/bin/npm ]]  || { echo "npm is not available at /usr/bin/npm" >&2; return 1; }
+
+    major=$(/usr/bin/node -p 'process.versions.node.split(".")[0]')
+    if (( major < 22 )); then
+        echo "Node.js at /usr/bin/node is too old (need >= 22, have $(/usr/bin/node --version))" >&2
+        return 1
+    fi
+    /usr/bin/node --version
 }
 
 t_install_cli() {
