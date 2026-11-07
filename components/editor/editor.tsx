@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { Bell, CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, Sparkles, Type, Menu, PanelLeftClose } from 'lucide-react'
+import { Bell, CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, Sparkles, Type } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -18,7 +18,7 @@ import { BUILTIN_STICKERS, createStickerWidget } from '@/lib/text-stickers'
 import { useEditor } from '@/hooks/use-editor'
 import { useFrameStore, useWeather } from '@/hooks/use-frame-store'
 import { useNow } from '@/hooks/use-now'
-import { Canvas, type DropPayload } from './canvas'
+import { Canvas, type DropPayload, type Overlay } from './canvas'
 import { Inspector } from './inspector'
 import { LayersPanel } from './layers-panel'
 import { LayoutsPanel } from './layouts-panel'
@@ -65,6 +65,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
   const [previewDecision, setPreviewDecision] = useState<DisplayDecision | null>(null)
   const [saving, setSaving] = useState(false)
   const [nightPreview, setNightPreview] = useState(false)
+  const [overlay, setOverlay] = useState<Overlay>('none')
   const [openAlbumId, setOpenAlbumId] = useState<string | null>(null)
   const [albumDraft, setAlbumDraft] = useState<Album | null>(null)
   const albumDraftRef = useRef<Album | null>(null)
@@ -409,7 +410,6 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <aside className="order-2 flex min-h-0 overflow-hidden border-t border-border bg-card lg:order-1 lg:h-full lg:w-[380px] lg:shrink-0 lg:border-r lg:border-t-0">
             <nav aria-label="Editor sections" className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-card py-2">
-              <button type="button" aria-label="Open editor menu" className="mb-2 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"><Menu className="size-4" aria-hidden /></button>
               {PANELS.map((panel) => {
                 const Icon = panel.icon
                 return <button key={panel.id} type="button" aria-label={panel.label} aria-pressed={tab === panel.id} onClick={() => setTab(panel.id)} className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', tab === panel.id && 'bg-primary/10 text-primary')}><Icon className="size-4" aria-hidden /></button>
@@ -417,7 +417,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               <div className="mt-auto border-t border-border pt-2"><ThemeToggle /></div>
             </nav>
             <div role="tabpanel" id={`panel-${tab}`} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-border px-3 py-2.5"><h2 className="text-base font-semibold tracking-tight">{PANELS.find((panel) => panel.id === tab)?.label}</h2><button type="button" aria-label="Collapse panel" className="text-muted-foreground hover:text-foreground"><PanelLeftClose aria-hidden /></button></div>
+              <div className="flex items-center justify-between border-b border-border px-3 py-2.5"><h2 className="text-base font-semibold tracking-tight">{PANELS.find((panel) => panel.id === tab)?.label}</h2></div>
               {tab === 'layers' && <LayersPanel editor={editor} />}
               {tab === 'layouts' && (
                 <LayoutsPanel layouts={liveLayouts} activeId={store.activeId} editingId={state.layoutId} onOpen={(id) => id !== state.layoutId && confirmDiscard() && openLayout(id)} onCreate={() => createLayout({ name: 'Untitled layout', widgets: [], settings: state.settings }, 'New layout created')} onDuplicate={(l) => createLayout({ name: `${l.name} copy`.slice(0, 80), widgets: l.widgets, settings: l.settings }, 'Layout duplicated')} onDelete={deleteLayout} onActivate={activate} onImport={importLayout} />
@@ -440,9 +440,11 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               night={store.schedule.night}
               nightPreview={nightPreview}
               onToggleNight={() => setNightPreview((v) => !v)}
+              overlay={overlay}
+              onOverlayChange={setOverlay}
               onDrop={addItem}
             />
-            <WidgetToolbar onAdd={addItem} />
+            <WidgetToolbar onAdd={addItem} overlay={overlay} onOverlayChange={setOverlay} nightPreview={nightPreview} onToggleNight={() => setNightPreview((v) => !v)} />
           </main>
 
           <aside aria-label="Inspector" className="order-3 flex min-h-0 flex-col overflow-hidden border-t border-border bg-card lg:h-full lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">

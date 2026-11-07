@@ -1,9 +1,8 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Grid3x3, Lock, MoonStar, Scan } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import type { Album, NightMode, WeatherData, Widget } from '@/lib/types'
-import { Segmented } from './controls'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { getDefinition } from '@/lib/widgets'
 import type { EditorApi } from '@/hooks/use-editor'
@@ -67,17 +66,18 @@ type CanvasProps = {
   night: NightMode
   nightPreview: boolean
   onToggleNight: () => void
+  overlay: Overlay
+  onOverlayChange: (v: Overlay) => void
   onDrop: (payload: DropPayload, point: { x: number; y: number }) => void
 }
 
-type Overlay = 'none' | 'thirds' | 'safe'
+export type Overlay = 'none' | 'thirds' | 'safe'
 const SAFE_MARGIN = 72
 
-export function Canvas({ editor, weather, now, album, night, nightPreview, onToggleNight, onDrop }: CanvasProps) {
+export function Canvas({ editor, weather, now, album, night, nightPreview, overlay, onDrop }: CanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const scale = useFitScale(wrapRef, 140)
-  const [overlay, setOverlay] = useState<Overlay>('none')
   const gesture = useRef<Gesture | null>(null)
   const [guides, setGuides] = useState<{ v: boolean; h: boolean }>({ v: false, h: false })
   const [dragging, setDragging] = useState(false)
@@ -380,30 +380,6 @@ export function Canvas({ editor, weather, now, album, night, nightPreview, onTog
           </FrameScene>
         </div>
         <div className="mt-6 flex flex-col items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-2">
-            <Segmented
-              label="Composition guides"
-              value={overlay}
-              onChange={setOverlay}
-              options={[
-                { value: 'none', label: 'No guides' },
-                { value: 'thirds', label: <><Grid3x3 className="size-3.5" aria-hidden />Thirds</> },
-                { value: 'safe', label: <><Scan className="size-3.5" aria-hidden />Safe area</> },
-              ]}
-            />
-            <button
-              type="button"
-              aria-pressed={nightPreview}
-              onClick={onToggleNight}
-              className={cn(
-                'flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors',
-                nightPreview ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <MoonStar className="size-3.5" aria-hidden />
-              Night
-            </button>
-          </div>
           <p className="text-center font-mono text-xs text-muted-foreground">
             {resW} × {resH} portrait · {Math.round(scale * 100)}% · {widgets.length} widget{widgets.length === 1 ? '' : 's'}
           </p>

@@ -4,7 +4,7 @@ import { ChevronUp, LayoutGrid, MoreHorizontal, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { WIDGETS } from '@/lib/widgets'
 import type { WidgetType } from '@/lib/types'
-import type { DropPayload } from './canvas'
+import type { DropPayload, Overlay } from './canvas'
 import { cn } from '@/lib/utils'
 
 const groups = [
@@ -13,7 +13,15 @@ const groups = [
   { label: 'Decor', categories: ['Decor', 'Family'] },
 ] as const
 
-export function WidgetToolbar({ onAdd }: { onAdd: (payload: DropPayload) => void }) {
+type WidgetToolbarProps = {
+  onAdd: (payload: DropPayload) => void
+  overlay?: Overlay
+  onOverlayChange?: (v: Overlay) => void
+  nightPreview?: boolean
+  onToggleNight?: () => void
+}
+
+export function WidgetToolbar({ onAdd }: WidgetToolbarProps) {
   const [open, setOpen] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const visible = useMemo(
