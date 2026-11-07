@@ -491,6 +491,20 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
     ...BUILTIN_FONTS.map((f) => ({ id: f.id, label: f.label })),
     ...customFonts.map((family) => ({ id: customFontId(family), label: family })),
   ]
+  // For text/sticker widgets the legacy Text/Soft shadow/Stroke colour/Text
+  // outline controls are dead: glyphs render from fill/textStrokeCfg/
+  // lightingShadow (see textEffectCss), and normalizeWidgetStyle overwrites
+  // color from a solid fill. Hide them so users use Text fill/stroke/shadow.
+  const isTextLike = selection.length === 1 && (selection[0].type === 'text' || selection[0].type === 'sticker')
+  const applyTheme = (style: Partial<WidgetStyle>) => {
+    // Keep a solid fill in sync with the theme colour, otherwise the theme
+    // would only patch `color` and the glyph would not visibly change.
+    if (style.color && (!s.fill || s.fill.kind === 'solid')) {
+      set({ ...style, fill: { kind: 'solid', color: style.color } })
+    } else {
+      set(style)
+    }
+  }
 
   return (
     <>
@@ -536,11 +550,14 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
       </Section>
 
       <Section title="Color">
-        <ThemeSwatches onApply={(style) => set(style)} />
-        <ColorField label="Text" value={s.color} onChange={(v) => set({ color: v })} />
+        <ThemeSwatches onApply={applyTheme} />
+        {!isTextLike && <ColorField label="Text" value={s.color} onChange={(v) => set({ color: v })} />}
         <ColorField label="Accent" value={s.accent} onChange={(v) => set({ accent: v })} />
         <SliderField label="Opacity" value={s.opacity} min={10} max={100} suffix="%" onCommit={commit} onChange={slide('opacity')} />
-        <ToggleField label="Soft shadow" checked={s.shadow} onChange={(v) => set({ shadow: v })} />
+        {!isTextLike && <ToggleField label="Soft shadow" checked={s.shadow} onChange={(v) => set({ shadow: v })} />}
+        {isTextLike && (
+          <p className="text-xs leading-relaxed text-muted-foreground">Glyph colour, stroke and shadow are set in Text fill, Text stroke and Text shadow above.</p>
+        )}
       </Section>
 
       <Section title="Surface">
@@ -551,9 +568,9 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
       </Section>
 
       <Section title="Stroke">
-        <ColorField label="Stroke color" value={s.stroke} onChange={(v) => set({ stroke: v })} />
+        {!isTextLike && <ColorField label="Stroke color" value={s.stroke} onChange={(v) => set({ stroke: v })} />}
         <SliderField label="Border width" value={s.strokeWidth} min={0} max={24} suffix="px" onCommit={commit} onChange={slide('strokeWidth')} />
-        <SliderField label="Text outline" value={s.textStroke} min={0} max={12} suffix="px" onCommit={commit} onChange={slide('textStroke')} />
+        {!isTextLike && <SliderField label="Text outline" value={s.textStroke} min={0} max={12} suffix="px" onCommit={commit} onChange={slide('textStroke')} />}
       </Section>
     </>
   )
@@ -600,16 +617,18 @@ function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: W
               className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none focus-visible:border-primary"
             />
           </label>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground">Text color</span>
-            <input
-              type="color"
-              value={layer.style.color}
-              onFocus={() => editor.checkpoint()}
-              onChange={(e) => updateLayerStyle(layer.id, { color: e.target.value }, false)}
-              className="h-8 w-12 cursor-pointer rounded-md border border-border bg-secondary"
-            />
-          </div>
+          {!layer.style.fill && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-foreground">Text color</span>
+              <input
+                type="color"
+                value={layer.style.color}
+                onFocus={() => editor.checkpoint()}
+                onChange={(e) => updateLayerStyle(layer.id, { color: e.target.value }, false)}
+                className="h-8 w-12 cursor-pointer rounded-md border border-border bg-secondary"
+              />
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm text-foreground">Accent</span>
             <input

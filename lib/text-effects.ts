@@ -17,7 +17,16 @@ export function fillCss(fill: TextFill): React.CSSProperties {
     const bg = g.type === 'linear' ? `linear-gradient(${g.angle}deg, ${stops})` : `radial-gradient(closest-side, ${stops})`
     return { backgroundImage: bg, backgroundClip: 'text', WebkitBackgroundClip: 'text', webkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
   }
-  const bgsize = fill.image.fit === 'cover' ? 'cover' : fill.image.fit === 'contain' ? 'contain' : 'repeat'
+  // Scale (50-200%, 100 = fit default): 'repeat' always sizes the tile to
+  // `${scale}% auto`. 'cover'/'contain' keep their keyword only at 100;
+  // any other scale is a zoom from that base expressed as `${scale}% auto`.
+  const scale = fill.image.scale
+  const bgsize =
+    fill.image.fit === 'repeat'
+      ? `${scale}% auto`
+      : scale === 100
+        ? fill.image.fit
+        : `${scale}% auto`
   return { backgroundImage: `url("${fill.image.url}")`, backgroundSize: `${bgsize}`, backgroundPosition: `${fill.image.position}% center`, backgroundClip: 'text', WebkitBackgroundClip: 'text', webkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
 }
 export function textEffectCss(style: WidgetStyle): React.CSSProperties {
@@ -36,7 +45,12 @@ export function shadowCss(sh: LightingShadow): React.CSSProperties {
   const col = hexToRgba(sh.color, sh.opacity / 100)
   if (sh.preset === 'long') {
     const steps = sh.steps ?? 40
-    const list = Array.from({ length: steps }, (_, i) => `${dx * (i + 1) / steps}px ${dy * (i + 1) / steps}px 0 ${col}`).join(', ')
+    // Split the user's opacity across steps so the stack composites to
+    // roughly the chosen opacity instead of layering full-opacity shadows.
+    // Since each step only overlaps the next, the far end stays faint and
+    // the shadow reads as a graduated extrusion.
+    const stepCol = hexToRgba(sh.color, sh.opacity / 100 / steps)
+    const list = Array.from({ length: steps }, (_, i) => `${dx * (i + 1) / steps}px ${dy * (i + 1) / steps}px 0 ${stepCol}`).join(', ')
     return { textShadow: list }
   }
   if (sh.preset === 'curved') {
