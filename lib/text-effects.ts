@@ -20,6 +20,10 @@ export function fillCss(fill: TextFill): React.CSSProperties {
   const bgsize = fill.image.fit === 'cover' ? 'cover' : fill.image.fit === 'contain' ? 'contain' : 'repeat'
   return { backgroundImage: `url("${fill.image.url}")`, backgroundSize: `${bgsize}`, backgroundPosition: `${fill.image.position}% center`, backgroundClip: 'text', WebkitBackgroundClip: 'text', webkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
 }
+export function textEffectCss(style: WidgetStyle): React.CSSProperties {
+  const s = normalizeWidgetStyle({ ...style })
+  return { ...fillCss(s.fill!), ...strokeCss(s.textStrokeCfg!), ...shadowCss(s.lightingShadow!) }
+}
 export function strokeCss(cfg: TextStrokeCfg): React.CSSProperties {
   if (!cfg.enabled || cfg.thickness === 0) return {}
   return { WebkitTextStroke: `${cfg.thickness}px ${hexToRgba(cfg.color, cfg.opacity / 100)}`, paintOrder: cfg.align === 'inside' ? 'stroke fill' : 'fill stroke' } as React.CSSProperties

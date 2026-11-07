@@ -41,6 +41,7 @@ import {
 import { TIME_ZONES } from '@/lib/widgets'
 import { quoteForDate } from '@/lib/quotes'
 import { cn } from '@/lib/utils'
+import { textEffectCss } from '@/lib/text-effects'
 
 export type WidgetContext = {
   now: Date
@@ -540,10 +541,14 @@ function TextWidget({ widget }: { widget: Widget }) {
   const { style, template, props } = widget
   const text = String(props.text ?? '')
   const justify = JUSTIFY[style.align]
+  // The WidgetBody wrapper already paints the fill via background-clip:text
+  // (transparent foreground). Only override with the accent color for solid
+  // fills, or gradient/image fills would be hidden under an opaque glyph.
+  const isSolid = (style.fill?.kind ?? 'solid') === 'solid'
   return (
     <div className="flex h-full w-full items-center whitespace-nowrap" style={{ justifyContent: justify }}>
       {template === 'caption' ? (
-        <span style={{ fontSize: fit(text, 54, 200), fontStyle: 'italic', color: style.accent }}>{text}</span>
+        <span style={{ fontSize: fit(text, 54, 200), fontStyle: 'italic', ...(isSolid ? { color: style.accent } : {}) }}>{text}</span>
       ) : (
         <span style={{ fontSize: fit(text, 80, 190) }}>{text}</span>
       )}
@@ -591,13 +596,13 @@ function StickerWidget({ widget }: { widget: Widget }) {
                 border: s.strokeWidth > 0 ? `${s.strokeWidth}px solid ${s.stroke}` : undefined,
                 borderRadius: s.radius,
                 opacity: s.opacity / 100,
-                WebkitTextStroke: s.textStroke > 0 ? `${s.textStroke}px ${s.stroke}` : undefined,
+                // Layer text-stroke/shadow are owned by the per-layer effect
+                // style below; keep the surface box free of legacy fields.
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: s.align === 'start' ? 'flex-start' : s.align === 'end' ? 'flex-end' : 'center',
                 overflow: 'hidden',
                 padding: s.bgOpacity > 0 || s.strokeWidth > 0 ? '4%' : '1%',
-                filter: s.shadow ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.35))' : undefined,
               }}
             >
               <span
@@ -607,6 +612,7 @@ function StickerWidget({ widget }: { widget: Widget }) {
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   width: '100%',
+                  ...textEffectCss(s),
                 }}
               >
                 {layer.text}
