@@ -635,7 +635,7 @@ t_prep_dirs() {
     chown "$KIOSK_USER:$KIOSK_GROUP" "$KIOSK_HOME"
     chmod 0750 "$KIOSK_HOME"
     install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0755 "$KIOSK_HOME/.config"
-    install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0700 "$KIOSK_HOME/.config/chromium"
+    install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0700 "$KIOSK_HOME/.local/share/surf"
     install -d -o root -g root -m 0755 "$CONF_DIR" "$LIB_DIR"
     # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only.
     # Drop 'localhost' from the ::1 line so localhost -> 127.0.0.1 (IPv4) only.
@@ -656,7 +656,7 @@ KIOSK_ROTATE='${ROTATE}'
 KIOSK_OUTPUT='${OUTPUT}'
 # Force a mode such as 1440x2560 (empty = monitor's preferred mode)
 KIOSK_MODE='${MODE}'
-# Chromium device scale factor (empty = 1.0)
+# Device scale factor; kept for CLI compat, ignored by Surf (no scale concept)
 KIOSK_SCALE='${SCALE}'
 # 1 = rotate touchscreen input to match the display
 KIOSK_TOUCH=${TOUCH}
@@ -666,7 +666,7 @@ KIOSK_RESTART_HOURS=${RESTART_HOURS}
 # Seconds to wait for the network / for the monitor to appear at start-up
 KIOSK_NET_WAIT=60
 KIOSK_DISPLAY_WAIT=30
-# Extra Chromium flags, space separated (no quoting inside)
+# Extra browser flags; kept for CLI compat, ignored by Surf
 KIOSK_EXTRA_FLAGS=''
 # Standby schedule (overnight display standby)
 KIOSK_STANDBY_ENABLED=1
@@ -681,15 +681,18 @@ EOF
 t_write_session() {
     write_file "$LIB_DIR/session.sh" 0755 <<'SESSION_EOF'
 #!/bin/bash
-# Kiosk session. Runs as the kiosk user inside the X session started by LightDM.
-# If this script ever exits, the session ends and LightDM logs the user back in.
+# Kiosk session. Runs as the kiosk user inside the X session started from getty.
+# If this script ever exits, the getty login ends and the screen goes dark
+# until the next getty autologin.
 set -u
+
+export WEBKIT_DISABLE_COMPOSITING_MODE=1
+export WEBKIT_FORCE_SANDBOX=0
 
 CONFIG_FILE=/etc/kiosk/kiosk.conf
 RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}
-CHROMIUM_LOG="${RUNTIME_DIR}/kiosk-chromium.log"
-CACHE_DIR="${RUNTIME_DIR}/kiosk-chromium-cache"   # tmpfs: spares the eMMC
-PROFILE_DIR="${HOME}/.config/chromium"
+SURF_LOG="${RUNTIME_DIR}/kiosk-surf.log"
+CACHE_DIR="${RUNTIME_DIR}/kiosk-surf-cache"   # tmpfs: spares the eMMC
 WM_PID=""
 BROWSER_PID=""
 
@@ -705,7 +708,7 @@ load_config() {
     # shellcheck disable=SC1090
     . "$CONFIG_FILE"
     # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only,
-    # so Chromium would see "connection refused". Normalize to the IPv4 loopback.
+    # so Surf would see "connection refused". Normalize to the IPv4 loopback.
     # Only normalize a plain-http URL whose host is exactly 'localhost'
     # (avoid breaking https certificate verification or other hostnames).
     case "$KIOSK_URL" in
@@ -828,49 +831,18 @@ wait_for_network() {
 # ---- browser ---------------------------------------------------------------
 
 prepare_profile() {
-    # Only touch the profile if no browser is left running.
-    pgrep -u "$(id -u)" -x chromium >/dev/null 2>&1 && return 0
-    rm -f "${PROFILE_DIR}"/Singleton{Lock,Socket,Cookie} 2>/dev/null
-    # After a power cut Chromium would show a "restore pages?" bubble.
-    if [[ -f ${PROFILE_DIR}/Default/Preferences ]]; then
-        sed -i 's/"exit_type":"[^"]*"/"exit_type":"Normal"/; s/"exited_cleanly":false/"exited_cleanly":true/' \
-            "${PROFILE_DIR}/Default/Preferences"
-    fi
-    if [[ -f "${PROFILE_DIR}/Local State" ]]; then
-        sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' "${PROFILE_DIR}/Local State"
-    fi
+    # Surf keeps everything in tmpfs cache; no profile to repair after a crash.
     mkdir -p "$CACHE_DIR"
 }
 
 launch_browser() {
-    local flags=(
-        --kiosk
-        "--window-position=0,0"
-        --no-first-run
-        --no-default-browser-check
-        --noerrdialogs
-        --disable-infobars
-        --disable-session-crashed-bubble
-        --disable-pinch
-        --overscroll-history-navigation=0
-        --autoplay-policy=no-user-gesture-required
-        --password-store=basic
-        --check-for-update-interval=31536000
-        --disk-cache-dir="$CACHE_DIR"
-        --disk-cache-size=52428800
-        --media-cache-size=10485760
-    )
-    [[ -n $KIOSK_SCALE ]] && flags+=(--force-device-scale-factor="$KIOSK_SCALE")
-    # shellcheck disable=SC2206
-    flags+=($KIOSK_EXTRA_FLAGS)
-
     local limit=()
     if (( KIOSK_RESTART_HOURS > 0 )); then
         limit=(timeout -k 15 "$((KIOSK_RESTART_HOURS * 3600))")
     fi
 
-    : >"$CHROMIUM_LOG"
-    "${limit[@]}" /usr/bin/chromium "${flags[@]}" "$KIOSK_URL" >>"$CHROMIUM_LOG" 2>&1 &
+    : >"$SURF_LOG"
+    "${limit[@]}" /usr/bin/surf -F "$KIOSK_URL" >>"$SURF_LOG" 2>&1 &
     BROWSER_PID=$!
 }
 
@@ -955,15 +927,15 @@ KIOSK_USER=kiosk
 
 case "${1:-status}" in
     restart)
-        pkill -TERM -u "$KIOSK_USER" -x chromium || echo "browser not running; the session will start it"
+        pkill -TERM -u "$KIOSK_USER" -x surf || echo "browser not running; the session will start it"
         echo "Browser restarts within seconds and re-reads /etc/kiosk/kiosk.conf."
         ;;
     restart-session)
-        systemctl restart lightdm
+        systemctl restart getty@tty1
         ;;
     status)
         printf 'lightdm : '; systemctl is-active lightdm || true
-        printf 'chromium: '; pgrep -u "$KIOSK_USER" -x chromium >/dev/null && echo running || echo "not running"
+        printf 'surf    : '; pgrep -u "$KIOSK_USER" -x surf >/dev/null && echo running || echo "not running"
         echo "displays:"
         DISPLAY=:0 XAUTHORITY="/home/$KIOSK_USER/.Xauthority" xrandr --query 2>/dev/null \
             | grep ' connected' | sed 's/^/  /' || echo "  (X server not reachable)"
@@ -971,8 +943,8 @@ case "${1:-status}" in
     logs)
         journalctl -t kiosk -b --no-pager | tail -n 50
         uid=$(id -u "$KIOSK_USER")
-        echo "--- chromium log ---"
-        tail -n 50 "/run/user/${uid}/kiosk-chromium.log" 2>/dev/null || true
+        echo "--- surf log ---"
+        tail -n 50 "/run/user/${uid}/kiosk-surf.log" 2>/dev/null || true
         ;;
     *)
         echo "usage: kiosk-ctl {status|restart|restart-session|logs}" >&2
