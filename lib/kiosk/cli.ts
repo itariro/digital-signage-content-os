@@ -483,6 +483,20 @@ function discardRuntimeSnapshot(snapshot: string | null): void {
   try { require('node:fs').rmSync(snapshot, { recursive: true, force: true }) } catch {}
 }
 
+// The compiled CLI is rebuilt before an app switch, from the old app. The
+// active app changed after the switch (or rollback), so rebuild again from
+// it; otherwise `kiosk` keeps running the previous app's CLI. Best-effort:
+// the update itself is already done and healthy at this point, and the
+// wrapper falls back to tsx when no build exists.
+function refreshCompiledCli(ctx: Ctx, appDir: string): void {
+  const path = require('node:path')
+  const r = execCmd('bash', [path.join(appDir, 'install-kiosk.sh'), '--build-cli'], {
+    timeoutMs: 120000,
+    env: { ...process.env, DSCOS_APP_DIR: appDir },
+  })
+  if (r.status !== 0) err(ctx, 'warning: compiled CLI refresh failed; kiosk falls back to tsx')
+}
+
 // Put the previous app and runtime back after a post-switch failure. The
 // caller reports the original error; this returns why recovery itself failed,
 // if it did.
@@ -715,6 +729,7 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
   if (!finalized.ok) {
     err(ctx, `warning: could not finalize runtime backup: ${finalized.error}`)
   }
+  refreshCompiledCli(ctx, appDir)
   out(ctx, `updated to ${version}`)
   return 0
 }
@@ -741,6 +756,7 @@ async function rollbackUpdate(ctx: Ctx, config: any): Promise<number> {
       err(ctx, `restored app failed: ${health.error}`)
       return 1
     }
+    refreshCompiledCli(ctx, appDir)
     out(ctx, 'rolled back')
     return 0
   }
@@ -775,6 +791,7 @@ async function rollbackUpdate(ctx: Ctx, config: any): Promise<number> {
     err(ctx, `restored app failed: ${health.error}`)
     return 1
   }
+  refreshCompiledCli(ctx, appDir)
   out(ctx, 'rolled back')
   return 0
 }

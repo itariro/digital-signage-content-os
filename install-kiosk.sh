@@ -32,6 +32,7 @@
 #       --fast             no pacing delays between steps
 #       --update-runtime   ensure Node >=24, refresh installed helpers and unit files only
 #       --runtime-files    print the files that --update-runtime replaces
+#       --build-cli        rebuild only the compiled management CLI
 #   -h, --help             show this help
 #
 # After installation, settings live in /etc/kiosk/kiosk.conf; change them and
@@ -125,6 +126,7 @@ DRY=0
 PLAIN=0
 UPDATE_RUNTIME=0
 PRINT_RUNTIME_FILES=0
+BUILD_CLI=0
 
 while (($#)); do
     case "$1" in
@@ -145,6 +147,7 @@ while (($#)); do
         --fast)             PACE_MS=0; shift ;;
         --update-runtime)   UPDATE_RUNTIME=1; shift ;;
         --runtime-files)    PRINT_RUNTIME_FILES=1; shift ;;
+        --build-cli)        BUILD_CLI=1; shift ;;
         -h|--help)          usage; exit 0 ;;
         -*)                 die "unknown option: $1 (see --help)" ;;
         *)                  [[ -z $URL ]] || die "unexpected extra argument: $1"; URL=$1; shift ;;
@@ -177,6 +180,9 @@ if (( ! DRY )); then
 fi
 if (( UPDATE_RUNTIME && DRY )); then
     die "--update-runtime cannot be combined with --dry-run"
+fi
+if (( BUILD_CLI && DRY )); then
+    die "--build-cli cannot be combined with --dry-run"
 fi
 
 # ==========================================================================
@@ -1051,7 +1057,13 @@ t_install_node() {
 build_kiosk_cli() {
     local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
     local tsc="${app_dir}/node_modules/.bin/tsc"
-    [[ -x "$tsc" && -f "${app_dir}/lib/kiosk/cli.ts" ]] || return 0
+    if [[ ! -x "$tsc" || ! -f "${app_dir}/lib/kiosk/cli.ts" ]]; then
+        # No build possible from this tree. Drop any previously compiled
+        # build so the wrapper falls back to this tree's sources through
+        # tsx instead of running a CLI that no longer matches the app.
+        rm -rf /usr/local/lib/kiosk/build
+        return 0
+    fi
     install -d -m 0755 /usr/local/lib/kiosk
     local tmp
     tmp=$(mktemp -d /usr/local/lib/kiosk/.build.XXXXXX) || return 0
@@ -1060,11 +1072,14 @@ build_kiosk_cli() {
         --module commonjs --target es2022 \
         --moduleResolution node --esModuleInterop --skipLibCheck \
         --declaration false --sourceMap false ); then
+        # Keep the previous build: the failure may be transient (disk
+        # full, power loss), and the old CLI stays safe to run.
         rm -rf "$tmp"
         return 0
     fi
     rm -rf /usr/local/lib/kiosk/.build.prev
     [[ -d /usr/local/lib/kiosk/build ]] && mv /usr/local/lib/kiosk/build /usr/local/lib/kiosk/.build.prev
+    chmod 0755 "$tmp"
     mv "$tmp" /usr/local/lib/kiosk/build
     rm -rf /usr/local/lib/kiosk/.build.prev
 }
@@ -1456,6 +1471,14 @@ finish_screen() {
 # ==========================================================================
 # Main
 # ==========================================================================
+if (( BUILD_CLI )); then
+    # Rebuild only the compiled CLI. The update flow calls this after an
+    # app switch (and on rollback) so `kiosk` runs the CLI that matches
+    # the active app.
+    build_kiosk_cli
+    exit 0
+fi
+
 if (( UPDATE_RUNTIME )); then
     # Reinstall only the generated runtime files. Settings in
     # /etc/kiosk/kiosk.conf and /etc/dscos/frame.env stay untouched.

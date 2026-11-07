@@ -133,6 +133,11 @@ if [ "$2" = "--update-runtime" ]; then
   echo "new runtime" > "$KIOSK_RUNTIME_ROOT/usr/local/bin/kiosk"
   if [ "\${FAKE_BASH_FAIL:-0}" = "1" ]; then echo "runtime boom" >&2; exit 1; fi
 fi
+if [ "$2" = "--build-cli" ]; then
+  mkdir -p "$KIOSK_RUNTIME_ROOT/usr/local/lib/kiosk/build/kiosk"
+  echo "compiled cli" > "$KIOSK_RUNTIME_ROOT/usr/local/lib/kiosk/build/kiosk/cli.js"
+  if [ "\${FAKE_BASH_FAIL:-0}" = "1" ]; then echo "build boom" >&2; exit 1; fi
+fi
 `)
 
   const tarPath = makeReleaseTar(root, version, installerVersion)
@@ -212,6 +217,8 @@ describe('update command', () => {
     expect(appVersion(h, path.join(h.updateRoot, 'backup', '0.9.0'))).toBe('0.8.0')
     expect(fs.readFileSync(h.versionFile, 'utf8').trim()).toBe('2.1')
     expect(fs.readFileSync(h.logPath, 'utf8')).toContain('--update-runtime')
+    expect(fs.readFileSync(h.logPath, 'utf8')).toContain('--build-cli')
+    expect(fs.readFileSync(path.join(h.runtimeRoot, 'usr', 'local', 'lib', 'kiosk', 'build', 'kiosk', 'cli.js'), 'utf8').trim()).toBe('compiled cli')
     expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('new runtime')
     const state = JSON.parse(fs.readFileSync(h.statePath, 'utf8'))
     expect(state.lastBackup).toBe(path.join(h.updateRoot, 'backup', '0.9.0'))
@@ -221,6 +228,7 @@ describe('update command', () => {
     const rollback = await runCli(['update', 'rollback', '--yes'])
     expect(rollback.exitCode).toBe(0)
     expect(rollback.stdout).toContain('rolled back')
+    expect(fs.readFileSync(path.join(h.runtimeRoot, 'usr', 'local', 'lib', 'kiosk', 'build', 'kiosk', 'cli.js'), 'utf8').trim()).toBe('compiled cli')
     expect(appVersion(h)).toBe('0.8.0')
     expect(fs.readFileSync(h.versionFile, 'utf8').trim()).toBe('2.0')
     expect(fs.readFileSync(runtimeKiosk(h), 'utf8').trim()).toBe('old runtime')
