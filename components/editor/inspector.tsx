@@ -228,7 +228,7 @@ function TextEffectsSections({ editor, widget }: { editor: EditorApi; widget: Wi
   }
   const style = normalizeWidgetStyle({ ...widget.style })
   const patch = (p: Partial<WidgetStyle>, record = true) => editor.updateStyle([widget.id], p, record)
-  return <EffectControls style={style} onPatch={patch} commit={commit} />
+  return <EffectControls style={style} onPatch={patch} commit={commit} isCaption={widget.type === 'text' && widget.template === 'caption'} />
 }
 
 function StickerEffectsSections({ editor, widget, commit }: { editor: EditorApi; widget: Widget; commit: () => void }) {
@@ -271,10 +271,12 @@ function EffectControls({
   style,
   onPatch,
   commit,
+  isCaption = false,
 }: {
   style: WidgetStyle
   onPatch: (patch: Partial<WidgetStyle>, record?: boolean) => void
   commit: () => void
+  isCaption?: boolean
 }) {
   const fill: TextFill = style.fill ?? { kind: 'solid', color: style.color }
   const stroke = style.textStrokeCfg ?? { enabled: false, color: '#ffffff', thickness: 2, opacity: 100, align: 'outside' as const }
@@ -282,11 +284,11 @@ function EffectControls({
 
   const setFill = (next: TextFill, record = true) => {
     // Caption rule: the caption template paints text with `accent`, not with
-    // the solid fill colour. Keep accent in sync when a user explicitly
-    // picks a solid fill here, so the chosen fill visibly controls the
-    // caption. Legacy captions never went through this picker, so their
-    // accent (set via the legacy Accent control) is untouched.
-    if (next.kind === 'solid') onPatch({ fill: next, color: next.color, accent: next.color }, record)
+    // the solid fill colour. Keep accent in sync only for captions (isCaption)
+    // when a user explicitly picks a solid fill here, so the chosen fill
+    // visibly controls the caption. Non-caption widgets keep their own accent
+    // (e.g. the theme accent) untouched — only color follows the fill.
+    if (next.kind === 'solid') onPatch({ fill: next, color: next.color, ...(isCaption ? { accent: next.color } : {}) }, record)
     else onPatch({ fill: next }, record)
   }
   const setGradient = (gradient: GradientDef, record = true) => setFill({ kind: 'gradient', gradient }, record)
@@ -504,13 +506,16 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
   // text/sticker, the legacy controls would only patch dead fields on that
   // widget, so hide them for the whole selection.
   const isTextLike = selection.some((w) => w.type === 'text' || w.type === 'sticker')
+  const isCaption = selection.some((w) => w.type === 'text' && w.template === 'caption')
   const applyTheme = (style: Partial<WidgetStyle>) => {
     // Keep a solid fill in sync with the theme colour, otherwise the theme
     // would only patch `color` and the glyph would not visibly change.
     if (style.color && (!s.fill || s.fill.kind === 'solid')) {
-      // Same caption rule as EffectControls.setFill: a theme applied to a
-      // solid fill also syncs accent, so captions follow the theme colour.
-      set({ ...style, fill: { kind: 'solid', color: style.color }, accent: style.color })
+      // Caption rule (same as EffectControls.setFill): the caption template
+      // paints with `accent`, so sync accent to the theme colour only for
+      // caption widgets. Other widgets keep the theme's own accent (already
+      // in `style`) instead of having it overwritten with the theme colour.
+      set({ ...style, fill: { kind: 'solid', color: style.color }, ...(isCaption ? { accent: style.color } : {}) })
     } else {
       set(style)
     }

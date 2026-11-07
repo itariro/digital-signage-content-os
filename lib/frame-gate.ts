@@ -15,7 +15,7 @@ export type GateDecision =
 // it polls /api/store and /api/display/state via SWR and /api/weather via
 // useWeather. /api/active, /api/assets, /api/health, /api/media, /api/fonts
 // are kept from the brief as defensive allow-list entries.
-const DISPLAY_GET_ONLY = ['/api/active', '/api/store', '/api/assets', '/api/health', '/api/media', '/api/fonts', '/api/display', '/api/weather']
+const DISPLAY_GET_ONLY = ['/api/active', '/api/store', '/api/assets', '/api/health', '/api/media', '/api/fonts', '/api/display', '/api/weather', '/api/uploads']
 const FRAME_NEVER = ['/console', '/api/instances', '/api/enroll'] // console-only surfaces; never served by a frame
 const ADMIN_EXEMPT_MUTATIONS = ['/api/sync', '/api/admin/login']
 

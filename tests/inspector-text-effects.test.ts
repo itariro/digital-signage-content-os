@@ -73,6 +73,13 @@ describe('text-effects inspector controls', () => {
     expect(inspectorSrc).toMatch(/layers\.map/)
   })
 
+  it('caption accent sync is gated to caption widgets only (themes keep their accent)', () => {
+    expect(inspectorSrc).toMatch(/widget\.type === 'text' && widget\.template === 'caption'/)
+    expect(inspectorSrc).toMatch(/selection\.some\(\(w\) => w\.type === 'text' && w\.template === 'caption'\)/)
+    expect(inspectorSrc).toMatch(/isCaption \? \{ accent: style\.color \} : \{\}/)
+    expect(inspectorSrc).toMatch(/isCaption \? \{ accent: next\.color \} : \{\}/)
+  })
+
   it('offers fill solid/gradient/image, stroke and shadow preset controls', () => {
     expect(inspectorSrc).toMatch(/Text fill/)
     expect(inspectorSrc).toMatch(/Text stroke/)

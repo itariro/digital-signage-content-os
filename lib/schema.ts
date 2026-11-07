@@ -10,8 +10,10 @@ const gradientDefSchema = z.object({
 })
 
 const imageFillDefSchema = z.object({
-  // Local paths (curated fills, /api/uploads/<name>) or remote https URLs.
-  url: z.string().min(1).max(600).refine((v) => v.startsWith('/') || v.startsWith('https://'), 'Invalid image'),
+  // Local paths (curated fills, /api/uploads/<name>) or remote http(s) URLs.
+  // The URL picker accepts http:// as well as https:// (controls.tsx), so the
+  // schema accepts both to keep save from 400ing on a picker-accepted URL.
+  url: z.string().min(1).max(600).refine((v) => v.startsWith('/') || v.startsWith('http://') || v.startsWith('https://'), 'Invalid image'),
   fit: z.enum(['cover', 'contain', 'repeat']),
   scale: z.number().min(10).max(400),
   position: z.number().min(0).max(100),

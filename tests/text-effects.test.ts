@@ -38,6 +38,18 @@ describe('save/load round-trip through widgetSchema', () => {
     expect(result.data.style.lightingShadow).toEqual(widget.style.lightingShadow)
   })
 
+  it('preserves image fill with an http URL (picker accepts http, schema must too)', () => {
+    const widget = createWidget('text')
+    widget.style = normalizeWidgetStyle({
+      ...widget.style,
+      fill: { kind: 'image', image: { url: 'http://example.com/fill.jpg', fit: 'cover', scale: 100, position: 50 } },
+    })
+    const result = widgetSchema.safeParse(JSON.parse(JSON.stringify(widget)))
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.style.fill).toEqual(widget.style.fill)
+  })
+
   it('preserves effect fields on sticker layers', () => {
     const widget = createStickerWidget(BUILTIN_STICKERS[0])
     widget.layers![0].style = normalizeWidgetStyle({
@@ -125,6 +137,10 @@ describe('shadowCss', () => {
   it('builds a contact shadow using blur as the blur radius', () => {
     const css = shadowCss({ ...base, preset: 'contact', distance: 4, blur: 8 })
     expect(css.textShadow).toBe('0 4px 8px rgba(0, 0, 0, 0.35)')
+  })
+  it('widens the contact shadow by spread (added to blur)', () => {
+    const css = shadowCss({ ...base, preset: 'contact', distance: 4, blur: 8, spread: 6 })
+    expect(css.textShadow).toBe('0 4px 14px rgba(0, 0, 0, 0.35)')
   })
   it('builds a curved shadow from two drop shadows', () => {
     const css = shadowCss({ ...base, preset: 'curved', spread: 10 })

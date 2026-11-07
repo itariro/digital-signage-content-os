@@ -59,8 +59,10 @@ export function shadowCss(sh: LightingShadow): React.CSSProperties {
   if (sh.preset === 'contact') {
     // Contact shadow: soft blob directly under the glyph. `blur` is the
     // blur radius (third text-shadow length); `distance` is the Y offset.
-    // `spread` has no CSS text-shadow equivalent and is ignored here.
-    return { textShadow: `0 ${(sh.distance || 4)}px ${sh.blur}px ${col}` }
+    // text-shadow has no spread length, so `spread` widens the blob by
+    // adding to the blur radius.
+    const blur = sh.blur + (sh.spread || 0)
+    return { textShadow: `0 ${(sh.distance || 4)}px ${blur}px ${col}` }
   }
   return { textShadow: `${dx}px ${dy}px ${sh.blur}px ${col}` }
 }
