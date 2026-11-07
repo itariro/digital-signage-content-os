@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import type { Widget, WidgetStyle, WidgetType, WidgetProps } from './types'
 import { FRAME_WIDTH } from './types'
+import { normalizeWidgetStyle } from './text-effects'
 
 export type PropField = (
   | { key: string; label: string; kind: 'toggle' }
@@ -45,7 +46,7 @@ export type WidgetDefinition = {
   layers?: import('./types').StickerLayer[]
 }
 
-export const DEFAULT_STYLE: WidgetStyle = {
+export const DEFAULT_STYLE: WidgetStyle = normalizeWidgetStyle({
   fontFamily: 'inter',
   fontWeight: 500,
   letterSpacing: 0,
@@ -61,7 +62,7 @@ export const DEFAULT_STYLE: WidgetStyle = {
   textStroke: 0,
   opacity: 100,
   shadow: true,
-}
+})
 
 export const ICON_CHOICES = [
   'heart',
@@ -527,6 +528,10 @@ export function createWidget(type: WidgetType, center?: { x: number; y: number }
   const def = getDefinition(type)
   const cx = center?.x ?? FRAME_WIDTH / 2
   const cy = center?.y ?? 700
+  const mergedStyle = { ...DEFAULT_STYLE, ...def.style }
+  if (!def.style?.fill) delete mergedStyle.fill
+  if (!def.style?.textStrokeCfg) delete mergedStyle.textStrokeCfg
+  if (!def.style?.lightingShadow) delete mergedStyle.lightingShadow
   return {
     id: nanoid(10),
     type,
@@ -538,7 +543,7 @@ export function createWidget(type: WidgetType, center?: { x: number; y: number }
     locked: false,
     hidden: false,
     groupId: null,
-    style: { ...DEFAULT_STYLE, ...def.style },
+    style: normalizeWidgetStyle(mergedStyle),
     props: { ...def.props },
     layers: def.layers ? structuredClone(def.layers) : undefined,
   }
