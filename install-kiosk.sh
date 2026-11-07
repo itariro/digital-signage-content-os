@@ -14,7 +14,7 @@
 #                          If the picture is upside down, use 'right'.
 #   -o, --output NAME      xrandr output, e.g. DP-1 (default: first connected)
 #   -m, --mode WxH         force a resolution (default: monitor's preferred mode)
-#       --scale FACTOR     Chromium device scale factor, e.g. 1.5
+#       --scale FACTOR     Surf has no scale factor (kept for compatibility; ignored)
 #       --touch            rotate touchscreen input to match the display
 #       --console-url URL  console base URL for frame enrollment
 #       --enroll-code CODE one-time enrollment code (pulls per-frame keys)
@@ -590,8 +590,9 @@ t_check_hw() {
 }
 
 t_preseed() {
-    # If another display manager is already present, make sure LightDM wins.
-    echo "lightdm shared/default-x-display-manager select lightdm" | debconf-set-selections
+    # Getty autologin replaces any display manager: do not preseed a default
+    # display-manager selection. No-op kept so existing task lines don't break.
+    true
 }
 
 t_apt_update()  { apt_run update; }
@@ -1473,7 +1474,7 @@ if (( ZRAM )); then n_tasks=3; fi
 step "$n_tasks" \
     "Installing only what a kiosk needs, with no recommended extras, to keep the 8 GB eMMC roomy:" \
     "$G_DOT Xorg core + libinput - the display server and keyboard/touch drivers" \
-    "$G_DOT LightDM - logs the kiosk user in automatically at boot" \
+    "$G_DOT Getty - logs in automatically on tty1 and starts the X session" \
     "$G_DOT Openbox - a tiny window manager so the browser can go fullscreen" \
     "$G_DOT Surf - the WebKit browser that shows your dashboard" \
     "$G_DOT Fonts, curl, certificates, dbus - fonts, HTTPS and desktop plumbing" \
@@ -1522,7 +1523,7 @@ n_tasks=3
 if [[ -n $TZ_NAME ]]; then n_tasks=$((n_tasks + 1)); fi
 if (( ZRAM )); then n_tasks=$((n_tasks + 1)); fi
 step "$n_tasks" \
-    "Logs are kept in RAM and Chromium's cache lives on tmpfs, so the flash storage is not worn out by constant writes. Time sync keeps HTTPS working even if the clock battery is flat." \
+    "Logs are kept in RAM and Surf's cache lives on tmpfs (XDG_CACHE_HOME), so the flash storage is not worn out by constant writes. Time sync keeps HTTPS working even if the clock battery is flat." \
     "Compressed swap (zram) gives the 2 GB of RAM some breathing room without touching the disk."
 task "Keeping system logs in RAM" t_journald
 task "Enabling network time sync" t_timesync
