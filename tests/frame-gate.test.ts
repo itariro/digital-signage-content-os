@@ -21,6 +21,8 @@ describe('decideRequest', () => {
     expect(decideRequest(req('127.0.0.1:3000', 'GET', '/api/assets/a.png'))).toEqual({ kind: 'allow' })
     expect(decideRequest(req('127.0.0.1:3000', 'GET', '/api/health'))).toEqual({ kind: 'allow' })
     expect(decideRequest(req('127.0.0.1:3000', 'GET', '/api/weather?lat=0&lon=0&units=metric'))).toEqual({ kind: 'allow' })
+    expect(decideRequest(req('127.0.0.1:3000', 'GET', '/api/uploads/abc.png'))).toEqual({ kind: 'allow' })
+    expect(decideRequest(req('127.0.0.1:3000', 'POST', '/api/uploads'))).toEqual({ kind: 'not_found' })
     expect(decideRequest(req('127.0.0.1:3000', 'GET', '/'))).toEqual({ kind: 'not_found' })
     expect(decideRequest(req('127.0.0.1:3000', 'POST', '/api/frames'))).toEqual({ kind: 'not_found' })
   })
@@ -37,6 +39,12 @@ describe('decideRequest', () => {
     expect(decideRequest(req('192.168.1.5:8808', 'POST', '/api/frames'))).toEqual({ kind: 'admin_required' })
     expect(decideRequest(req('192.168.1.5:8808', 'POST', '/api/admin/login'))).toEqual({ kind: 'allow' })
     expect(decideRequest(req('192.168.1.5:8808', 'POST', '/api/sync/push'))).toEqual({ kind: 'allow' })
+  })
+
+  it('management port: upload read allowed, upload write still admin_required', () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    expect(decideRequest(req('192.168.1.5:8808', 'GET', '/api/uploads/abc.png'))).toEqual({ kind: 'allow' })
+    expect(decideRequest(req('192.168.1.5:8808', 'POST', '/api/uploads'))).toEqual({ kind: 'admin_required' })
   })
 
   it('console-only paths never resolve on a frame', () => {

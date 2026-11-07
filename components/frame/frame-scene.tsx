@@ -9,6 +9,7 @@ import { slideAt } from '@/lib/albums'
 import { mosaicAt, mosaicGrid, seedFromString } from '@/lib/mosaic'
 import { WidgetContent, type WidgetContext } from './widget-content'
 import { AlbumSlideshow } from './album-slideshow'
+import { textEffectCss } from '@/lib/text-effects'
 
 export function surfaceStyle(widget: Widget): CSSProperties {
   const s = widget.style
@@ -30,7 +31,14 @@ export function surfaceStyle(widget: Widget): CSSProperties {
     border: s.strokeWidth > 0 ? `${s.strokeWidth}px solid ${s.stroke}` : undefined,
     borderRadius: s.radius,
     opacity: s.opacity / 100,
-    WebkitTextStroke: s.textStroke > 0 ? `${s.textStroke}px ${s.stroke}` : undefined,
+    // Text/sticker stroke is owned by the text-effect layer (TextStrokeCfg) so
+    // it paints under the fill in paint order; leave the surface stroke alone.
+    WebkitTextStroke:
+      widget.type === 'text' || widget.type === 'sticker'
+        ? undefined
+        : s.textStroke > 0
+          ? `${s.textStroke}px ${s.stroke}`
+          : undefined,
     overflow: 'hidden',
   }
 }
@@ -38,15 +46,30 @@ export function surfaceStyle(widget: Widget): CSSProperties {
 export function WidgetBody({ widget, ctx }: { widget: Widget; ctx: WidgetContext }) {
   const s = widget.style
   const hasSurface = s.bgOpacity > 0 || s.strokeWidth > 0
+  const isText = widget.type === 'text'
+  const isSticker = widget.type === 'sticker'
+  // CSS-native text effects (background-clip:text fill, -webkit-text-stroke
+  // with paint-order so the stroke stays under the fill, text-shadow /
+  // drop-shadow stacks). Photo-space px; the renderer scales via container
+  // queries, so no per-scale math here. Text widgets get the wrapper; sticker
+  // layers get the same helpers per layer inside StickerWidget. Every other
+  // widget type keeps the legacy boolean-shadow behaviour.
+  const effect = isText ? textEffectCss(s) : {}
   return (
     <div
       className="h-full w-full"
       style={{
-        padding: widget.type === 'sticker' ? 0 : hasSurface ? '7cqmin' : '1.5cqmin',
-        filter: s.shadow ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.35))' : undefined,
+        padding: isSticker ? 0 : hasSurface ? '7cqmin' : '1.5cqmin',
+        filter: isText || isSticker ? undefined : s.shadow ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.35))' : undefined,
       }}
     >
-      <WidgetContent widget={widget} ctx={ctx} />
+      {isText ? (
+        <div style={{ ...effect }} className="h-full w-full">
+          <WidgetContent widget={widget} ctx={ctx} />
+        </div>
+      ) : (
+        <WidgetContent widget={widget} ctx={ctx} />
+      )}
     </div>
   )
 }

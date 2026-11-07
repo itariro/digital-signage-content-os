@@ -1,0 +1,3 @@
+# Uploaded image fills are runtime files, not source. Keep the directory.
+*
+!.gitignore

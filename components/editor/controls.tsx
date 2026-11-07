@@ -1,8 +1,9 @@
 'use client'
 
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import type { WidgetStyle } from '@/lib/types'
+import type { GradientDef, ImageFillDef, WidgetStyle } from '@/lib/types'
+import { CURATED_FILLS } from '@/lib/curated-fills'
 import { STYLE_THEMES } from '@/lib/widgets'
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
@@ -281,5 +282,310 @@ export function IconButton({
     >
       {children}
     </button>
+  )
+}
+
+// --- Text-effects primitives (Task 4) ---
+
+export function AngleDial({
+  label = 'Angle',
+  value,
+  onChange,
+  onCommit,
+}: {
+  label?: string
+  value: number
+  onChange: (value: number) => void
+  onCommit?: () => void
+}) {
+  const ref = useRef<SVGSVGElement>(null)
+  const id = useId()
+  const normalized = ((Math.round(value) % 360) + 360) % 360
+  const rad = (normalized * Math.PI) / 180
+  const cx = 32
+  const cy = 32
+  const r = 26
+  const needleX = cx + Math.cos(rad) * r
+  const needleY = cy + Math.sin(rad) * r
+
+  const fromPointer = (clientX: number, clientY: number) => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect) return
+    const dx = clientX - (rect.left + rect.width / 2)
+    const dy = clientY - (rect.top + rect.height / 2)
+    const deg = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360
+    onChange(Math.round(deg))
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span id={id} className="text-sm text-foreground">
+        {label}
+      </span>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">{normalized}°</span>
+        <svg
+          ref={ref}
+          viewBox="0 0 64 64"
+          className="size-16 cursor-pointer touch-none rounded-full bg-secondary"
+          role="slider"
+          aria-labelledby={id}
+          aria-valuemin={0}
+          aria-valuemax={359}
+          aria-valuenow={normalized}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+              onCommit?.()
+              onChange((normalized + 1) % 360)
+            }
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+              onCommit?.()
+              onChange((normalized + 359) % 360)
+            }
+          }}
+          onPointerDown={(e) => {
+            onCommit?.()
+            fromPointer(e.clientX, e.clientY)
+            const move = (ev: PointerEvent) => fromPointer(ev.clientX, ev.clientY)
+            const up = () => {
+              window.removeEventListener('pointermove', move)
+              window.removeEventListener('pointerup', up)
+            }
+            window.addEventListener('pointermove', move)
+            window.addEventListener('pointerup', up)
+          }}
+        >
+          <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="2" className="stroke-border" />
+          <line x1={cx} y1={cy} x2={needleX} y2={needleY} strokeWidth="2" className="stroke-primary" />
+          <circle cx={needleX} cy={needleY} r="4" className="fill-primary" />
+          <circle cx={cx} cy={cy} r="3" className="fill-foreground" />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+export function GradientStopPicker({
+  stops,
+  onChange,
+  onCommit,
+}: {
+  stops: GradientDef['stops']
+  onChange: (stops: GradientDef['stops']) => void
+  onCommit?: () => void
+}) {
+  const update = (index: number, patch: Partial<GradientDef['stops'][number]>) =>
+    onChange(stops.map((s, i) => (i === index ? { ...s, ...patch } : s)))
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm text-foreground">Gradient stops</span>
+      {stops.map((stop, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            type="color"
+            value={stop.color}
+            aria-label={`Stop ${i + 1} color`}
+            onFocus={onCommit}
+            onChange={(e) => update(i, { color: e.target.value })}
+            className="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-border bg-secondary"
+          />
+          <div className="min-w-0 flex-1">
+            <SliderField
+              label={`Stop ${i + 1} position`}
+              value={stop.position}
+              min={0}
+              max={100}
+              suffix="%"
+              onCommit={onCommit}
+              onChange={(v) => update(i, { position: v })}
+            />
+          </div>
+          <button
+            type="button"
+            aria-label={`Remove stop ${i + 1}`}
+            disabled={stops.length <= 2}
+            onClick={() => {
+              onCommit?.()
+              onChange(stops.filter((_, j) => j !== i))
+            }}
+            className="shrink-0 rounded-md bg-secondary px-2 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      {stops.length < 2 && <p className="text-xs text-muted-foreground">A gradient needs at least 2 stops.</p>}
+      <button
+        type="button"
+        disabled={stops.length >= 8}
+        onClick={() => {
+          onCommit?.()
+          onChange([...stops, { color: '#ffffff', position: Math.min(100, Math.round(100 / (stops.length + 1))) }])
+        }}
+        className="rounded-md bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
+      >
+        Add stop
+      </button>
+    </div>
+  )
+}
+
+export type ImageFillTab = 'curated' | 'url' | 'upload'
+
+export function ImageFillField({
+  image,
+  onChange,
+  onCommit,
+}: {
+  image: ImageFillDef
+  onChange: (image: ImageFillDef) => void
+  onCommit?: () => void
+}) {
+  const [tab, setTab] = useState<ImageFillTab>('curated')
+  const [urlDraft, setUrlDraft] = useState(image.url)
+  // This field is reused across widgets: resync the draft whenever the
+  // target image URL changes so Apply never writes a stale URL.
+  useEffect(() => {
+    setUrlDraft(image.url)
+  }, [image.url])
+  const [urlError, setUrlError] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const applyUrl = () => {
+    const trimmed = urlDraft.trim()
+    if (!trimmed) {
+      setUrlError('Enter an image URL.')
+      return
+    }
+    if (!/^(https?:\/\/|\/)/.test(trimmed)) {
+      setUrlError('URL must start with http://, https:// or /.')
+      return
+    }
+    setUrlError(null)
+    onCommit?.()
+    onChange({ ...image, url: trimmed })
+  }
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return
+    setUploadError(null)
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/uploads', { method: 'POST', body: form })
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`)
+      const data = (await res.json()) as { url?: string }
+      if (!data.url) throw new Error('Upload returned no URL')
+      onCommit?.()
+      onChange({ ...image, url: data.url })
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Segmented<ImageFillTab>
+        label="Image fill source"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'curated', label: 'Curated' },
+          { value: 'url', label: 'URL' },
+          { value: 'upload', label: 'Upload' },
+        ]}
+      />
+      {tab === 'curated' && (
+        <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Curated fills">
+          {CURATED_FILLS.map((fill) => {
+            const active = image.url === fill.url
+            return (
+              <button
+                key={fill.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                title={fill.label}
+                aria-label={fill.label}
+                onClick={() => {
+                  onCommit?.()
+                  onChange({ url: fill.url, fit: 'cover', scale: 100, position: 50 })
+                }}
+                className={cn(
+                  'overflow-hidden rounded-lg ring-1 transition',
+                  active ? 'ring-2 ring-primary' : 'ring-border hover:ring-muted-foreground',
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={fill.url} alt={fill.label} className="aspect-square w-full object-cover" loading="lazy" />
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {tab === 'url' && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={urlDraft}
+              onChange={(e) => setUrlDraft(e.target.value)}
+              placeholder="https://… or /api/uploads/…"
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none focus-visible:border-primary"
+            />
+            <button
+              type="button"
+              onClick={applyUrl}
+              className="shrink-0 rounded-md bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/70"
+            >
+              Apply
+            </button>
+          </div>
+          {urlError && (
+            <p role="alert" className="text-xs text-destructive">
+              {urlError}
+            </p>
+          )}
+        </div>
+      )}
+      {tab === 'upload' && (
+        <div className="flex flex-col gap-1.5">
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploading}
+            onChange={(e) => upload(e.target.files?.[0])}
+            className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground"
+          />
+          {uploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
+          {uploadError && (
+            <p role="alert" className="text-xs text-destructive">
+              {uploadError}
+            </p>
+          )}
+        </div>
+      )}
+      <Segmented<'cover' | 'contain' | 'repeat'>
+        label="Image fit"
+        value={image.fit}
+        onChange={(fit) => {
+          onCommit?.()
+          onChange({ ...image, fit })
+        }}
+        options={[
+          { value: 'cover', label: 'Cover' },
+          { value: 'contain', label: 'Contain' },
+          { value: 'repeat', label: 'Repeat' },
+        ]}
+      />
+      <SliderField label="Scale" value={image.scale} min={50} max={200} suffix="%" onCommit={onCommit} onChange={(scale) => onChange({ ...image, scale })} />
+      <SliderField label="Position" value={image.position} min={0} max={100} suffix="%" onCommit={onCommit} onChange={(position) => onChange({ ...image, position })} />
+    </div>
   )
 }

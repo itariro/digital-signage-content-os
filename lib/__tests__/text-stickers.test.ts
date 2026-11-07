@@ -78,4 +78,32 @@ describe('sticker layer validation', () => {
     const layered = { ...clock, layers: createStickerWidget(BUILTIN_STICKERS[0]).layers }
     expect(widgetSchema.safeParse(layered).success).toBe(false)
   })
+
+  it('renders each builtin sticker layer in its intended colour', () => {
+    for (const template of BUILTIN_STICKERS) {
+      const widget = createStickerWidget(template)
+      for (const layer of widget.layers ?? []) {
+        // No layer may fall back to a white fill unless its colour is white:
+        // the renderer prefers the solid fill over the legacy colour.
+        if (layer.style.fill?.kind === 'solid') {
+          expect(layer.style.fill.color, `${template.id} layer "${layer.text}"`).toBe(layer.style.color)
+        }
+        if (layer.style.color !== '#ffffff') {
+          expect(layer.style.fill, `${template.id} layer "${layer.text}"`).toMatchObject({ kind: 'solid', color: layer.style.color })
+        }
+        // Legacy shadow flag maps to the lighting preset.
+        expect(layer.style.lightingShadow?.preset, `${template.id} layer "${layer.text}"`).toBe(layer.style.shadow ? 'drop' : 'none')
+      }
+    }
+  })
+
+  it('keeps Hello headline layer 2 blue and shadowless, Retro badge outlined', () => {
+    const hello = createStickerWidget(BUILTIN_STICKERS.find((s) => s.id === 'sticker-hello')!)
+    expect(hello.layers![1].style.fill).toMatchObject({ kind: 'solid', color: '#7cc4ff' })
+    expect(hello.layers![1].style.lightingShadow?.preset).toBe('none')
+
+    const retro = createStickerWidget(BUILTIN_STICKERS.find((s) => s.id === 'sticker-retro')!)
+    expect(retro.layers![0].style.textStrokeCfg).toMatchObject({ enabled: true, thickness: 3, color: '#0b0c10' })
+    expect(retro.layers![0].style.fill).toMatchObject({ kind: 'solid', color: '#f3ecd2' })
+  })
 })

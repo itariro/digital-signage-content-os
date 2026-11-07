@@ -25,6 +25,13 @@ export type WidgetType = (typeof WIDGET_TYPES)[number]
 
 export type Align = 'start' | 'center' | 'end'
 
+export type GradientDef = { type: 'linear' | 'radial'; angle: number; stops: { color: string; position: number }[] }
+export type ImageFillDef = { url: string; fit: 'cover' | 'contain' | 'repeat'; scale: number; position: number }
+export type TextFill = { kind: 'solid'; color: string } | { kind: 'gradient'; gradient: GradientDef } | { kind: 'image'; image: ImageFillDef }
+export type TextStrokeCfg = { enabled: boolean; color: string; thickness: number; opacity: number; align: 'inside' | 'outside' | 'center' }
+export type ShadowPresetId = 'none' | 'drop' | 'contact' | 'long' | 'curved'
+export type LightingShadow = { preset: ShadowPresetId; distance: number; blur: number; opacity: number; angle: number; color: string; steps?: number; spread?: number }
+
 export type WidgetStyle = {
   fontFamily: string
   fontWeight: number
@@ -41,6 +48,9 @@ export type WidgetStyle = {
   textStroke: number
   opacity: number
   shadow: boolean
+  fill?: TextFill
+  textStrokeCfg?: TextStrokeCfg
+  lightingShadow?: LightingShadow
 }
 
 export type WidgetProps = Record<string, string | number | boolean>
