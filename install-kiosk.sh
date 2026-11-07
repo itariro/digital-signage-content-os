@@ -1280,6 +1280,11 @@ EOF
     sysctl -p >/dev/null 2>&1 || echo "could not apply sysctl now (a reboot will apply vm.swappiness=10)"
 }
 
+t_cron_reboot() {
+    systemctl enable cron 2>/dev/null || true
+    ( crontab -l 2>/dev/null | grep -vF '/sbin/reboot' ; echo '0 3 * * * /sbin/reboot' ) | crontab -
+}
+
 t_validate() {
     bash -n "$LIB_DIR/session.sh"
     [[ -x /usr/local/bin/kiosk-xinit ]]
@@ -1457,7 +1462,7 @@ step "$n_tasks" \
     "$G_DOT Xorg core + libinput - the display server and keyboard/touch drivers" \
     "$G_DOT LightDM - logs the kiosk user in automatically at boot" \
     "$G_DOT Openbox - a tiny window manager so the browser can go fullscreen" \
-    "$G_DOT Chromium - the browser that shows your dashboard" \
+    "$G_DOT Surf - the WebKit browser that shows your dashboard" \
     "$G_DOT Fonts, curl, certificates, dbus - fonts, HTTPS and desktop plumbing" \
     "$G_DOT systemd-timesyncd - keeps the clock right so HTTPS pages load"
 task "Installing display stack and browser" t_apt_install
@@ -1474,7 +1479,7 @@ step_end
 
 # ---- 5/9 --------------------------------------------------------------------
 step 3 \
-    "Writes /etc/kiosk/kiosk.conf (your settings), the session script that starts Chromium and keeps it running, and the kiosk-ctl helper. They are owned by root, so the kiosk user cannot modify them."
+    "Writes /etc/kiosk/kiosk.conf (your settings), the session script that starts Surf and keeps it running, and the kiosk-ctl helper. They are owned by root, so the kiosk user cannot modify them."
 task "Writing kiosk settings" t_write_conf
 task "Installing the kiosk session script" t_write_session
 task "Installing the kiosk-ctl helper" t_write_ctl
@@ -1500,7 +1505,7 @@ task "Confirming Surf lockdown (no policy needed)" t_policy_note
 step_end
 
 # ---- 8/9 --------------------------------------------------------------------
-n_tasks=2
+n_tasks=3
 if [[ -n $TZ_NAME ]]; then n_tasks=$((n_tasks + 1)); fi
 if (( ZRAM )); then n_tasks=$((n_tasks + 1)); fi
 step "$n_tasks" \
@@ -1508,6 +1513,7 @@ step "$n_tasks" \
     "Compressed swap (zram) gives the 2 GB of RAM some breathing room without touching the disk."
 task "Keeping system logs in RAM" t_journald
 task "Enabling network time sync" t_timesync
+task "Scheduling daily 03:00 reboot" t_cron_reboot
 if [[ -n $TZ_NAME ]]; then task "Setting timezone to ${TZ_NAME}" t_timezone; fi
 if (( ZRAM )); then task "Configuring zram swap" t_zram_conf; fi
 step_end
