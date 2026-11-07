@@ -11,6 +11,8 @@ __v0_jsx-dev-runtime.ts
 
 # Common ignores
 .data/
+# legacy upload location; uploads now live under FRAME_DATA_DIR (.data/)
+public/uploads/
 node_modules
 .next/
 .DS_Store

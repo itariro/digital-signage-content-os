@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeWidgetStyle, fillCss, shadowCss, strokeCss } from '@/lib/text-effects'
+import { createWidget } from '@/lib/widgets'
+import { BUILTIN_STICKERS, createStickerWidget } from '@/lib/text-stickers'
+import { widgetSchema } from '@/lib/schema'
 
 const alphas = (value: string) => [...value.matchAll(/rgba?\([^)]*?,\s*([\d.]+)\)/g)].map((m) => Number(m[1]))
 
@@ -15,6 +18,40 @@ describe('normalizeWidgetStyle', () => {
   it('migrates textStroke number to cfg', () => {
     const out = normalizeWidgetStyle({ textStroke: 6, stroke: '#ffffff' } as any)
     expect(out.textStrokeCfg).toMatchObject({ enabled: true, thickness: 6 })
+  })
+})
+
+describe('save/load round-trip through widgetSchema', () => {
+  it('preserves effect fields on a text widget', () => {
+    const widget = createWidget('text')
+    widget.style = normalizeWidgetStyle({
+      ...widget.style,
+      fill: { kind: 'gradient', gradient: { type: 'linear', angle: 135, stops: [{ color: '#ff8fa3', position: 0 }, { color: '#7cc4ff', position: 100 }] } },
+      textStrokeCfg: { enabled: true, color: '#000000', thickness: 3, opacity: 80, align: 'outside' },
+      lightingShadow: { preset: 'long', distance: 12, blur: 0, opacity: 40, angle: 90, color: '#000000', steps: 40 },
+    })
+    const result = widgetSchema.safeParse(JSON.parse(JSON.stringify(widget)))
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.style.fill).toEqual(widget.style.fill)
+    expect(result.data.style.textStrokeCfg).toEqual(widget.style.textStrokeCfg)
+    expect(result.data.style.lightingShadow).toEqual(widget.style.lightingShadow)
+  })
+
+  it('preserves effect fields on sticker layers', () => {
+    const widget = createStickerWidget(BUILTIN_STICKERS[0])
+    widget.layers![0].style = normalizeWidgetStyle({
+      ...widget.layers![0].style,
+      fill: { kind: 'image', image: { url: '/api/uploads/abc.png', fit: 'cover', scale: 100, position: 50 } },
+      textStrokeCfg: { enabled: true, color: '#0b0c10', thickness: 2, opacity: 100, align: 'inside' },
+      lightingShadow: { preset: 'contact', distance: 4, blur: 8, opacity: 50, angle: 90, color: '#000000' },
+    })
+    const result = widgetSchema.safeParse(JSON.parse(JSON.stringify(widget)))
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.layers![0].style.fill).toEqual(widget.layers![0].style.fill)
+    expect(result.data.layers![0].style.textStrokeCfg).toEqual(widget.layers![0].style.textStrokeCfg)
+    expect(result.data.layers![0].style.lightingShadow).toEqual(widget.layers![0].style.lightingShadow)
   })
 })
 
@@ -85,8 +122,8 @@ describe('shadowCss', () => {
     const css = shadowCss({ ...base, preset: 'drop' })
     expect(css.textShadow).toBe('0px 10px 5px rgba(0, 0, 0, 0.35)')
   })
-  it('builds a contact shadow', () => {
-    const css = shadowCss({ ...base, preset: 'contact', distance: 4, spread: 8 })
+  it('builds a contact shadow using blur as the blur radius', () => {
+    const css = shadowCss({ ...base, preset: 'contact', distance: 4, blur: 8 })
     expect(css.textShadow).toBe('0 4px 8px rgba(0, 0, 0, 0.35)')
   })
   it('builds a curved shadow from two drop shadows', () => {

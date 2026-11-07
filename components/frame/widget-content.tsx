@@ -544,6 +544,11 @@ function TextWidget({ widget }: { widget: Widget }) {
   // The WidgetBody wrapper already paints the fill via background-clip:text
   // (transparent foreground). Only override with the accent color for solid
   // fills, or gradient/image fills would be hidden under an opaque glyph.
+  // Caption colour rule: captions use `accent` as a fallback for legacy
+  // widgets that never had an explicit fill. When a user explicitly picks
+  // a solid fill in the editor, accent is synced to the fill colour (see
+  // EffectControls.setFill), so an explicitly chosen solid fill controls
+  // the caption colour while legacy accent-only captions keep working.
   const isSolid = (style.fill?.kind ?? 'solid') === 'solid'
   return (
     <div className="flex h-full w-full items-center whitespace-nowrap" style={{ justifyContent: justify }}>

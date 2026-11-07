@@ -7,7 +7,15 @@ import { requireHostedOperator } from '@/lib/http-auth'
 
 const MAX_BYTES = 10 * 1024 * 1024
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
+function dataDir() {
+  return process.env.FRAME_DATA_DIR || path.join(process.cwd(), '.data')
+}
+
+// Uploads live under FRAME_DATA_DIR (not public/), so they survive kiosk
+// updates that replace the app directory — same durability rule as
+// lib/assets/storage.ts (FRAME_DATA_DIR/assets). They are served back by
+// app/api/uploads/[name]/route.ts. .data/ is gitignored.
+const UPLOAD_DIR = () => path.join(dataDir(), 'uploads')
 
 // Image fills only: raster images whose type is derived from magic bytes.
 // SVGs are excluded because they can carry script when served from public/.
@@ -39,8 +47,8 @@ export async function POST(request: Request) {
   }
 
   const name = `${nanoid(14)}.${derived.ext}`
-  await fs.mkdir(UPLOAD_DIR, { recursive: true })
-  await fs.writeFile(path.join(UPLOAD_DIR, name), bytes)
+  await fs.mkdir(UPLOAD_DIR(), { recursive: true })
+  await fs.writeFile(path.join(UPLOAD_DIR(), name), bytes)
 
-  return NextResponse.json({ url: `/uploads/${name}` })
+  return NextResponse.json({ url: `/api/uploads/${name}` })
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import type { GradientDef, ImageFillDef, WidgetStyle } from '@/lib/types'
 import { CURATED_FILLS } from '@/lib/curated-fills'
@@ -445,6 +445,11 @@ export function ImageFillField({
 }) {
   const [tab, setTab] = useState<ImageFillTab>('curated')
   const [urlDraft, setUrlDraft] = useState(image.url)
+  // This field is reused across widgets: resync the draft whenever the
+  // target image URL changes so Apply never writes a stale URL.
+  useEffect(() => {
+    setUrlDraft(image.url)
+  }, [image.url])
   const [urlError, setUrlError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -531,7 +536,7 @@ export function ImageFillField({
               type="url"
               value={urlDraft}
               onChange={(e) => setUrlDraft(e.target.value)}
-              placeholder="https://… or /uploads/…"
+              placeholder="https://… or /api/uploads/…"
               className="h-9 min-w-0 flex-1 rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none focus-visible:border-primary"
             />
             <button

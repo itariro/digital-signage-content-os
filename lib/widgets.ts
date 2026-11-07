@@ -545,7 +545,15 @@ export function createWidget(type: WidgetType, center?: { x: number; y: number }
     groupId: null,
     style: normalizeWidgetStyle(mergedStyle),
     props: { ...def.props },
-    layers: def.layers ? structuredClone(def.layers) : undefined,
+    // Sticker layers were built from the normalized DEFAULT_STYLE, so
+    // re-derive each layer's effect fields from its legacy fields to
+    // avoid inheriting the default white fill / drop shadow.
+    layers: def.layers
+      ? structuredClone(def.layers).map((l) => ({
+          ...l,
+          style: normalizeWidgetStyle({ ...l.style, fill: undefined, textStrokeCfg: undefined, lightingShadow: undefined } as WidgetStyle),
+        }))
+      : undefined,
   }
 }
 

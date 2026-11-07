@@ -281,7 +281,12 @@ function EffectControls({
   const shadow = style.lightingShadow ?? { preset: 'none' as const, distance: 0, blur: 0, opacity: 0, angle: 0, color: '#000000' }
 
   const setFill = (next: TextFill, record = true) => {
-    if (next.kind === 'solid') onPatch({ fill: next, color: next.color }, record)
+    // Caption rule: the caption template paints text with `accent`, not with
+    // the solid fill colour. Keep accent in sync when a user explicitly
+    // picks a solid fill here, so the chosen fill visibly controls the
+    // caption. Legacy captions never went through this picker, so their
+    // accent (set via the legacy Accent control) is untouched.
+    if (next.kind === 'solid') onPatch({ fill: next, color: next.color, accent: next.color }, record)
     else onPatch({ fill: next }, record)
   }
   const setGradient = (gradient: GradientDef, record = true) => setFill({ kind: 'gradient', gradient }, record)
@@ -495,12 +500,17 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
   // outline controls are dead: glyphs render from fill/textStrokeCfg/
   // lightingShadow (see textEffectCss), and normalizeWidgetStyle overwrites
   // color from a solid fill. Hide them so users use Text fill/stroke/shadow.
-  const isTextLike = selection.length === 1 && (selection[0].type === 'text' || selection[0].type === 'sticker')
+  // This also applies to multi-selections: if ANY selected widget is
+  // text/sticker, the legacy controls would only patch dead fields on that
+  // widget, so hide them for the whole selection.
+  const isTextLike = selection.some((w) => w.type === 'text' || w.type === 'sticker')
   const applyTheme = (style: Partial<WidgetStyle>) => {
     // Keep a solid fill in sync with the theme colour, otherwise the theme
     // would only patch `color` and the glyph would not visibly change.
     if (style.color && (!s.fill || s.fill.kind === 'solid')) {
-      set({ ...style, fill: { kind: 'solid', color: style.color } })
+      // Same caption rule as EffectControls.setFill: a theme applied to a
+      // solid fill also syncs accent, so captions follow the theme colour.
+      set({ ...style, fill: { kind: 'solid', color: style.color }, accent: style.color })
     } else {
       set(style)
     }

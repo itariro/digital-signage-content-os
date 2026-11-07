@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 import type { StickerLayer, Widget, WidgetStyle } from './types'
 import { DEFAULT_STYLE } from './widgets'
+import { normalizeWidgetStyle } from './text-effects'
 import { FRAME_WIDTH, FRAME_HEIGHT } from './types'
 
 /** Fixed internal coordinate space every sticker layer is positioned in (spec: 1000×500). */
@@ -17,7 +18,17 @@ export function stickerFit(boxW: number, boxH: number) {
 }
 
 function layerStyle(patch: Partial<WidgetStyle>): WidgetStyle {
-  return { ...DEFAULT_STYLE, ...patch }
+  const merged = { ...DEFAULT_STYLE, ...patch }
+  // DEFAULT_STYLE is already normalized (white solid fill, drop shadow), so
+  // spreading it would keep those effect fields and the renderer would
+  // prefer them over the legacy fields the templates actually set
+  // (color / shadow / textStroke / stroke). Drop the inherited effect
+  // fields and re-derive them from the merged legacy fields, unless the
+  // patch set them explicitly.
+  if (!patch.fill) delete merged.fill
+  if (!patch.textStrokeCfg) delete merged.textStrokeCfg
+  if (!patch.lightingShadow) delete merged.lightingShadow
+  return normalizeWidgetStyle(merged)
 }
 
 function layer(
@@ -241,7 +252,7 @@ export function createStickerWidget(template: TextStickerTemplate, center?: { x:
     locked: false,
     hidden: false,
     groupId: null,
-    style: { ...DEFAULT_STYLE, bgOpacity: 0, shadow: false },
+    style: normalizeWidgetStyle({ ...DEFAULT_STYLE, bgOpacity: 0, shadow: false, fill: undefined, textStrokeCfg: undefined, lightingShadow: undefined } as WidgetStyle),
     props: {},
     layers: structuredClone(template.layers).map((l) => ({ ...l, id: nanoid(8) })),
   }
