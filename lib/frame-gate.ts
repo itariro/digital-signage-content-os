@@ -24,9 +24,19 @@ export function hostPort(host: string): string | null {
   return m ? m[1] : null
 }
 
+// Env-only half of the local-dev bypass: true when the deployment opts into
+// unauthenticated local writes at all. Host trust is a separate concern
+// (see isLocalDevBypass) and is enforced by binding the bypass-enabled
+// listener to loopback in lib/mgmt-port.ts — a raw TCP pipe cannot set
+// X-Forwarded-For, so trusting the Host header on a 0.0.0.0 listener would
+// let remote callers spoof localhost.
+export function isBypassActive(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.ALLOW_INSECURE_LOCAL_WRITES === '1' || env.NODE_ENV === 'development'
+}
+
 export function isLocalDevBypass(input: GateInput): boolean {
+  if (!isBypassActive(process.env)) return false
   if (process.env.ALLOW_INSECURE_LOCAL_WRITES === '1') return true
-  if (process.env.NODE_ENV !== 'development') return false
   const raw = input.host.trim().toLowerCase()
   // Handle bracketed IPv6 like [::1]:8808
   const host = raw.startsWith('[') ? raw.slice(1, raw.indexOf(']')) : (raw.split(':')[0] || '')

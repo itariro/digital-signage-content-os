@@ -1,5 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+
+// Pass-through Clerk: invokes the proxy handler with a dummy auth so a
+// request that clears the frame gate returns NextResponse.next() (marked
+// by the x-middleware-next header) instead of a Clerk 401/redirect. That
+// makes "fell through" assertions concrete — a blocked request (404/500/
+// 401 from the gate) cannot produce the continuation signal.
+vi.mock('@clerk/nextjs/server', () => ({
+  clerkMiddleware: (handler: any) => async (req: any, evt: any) =>
+    handler({ protect: async () => {} }, req),
+}))
 
 const env = process.env as Record<string, string | undefined>
 const origNodeEnv = process.env.NODE_ENV
@@ -15,6 +25,13 @@ afterEach(() => {
 
 function makeRequest(path: string, method = 'GET', host = 'localhost:3000') {
   return new NextRequest(`http://${host}${path}`, { method, headers: { host } })
+}
+
+// Concrete fall-through signal: NextResponse.next() sets x-middleware-next: 1.
+function expectFallThrough(res: any) {
+  expect(res).toBeDefined()
+  expect(res.status).toBe(200)
+  expect(res.headers.get('x-middleware-next')).toBe('1')
 }
 
 describe('proxy gate wiring', () => {
@@ -99,15 +116,10 @@ describe('proxy gate wiring', () => {
     delete env.ALLOW_INSECURE_LOCAL_WRITES
     const mod = await import('@/proxy')
     const res = await mod.default(makeRequest('/api/layouts', 'POST', '127.0.0.1:8808'), {} as any)
-    expect(res).toBeDefined()
-    // Bypass means the gate does not return the admin 401; the request
-    // falls through to the Clerk stage / downstream handler.
-    if (res!.status === 401) {
-      const body = await res!.json()
-      expect(body.error).not.toBe('admin_password_not_configured')
-    } else {
-      expect(res!.status).not.toBe(401)
-    }
+    // Bypass means the gate lets the request through to the (mocked) Clerk
+    // stage, which returns NextResponse.next(). A blocked request (404/500/
+    // gate 401) lacks the continuation header and fails here.
+    expectFallThrough(res)
   })
 
   it('LAN mgmt POST still returns admin_password_not_configured when no admin configured (dev)', async () => {
@@ -146,12 +158,6 @@ describe('proxy gate wiring', () => {
     delete env.FRAME_ADMIN_SECRET
     const mod = await import('@/proxy')
     const res = await mod.default(makeRequest('/api/layouts', 'POST', '192.168.1.10:8808'), {} as any)
-    expect(res).toBeDefined()
-    if (res!.status === 401) {
-      const body = await res!.json()
-      expect(body.error).not.toBe('admin_password_not_configured')
-    } else {
-      expect(res!.status).not.toBe(401)
-    }
+    expectFallThrough(res)
   })
 })
