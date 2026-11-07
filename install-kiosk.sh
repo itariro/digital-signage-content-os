@@ -507,7 +507,7 @@ apt_run() {
     local mode=$1 sf="$STATE_DIR/apt.status" pid rc=0 line kind pkg pct frac detail
     : >"$sf"
     if (( DRY )); then
-        local i names=(xserver-xorg-core lightdm openbox chromium curl fonts-dejavu-core systemd-timesyncd)
+        local i names=(xserver-xorg-core openbox surf curl fonts-dejavu-core systemd-timesyncd)
         for i in $(seq 0 4 100); do
             printf '%s' "$i" >"$STATE_DIR/frac"
             if [[ $mode == update ]]; then detail=""; elif (( i < 40 )); then detail="downloading"; else detail="${names[i * ${#names[@]} / 101]}"; fi
@@ -594,12 +594,18 @@ t_preseed() {
 }
 
 t_apt_update()  { apt_run update; }
-t_apt_install() { apt_run install -y --no-install-recommends "${PACKAGES[@]}"; }
+t_apt_install() {
+    apt_run install -y --no-install-recommends "${PACKAGES[@]}"
+    # Purge stale kernels; never touch the running one (uname -r).
+    local current
+    current=$(uname -r)
+    dpkg -l 'linux-image-*' | awk '/^ii/{print $2}' | grep -vx "$current" | xargs -r apt-get purge -y
+}
 t_apt_zram()    { apt_run install -y --no-install-recommends systemd-zram-generator; }
 
 t_verify_cmds() {
     local cmd
-    for cmd in chromium openbox lightdm xrandr xset xprop curl; do
+    for cmd in surf openbox xrandr xset xprop curl; do
         command -v "$cmd" >/dev/null 2>&1 || { echo "'$cmd' is missing after installation" >&2; return 1; }
     done
 }
@@ -1334,7 +1340,7 @@ t_enable_boot() {
     systemctl enable lightdm.service
 }
 
-t_apt_clean() { apt-get clean; }
+t_apt_clean() { apt-get clean; apt-get autoremove --purge -y; }
 
 # ==========================================================================
 # Screens
@@ -1475,9 +1481,9 @@ step_end
 PACKAGES=(
     xserver-xorg-core xserver-xorg-input-libinput xauth
     x11-xserver-utils x11-utils
-    lightdm lightdm-gtk-greeter
     openbox
-    chromium
+    surf
+    cron
     dbus-x11 dbus-user-session
     curl ca-certificates
     fonts-dejavu-core fonts-noto-color-emoji
