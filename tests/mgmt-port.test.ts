@@ -123,6 +123,62 @@ describe('maybeStartMgmtForwarder', () => {
     await close(echo)
   })
 
+  it('binds 127.0.0.1 when the local-dev bypass is active (dev, no admin)', async () => {
+    const echo = echoServer()
+    const appPort = await listen(echo)
+    const mgmt = await maybeStartMgmtForwarder({
+      KIOSK_MGMT_PORT: '0',
+      PORT: String(appPort),
+      NODE_ENV: 'development',
+    } as any)
+    expect((mgmt as net.Server).address()).toMatchObject({ address: '127.0.0.1' })
+    await close(mgmt!)
+    await close(echo)
+  })
+
+  it('binds 127.0.0.1 when ALLOW_INSECURE_LOCAL_WRITES=1 (production, no admin)', async () => {
+    const echo = echoServer()
+    const appPort = await listen(echo)
+    const mgmt = await maybeStartMgmtForwarder({
+      KIOSK_MGMT_PORT: '0',
+      PORT: String(appPort),
+      NODE_ENV: 'production',
+      ALLOW_INSECURE_LOCAL_WRITES: '1',
+    } as any)
+    expect((mgmt as net.Server).address()).toMatchObject({ address: '127.0.0.1' })
+    await close(mgmt!)
+    await close(echo)
+  })
+
+  it('binds 0.0.0.0 when an admin is configured (dev)', async () => {
+    const echo = echoServer()
+    const appPort = await listen(echo)
+    const mgmt = await maybeStartMgmtForwarder({
+      KIOSK_MGMT_PORT: '0',
+      PORT: String(appPort),
+      NODE_ENV: 'development',
+      FRAME_ADMIN_HASH: 'configured',
+    } as any)
+    const addr = ((mgmt as net.Server).address() as net.AddressInfo).address
+    expect(['0.0.0.0', '::']).toContain(addr)
+    await close(mgmt!)
+    await close(echo)
+  })
+
+  it('binds 0.0.0.0 when the bypass is inactive (production, no admin, no ALLOW flag)', async () => {
+    const echo = echoServer()
+    const appPort = await listen(echo)
+    const mgmt = await maybeStartMgmtForwarder({
+      KIOSK_MGMT_PORT: '0',
+      PORT: String(appPort),
+      NODE_ENV: 'production',
+    } as any)
+    const addr = ((mgmt as net.Server).address() as net.AddressInfo).address
+    expect(['0.0.0.0', '::']).toContain(addr)
+    await close(mgmt!)
+    await close(echo)
+  })
+
   it('returns null and leaves the app unaffected when the port is busy', async () => {
     const echo = echoServer()
     const appPort = await listen(echo)

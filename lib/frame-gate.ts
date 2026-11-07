@@ -24,6 +24,25 @@ export function hostPort(host: string): string | null {
   return m ? m[1] : null
 }
 
+// Env-only half of the local-dev bypass: true when the deployment opts into
+// unauthenticated local writes at all. Host trust is a separate concern
+// (see isLocalDevBypass) and is enforced by binding the bypass-enabled
+// listener to loopback in lib/mgmt-port.ts — a raw TCP pipe cannot set
+// X-Forwarded-For, so trusting the Host header on a 0.0.0.0 listener would
+// let remote callers spoof localhost.
+export function isBypassActive(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.ALLOW_INSECURE_LOCAL_WRITES === '1' || env.NODE_ENV === 'development'
+}
+
+export function isLocalDevBypass(input: GateInput): boolean {
+  if (!isBypassActive(process.env)) return false
+  if (process.env.ALLOW_INSECURE_LOCAL_WRITES === '1') return true
+  const raw = input.host.trim().toLowerCase()
+  // Handle bracketed IPv6 like [::1]:8808
+  const host = raw.startsWith('[') ? raw.slice(1, raw.indexOf(']')) : (raw.split(':')[0] || '')
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1'
+}
+
 export function decideRequest(input: GateInput): GateDecision {
   const mgmt = process.env.KIOSK_MGMT_PORT
   if (!mgmt) return { kind: 'allow' } // console deployments: gate inert (spec §4.2)
@@ -40,6 +59,9 @@ export function decideRequest(input: GateInput): GateDecision {
   if (port === mgmt) {
     if (!write) return { kind: 'allow' }
     if (ADMIN_EXEMPT_MUTATIONS.some((p) => path === p || path.startsWith(`${p}/`))) return { kind: 'allow' }
+    // Local dev bypass: no admin configured + loopback/dev → allow
+    const adminConfigured = Boolean(process.env.FRAME_ADMIN_HASH) || Boolean(process.env.FRAME_ADMIN_SECRET)
+    if (!adminConfigured && isLocalDevBypass(input)) return { kind: 'allow' }
     return { kind: 'admin_required' }
   }
 

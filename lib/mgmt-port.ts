@@ -1,4 +1,5 @@
 import net from 'node:net'
+import { isBypassActive } from '@/lib/frame-gate'
 
 // Spec §4.2: the only thing listening on the LAN. Raw TCP (no HTTP parsing)
 // keeps the client's Host header intact so proxy.ts can gate by port.
@@ -79,8 +80,17 @@ export async function maybeStartMgmtForwarder(env: NodeJS.ProcessEnv): Promise<n
     return null
   }
 
+  // When the local-dev bypass is active (no admin configured and the env
+  // opts into unauthenticated local writes), the mgmt listener must not be
+  // reachable from the LAN: the bypass trusts the Host header, which a
+  // remote caller can spoof, and this raw TCP pipe cannot inject
+  // X-Forwarded-For. Bind loopback in that case. decideRequest keeps its
+  // Host check as defence in depth.
+  const adminConfigured = Boolean(env.FRAME_ADMIN_HASH) || Boolean(env.FRAME_ADMIN_SECRET)
+  const bind = !adminConfigured && isBypassActive(env) ? '127.0.0.1' : '0.0.0.0'
+
   try {
-    return await startMgmtForwarder({ mgmtPort, appPort })
+    return await startMgmtForwarder({ mgmtPort, appPort, bind })
   } catch (e: unknown) {
     console.error('management port forwarder failed to start:', e)
     return null
