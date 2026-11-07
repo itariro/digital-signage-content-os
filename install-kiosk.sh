@@ -41,7 +41,7 @@
 set -Eeuo pipefail
 umask 022
 
-readonly INSTALLER_VERSION="2.0"
+readonly INSTALLER_VERSION="2.1"
 readonly KIOSK_USER="kiosk"
 readonly KIOSK_GROUP="kiosk"
 readonly KIOSK_HOME="/home/${KIOSK_USER}"
@@ -982,6 +982,53 @@ t_install_tsx() {
     fi
 }
 
+# Install a Node.js runtime new enough for the app's native dependencies
+# (better-sqlite3 >= 13 requires Node >= 22; target the Node 24 LTS line).
+# Debian's packaged nodejs is too old, so pull Node 24 LTS from NodeSource.
+t_install_node() {
+    local need_install=0 node_bin npm_bin major
+    node_bin=$(command -v node 2>/dev/null || true)
+    npm_bin=$(command -v npm 2>/dev/null || true)
+
+    if [[ -z $node_bin || -z $npm_bin ]]; then
+        need_install=1
+    else
+        major=$("$node_bin" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+        if (( major < 24 )); then need_install=1; fi
+    fi
+
+    # The app service invokes /usr/bin/npm (and /usr/bin/node) by absolute path,
+    # so a runtime found only under /usr/local/bin is not enough on its own.
+    if (( need_install == 0 )) && { [[ ! -x /usr/bin/node ]] || [[ ! -x /usr/bin/npm ]]; }; then
+        echo "Node.js runtime is new enough but missing from /usr/bin; linking it into place"
+        ln -sf "$node_bin" /usr/bin/node
+        ln -sf "$npm_bin" /usr/bin/npm
+    fi
+
+    if (( need_install == 1 )); then
+        echo "Installing Node.js 24 LTS from NodeSource"
+        curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+        apt-get install -y nodejs
+    fi
+
+    # Final guard: the service and build must have the runtime at the paths they use.
+    if [[ ! -x /usr/bin/node || ! -x /usr/bin/npm ]]; then
+        if [[ -n $node_bin && -x $node_bin && -n $npm_bin && -x $npm_bin ]]; then
+            ln -sf "$node_bin" /usr/bin/node
+            ln -sf "$npm_bin" /usr/bin/npm
+        fi
+    fi
+    [[ -x /usr/bin/node ]] || { echo "node is not available at /usr/bin/node" >&2; return 1; }
+    [[ -x /usr/bin/npm ]]  || { echo "npm is not available at /usr/bin/npm" >&2; return 1; }
+
+    major=$(/usr/bin/node -p 'process.versions.node.split(".")[0]')
+    if (( major < 24 )); then
+        echo "Node.js at /usr/bin/node is too old (need >= 24, have $(/usr/bin/node --version))" >&2
+        return 1
+    fi
+    /usr/bin/node --version
+}
+
 t_install_cli() {
     install -d -m 0755 /usr/local/bin
     cat > /usr/local/bin/kiosk <<'KIOSK_EOF'
@@ -1421,7 +1468,7 @@ PACKAGES=(
     curl ca-certificates
     fonts-dejavu-core fonts-noto-color-emoji
     systemd-timesyncd
-    nodejs npm git
+    git
     build-essential python3
 )
 if (( TOUCH )); then PACKAGES+=(xinput); fi
@@ -1493,8 +1540,9 @@ if (( ZRAM )); then task "Configuring zram swap" t_zram_conf; fi
 step_end
 
 # ---- 9/11 --------------------------------------------------------------------
-step 6 \
+step 10 \
     "Installs the management CLI, deploys the local application, and configures its service."
+task "Installing Node.js runtime" t_install_node
 task "Installing tsx runtime" t_install_tsx
 task "Installing kiosk CLI" t_install_cli
 task "Deploying application" t_deploy_app
