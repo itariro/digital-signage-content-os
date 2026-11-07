@@ -44,28 +44,47 @@ function sha256File(filePath: string): string {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
 }
 
-// Interpret a tar -tv row as `name -> target` for symlink entries. Both GNU
-// tar and bsdtar print modes on links and end the row with ` -> <target>`,
-// but the surrounding columns differ, so only split on that separator.
-function parseSymlinkEntries(raw: string[]): Array<{ name: string; target: string }> {
-  const links: Array<{ name: string; target: string }> = []
-  for (const line of raw) {
-    if (!line.startsWith('l')) continue
-    const idx = line.indexOf(' -> ')
-    if (idx >= 0) {
-      links.push({ name: normalizeEntry(line.slice(0, idx).split(/\s+/).pop() ?? ''), target: line.slice(idx + 4) })
-    }
+// Tar's verbose listing renders a link as `<name> -> <target>`, and neither
+// field survives a parse back out: entry names may embed the arrow itself.
+// The reliable source of symlink metadata is the extracted tree, so verify
+// by extracting to a temp dir and walking it with lstat/readlink, which
+// round-trips any name or target byte for byte. Called only after the entry
+// checks have rejected absolute and parent traversal names, so extraction
+// stays inside the temp dir.
+function verifyArchiveSymlinks(archivePath: string): void {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dscos-verify-'))
+  try {
+    execFileSync('tar', ['-xzf', archivePath, '-C', dir], { stdio: 'pipe' })
+    rejectBadSymlinks(dir, dir)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
   }
-  return links
 }
 
-function listVerboseArchive(archivePath: string): string[] {
-  return execFileSync('tar', ['-tvzf', archivePath], {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split('\n')
-    .filter(Boolean)
+// Every symlink in a release must be relative and resolve inside the tree.
+// An absolute target is the packaging-failure signature that made v0.9.3
+// unbootable on frames; a target resolving outside the tree cannot resolve
+// on the consuming install either.
+function rejectBadSymlinks(root: string, dir: string): void {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name)
+    if (entry.isSymbolicLink()) {
+      const target = fs.readlinkSync(entryPath)
+      const display = path.relative(root, entryPath)
+      if (path.isAbsolute(target) || /^[A-Za-z]:[\\/]/.test(target)) {
+        throw new ReleaseError(`release archive contains an absolute symlink: ${display} -> ${target}`)
+      }
+      const resolved = path.resolve(path.dirname(entryPath), target)
+      const inside = path.relative(root, resolved)
+      if (inside.startsWith('..') || path.isAbsolute(inside)) {
+        throw new ReleaseError(
+          `release archive contains a symlink escaping the release tree: ${display} -> ${target}`,
+        )
+      }
+    } else if (entry.isDirectory()) {
+      rejectBadSymlinks(root, entryPath)
+    }
+  }
 }
 
 function copyBuildOutput(root: string, destination: string): void {
@@ -134,13 +153,21 @@ export function normalizeBuildSymlinks(buildOutputDir: string): number {
   return fixed
 }
 
-// Extract `node_modules/...` from an absolute target, keeping only a segment
-// boundary match so `my-node_modules/` is never taken for the store root.
+// Extract `node_modules/...` from an absolute target. The pnpm store marker
+// is preferred; within each marker, successive occurrences are scanned until
+// one sits at a segment boundary, so a decoy like `v0-node_modules/` earlier
+// in the path never hides the store segment. Keeps only a boundary match so
+// `my-node_modules/` is never taken for the store root.
 function nodeModulesSuffix(target: string): string | null {
-  const pnpm = target.indexOf('node_modules/.pnpm/')
-  const start = pnpm >= 0 ? pnpm : target.indexOf('node_modules/')
-  if (start <= 0 || (target[start - 1] !== '/' && target[start - 1] !== '\\')) return null
-  return target.slice(start)
+  for (const marker of ['node_modules/.pnpm/', 'node_modules/']) {
+    let idx = target.indexOf(marker)
+    while (idx >= 0) {
+      const previous = target[idx - 1]
+      if (previous === '/' || previous === '\\') return target.slice(idx)
+      idx = target.indexOf(marker, idx + 1)
+    }
+  }
+  return null
 }
 
 export function verifyReleaseArchive(opts: { path: string; version: string }): void {
@@ -154,14 +181,6 @@ export function verifyReleaseArchive(opts: { path: string; version: string }): v
     }
     if (entry === '..' || entry.startsWith('../') || entry.includes('/../')) {
       throw new ReleaseError(`release archive contains a parent path: ${entry}`)
-    }
-  }
-
-  for (const link of parseSymlinkEntries(listVerboseArchive(opts.path))) {
-    if (path.isAbsolute(link.target) || /^[A-Za-z]:[\\/]/.test(link.target)) {
-      throw new ReleaseError(
-        `release archive contains an absolute symlink: ${link.name} -> ${link.target}`,
-      )
     }
   }
 
@@ -200,6 +219,8 @@ export function verifyReleaseArchive(opts: { path: string; version: string }): v
       `release archive version ${String(packageJson.version)} does not match ${opts.version}`,
     )
   }
+
+  verifyArchiveSymlinks(opts.path)
 }
 
 export function createReleaseArchive(opts: {
