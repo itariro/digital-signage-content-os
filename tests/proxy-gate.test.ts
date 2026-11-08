@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { hashAdminPassword, signAdminSession } from '@/lib/frame-admin'
 
 // Pass-through Clerk: invokes the proxy handler with a dummy auth so a
 // request that clears the frame gate returns NextResponse.next() (marked
@@ -148,6 +149,26 @@ describe('proxy gate wiring', () => {
     expect(res!.status).toBe(401)
     const body = await res!.json()
     expect(body.error).toBe('admin_password_not_configured')
+  })
+
+  it('denies configured management writes without a cookie and accepts a valid session', async () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    env.NODE_ENV = 'production'
+    const secret = 's'.repeat(40)
+    env.FRAME_ADMIN_SECRET = secret
+    env.FRAME_ADMIN_HASH = hashAdminPassword('frame-password')
+    const mod = await import('@/proxy')
+
+    const denied = await mod.default(makeRequest('/api/albums', 'POST', 'x:8808'), {} as any)
+    expect(denied?.status).toBe(401)
+    expect(await denied?.json()).toEqual({ error: 'unauthorized' })
+
+    const token = await signAdminSession(secret)
+    const allowedRequest = new NextRequest('http://x:8808/api/albums', {
+      method: 'POST',
+      headers: { host: 'x:8808', cookie: `dscos_admin=${token}` },
+    })
+    expectFallThrough(await mod.default(allowedRequest, {} as any))
   })
 
   it('ALLOW_INSECURE_LOCAL_WRITES=1 allows LAN mgmt POST when no admin configured', async () => {
