@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { AdminConflict } from '@/lib/console/admin-types'
+import { EditorButton, Section } from '../controls'
 
 type ConflictState =
   | { status: 'loading' }
@@ -124,21 +125,33 @@ export function ConflictsTab() {
 
   return (
     <section aria-label="Conflicts" className="space-y-3">
-      <h3 className="text-sm font-semibold">Open and rejected conflicts</h3>
-      {state.status === 'loading' && <p role="status" className="text-sm">Loading conflicts…</p>}
-      {state.status === 'unauthorized' && (
-        <p role="alert" className="text-sm text-destructive">Your session has expired or you are not authorized to view conflicts.</p>
+      <Section title="Open and rejected conflicts">{null}</Section>
+      {state.status === 'loading' && (
+        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">Loading conflicts…</p>
       )}
-      {state.status === 'error' && <p role="alert" className="text-sm text-destructive">{state.message}</p>}
+      {state.status === 'unauthorized' && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          Your session has expired or you are not authorized to view conflicts.
+        </p>
+      )}
+      {state.status === 'error' && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {state.message}
+        </p>
+      )}
       {state.status === 'loaded' && state.conflicts.length === 0 && (
-        <p role="status" className="text-sm text-muted-foreground">No open or rejected conflicts.</p>
+        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          No open or rejected conflicts.
+        </p>
       )}
       {state.status === 'loaded' && state.conflicts.length > 0 && (
         <ul className="space-y-3">
           {state.conflicts.map((conflict) => (
-            <li key={conflict.id} className="space-y-2 rounded-md border border-border p-3">
+            <li key={conflict.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
               <div>
-                <p className="text-xs font-semibold uppercase text-muted-foreground">{conflict.status}</p>
+                <p className="mb-1 inline-flex rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {conflict.status}
+                </p>
                 <h4 className="text-sm font-semibold">{conflict.entityType}</h4>
                 <p className="break-all font-mono text-xs">{conflict.entityId}</p>
               </div>
@@ -154,35 +167,40 @@ export function ConflictsTab() {
                 <div className="flex flex-wrap gap-2">
                   {conflict.status === 'open' ? (
                     <>
-                      <button
+                      <EditorButton
                         type="button"
                         onClick={() => void resolveConflict(conflict, 'remote')}
                         disabled={busyId !== null}
-                        className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary disabled:opacity-50"
+                        variant="secondary"
+                        className="text-xs"
                       >
                         {busyId === conflict.id ? 'Working…' : 'Use remote'}
-                      </button>
-                      <button
+                      </EditorButton>
+                      <EditorButton
                         type="button"
                         onClick={() => void resolveConflict(conflict, 'local')}
                         disabled={busyId !== null}
-                        className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary disabled:opacity-50"
+                        variant="secondary"
+                        className="text-xs"
                       >
                         {busyId === conflict.id ? 'Working…' : 'Use local'}
-                      </button>
+                      </EditorButton>
                     </>
                   ) : (
-                    <button
+                    <EditorButton
                       type="button"
                       onClick={() => void resolveConflict(conflict, 'discard')}
                       disabled={busyId !== null}
-                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary disabled:opacity-50"
+                      variant="destructive"
+                      className="text-xs"
                     >
                       {busyId === conflict.id ? 'Working…' : 'Discard'}
-                    </button>
+                    </EditorButton>
                   )}
                   {actionError?.id === conflict.id && (
-                    <p role="alert" className="w-full text-xs text-destructive">{actionError.message}</p>
+                    <p role="alert" className="w-full rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                      {actionError.message}
+                    </p>
                   )}
                 </div>
               )}

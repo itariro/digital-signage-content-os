@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { AdminAuditEntry } from '@/lib/console/admin-types'
+import { Section } from '../controls'
 
 type AuditState =
   | { status: 'loading' }
@@ -76,19 +77,29 @@ export function AuditTab() {
 
   return (
     <section aria-label="Audit" className="space-y-3">
-      <h3 className="text-sm font-semibold">Recent activity</h3>
-      {state.status === 'loading' && <p role="status" className="text-sm">Loading audit records…</p>}
-      {state.status === 'unauthorized' && (
-        <p role="alert" className="text-sm text-destructive">Your session has expired or you are not authorized to view audit records.</p>
+      <Section title="Recent activity">{null}</Section>
+      {state.status === 'loading' && (
+        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">Loading audit records…</p>
       )}
-      {state.status === 'error' && <p role="alert" className="text-sm text-destructive">{state.message}</p>}
+      {state.status === 'unauthorized' && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          Your session has expired or you are not authorized to view audit records.
+        </p>
+      )}
+      {state.status === 'error' && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {state.message}
+        </p>
+      )}
       {state.status === 'loaded' && state.entries.length === 0 && (
-        <p role="status" className="text-sm text-muted-foreground">No audit records yet.</p>
+        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          No audit records yet.
+        </p>
       )}
       {state.status === 'loaded' && state.entries.length > 0 && (
         <ol className="space-y-3">
           {state.entries.map((entry) => (
-            <li key={entry.id} className="space-y-1 rounded-md border border-border p-3">
+            <li key={entry.id} className="space-y-2 rounded-lg border border-border bg-card p-3">
               <p className="text-sm font-semibold">{entry.action}</p>
               <p className="break-all text-xs">
                 {entry.actor} · {entry.targetType}: <span className="font-mono">{entry.targetId}</span>

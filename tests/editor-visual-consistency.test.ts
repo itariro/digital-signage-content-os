@@ -23,6 +23,12 @@ const contentSources = Object.fromEntries(
     readFileSync(path.join(root, `components/editor/${name}.tsx`), 'utf8'),
   ]),
 )
+const adminSources = {
+  panel: readFileSync(path.join(root, 'components/editor/frame-admin-panel.tsx'), 'utf8'),
+  frames: readFileSync(path.join(root, 'components/editor/frame-admin/frames-tab.tsx'), 'utf8'),
+  conflicts: readFileSync(path.join(root, 'components/editor/frame-admin/conflicts-tab.tsx'), 'utf8'),
+  audit: readFileSync(path.join(root, 'components/editor/frame-admin/audit-tab.tsx'), 'utf8'),
+}
 
 describe('editor visual system', () => {
   it('defines editor-scoped action variants and field focus treatment', () => {
@@ -155,5 +161,51 @@ describe('editor visual system', () => {
     expect(notifications).toContain('onClick={() => setHistory([])}')
     expect(notifications).toContain('setHistory(createDemoNotifications())')
     expect(notifications).toContain('onClick={sendToLiveFrame}')
+  })
+
+  it('uses shared editor sections, controls, actions, and semantic feedback in administration tabs', () => {
+    const { panel, frames, conflicts, audit } = adminSources
+
+    expect(panel).toContain('<EditorButton')
+    expect(panel).toContain('aria-pressed={activeTab === tab.id}')
+    expect(panel).toContain('aria-pressed:border-primary')
+
+    for (const source of [frames, conflicts, audit]) {
+      expect(source).toMatch(/<Section\s+title=/)
+      expect(source).toContain('role="status"')
+      expect(source).toContain('text-muted-foreground')
+      expect(source).toContain('role="alert"')
+      expect(source).toContain('text-destructive')
+      expect(source).toContain('border-border bg-card')
+    }
+
+    expect(frames).toContain('<EditorButton')
+    expect(frames).toContain('variant="primary"')
+    expect(frames).toContain('variant="secondary"')
+    expect(frames).toContain('className="editor-control')
+    expect(conflicts).toContain('<EditorButton')
+    expect(conflicts).toContain('variant="secondary"')
+    expect(conflicts).toContain('variant="destructive"')
+  })
+
+  it('keeps administration tabs and workflows connected to their existing handlers', () => {
+    const { panel, frames, conflicts, audit } = adminSources
+
+    expect(panel).toContain('onClick={() => setActiveTab(tab.id)}')
+    expect(panel).toContain("{activeTab === 'frames' && <FramesTab />}")
+    expect(panel).toContain("{activeTab === 'conflicts' && <ConflictsTab />}")
+    expect(panel).toContain("{activeTab === 'audit' && <AuditTab />}")
+
+    expect(frames).toContain('onClick={() => void issueCode()}')
+    expect(frames).toContain('onClick={() => void issueCode(instance.id)}')
+    expect(frames).toContain('setIssued(null)')
+    expect(frames).toContain('issued.enrollmentCode')
+    expect(frames).toContain('issued.expiresAt')
+
+    expect(conflicts).toContain("onClick={() => void resolveConflict(conflict, 'remote')}")
+    expect(conflicts).toContain("onClick={() => void resolveConflict(conflict, 'local')}")
+    expect(conflicts).toContain("onClick={() => void resolveConflict(conflict, 'discard')}")
+    expect(conflicts).toContain("conflict.status === 'open'")
+    expect(audit).toContain("fetch('/api/audit'")
   })
 })

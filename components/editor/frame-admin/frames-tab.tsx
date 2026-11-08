@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { EditorButton, Section } from '../controls'
 
 type FrameSummary = {
   identifier: string
@@ -172,29 +173,30 @@ export function FramesTab() {
 
   return (
     <section aria-label="Frames" className="space-y-4">
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold">Registered frames</h3>
-        {state.status !== 'unauthorized' && (
-          <button
+      <Section
+        title="Registered frames"
+        action={state.status !== 'unauthorized' && (
+          <EditorButton
             type="button"
             onClick={() => void issueCode()}
             disabled={busy}
-            className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-secondary disabled:opacity-50"
+            variant="primary"
           >
             {busy ? 'Working…' : 'Issue enrollment code'}
-          </button>
+          </EditorButton>
         )}
+      >
         {actionError && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             {actionError.message}
           </p>
         )}
         {issued && (
-          <div className="space-y-2 rounded-md border border-border bg-secondary/40 p-3">
+          <div className="space-y-2 rounded-lg border border-border bg-card p-3">
             <h4 className="text-sm font-semibold">One-time enrollment code</h4>
             <p className="break-all font-mono text-sm">{issued.enrollmentCode}</p>
             <p className="text-xs text-muted-foreground">Expires {formatDate(issued.expiresAt)}. This code can be used once.</p>
-            <pre className="overflow-x-auto rounded bg-background p-2 text-xs">
+            <pre className="editor-control min-h-0 overflow-x-auto bg-muted/40 p-2 font-mono text-xs">
               sudo kiosk-ctl enroll {typeof window === 'undefined' ? '' : window.location.origin} {issued.enrollmentCode}
             </pre>
             <p className="text-xs">
@@ -203,24 +205,34 @@ export function FramesTab() {
           </div>
         )}
         {expired && (
-          <p role="status" className="text-sm text-muted-foreground">
+          <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
             This enrollment code has expired. Issue a new code to continue.
           </p>
         )}
-      </div>
+      </Section>
 
-      {state.status === 'loading' && <p role="status" className="text-sm">Loading frames…</p>}
-      {state.status === 'unauthorized' && (
-        <p role="alert" className="text-sm text-destructive">Your session has expired or you are not authorized to manage frames.</p>
+      {state.status === 'loading' && (
+        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">Loading frames…</p>
       )}
-      {state.status === 'error' && <p role="alert" className="text-sm text-destructive">{state.message}</p>}
+      {state.status === 'unauthorized' && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          Your session has expired or you are not authorized to manage frames.
+        </p>
+      )}
+      {state.status === 'error' && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {state.message}
+        </p>
+      )}
       {state.status === 'loaded' && state.instances.length === 0 && (
-        <p role="status" className="text-sm text-muted-foreground">No frames have been registered yet.</p>
+        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          No frames have been registered yet.
+        </p>
       )}
       {state.status === 'loaded' && state.instances.length > 0 && (
         <ul className="space-y-3">
           {state.instances.map((instance) => (
-            <li key={instance.id} className="space-y-2 rounded-md border border-border p-3">
+            <li key={instance.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
               <div>
                 <h4 className="break-all text-sm font-semibold">{instance.frame?.name || 'Unnamed frame'}</h4>
                 <p className="break-all font-mono text-xs text-muted-foreground">{instance.id}</p>
@@ -235,14 +247,14 @@ export function FramesTab() {
                 <dt className="text-muted-foreground">Last seen</dt>
                 <dd>{formatDate(instance.lastSeenAt)}</dd>
               </dl>
-              <button
+              <EditorButton
                 type="button"
                 onClick={() => void issueCode(instance.id)}
                 disabled={busy}
-                className="rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-secondary disabled:opacity-50"
+                variant="secondary"
               >
                 {busy ? 'Working…' : 'Rotate code'}
-              </button>
+              </EditorButton>
             </li>
           ))}
         </ul>
