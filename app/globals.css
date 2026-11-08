@@ -166,7 +166,7 @@
   }
 
   .editor-control {
-    @apply min-h-8 rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors;
+    @apply min-h-9 rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors;
   }
 
   .editor-control:focus-visible {
@@ -174,7 +174,27 @@
   }
 
   .editor-icon-button {
-    @apply inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-40;
+    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .editor-button {
+    @apply inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .editor-button-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+
+  .editor-button-secondary {
+    @apply border border-border bg-background text-foreground hover:bg-secondary;
+  }
+
+  .editor-button-quiet {
+    @apply bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground;
+  }
+
+  .editor-button-destructive {
+    @apply bg-destructive/10 text-destructive hover:bg-destructive/20;
   }
 
   .editor-floating-surface {

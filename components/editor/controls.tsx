@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import type { GradientDef, ImageFillDef, WidgetStyle } from '@/lib/types'
 import { CURATED_FILLS } from '@/lib/curated-fills'
@@ -282,6 +282,21 @@ export function IconButton({
     >
       {children}
     </button>
+  )
+}
+
+export type EditorButtonVariant = 'primary' | 'secondary' | 'quiet' | 'destructive'
+
+export function EditorButton({
+  variant = 'secondary',
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: EditorButtonVariant }) {
+  return (
+    <button
+      {...props}
+      className={cn('editor-button', `editor-button-${variant}`, className)}
+    />
   )
 }
 
