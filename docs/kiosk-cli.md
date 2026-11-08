@@ -105,8 +105,8 @@ The product is in beta until a polished release earns `v1.0`. Until then:
   `kiosk update apply --version 0.9.0-rc.1 --yes`.
 - Publishing a stable release makes it the latest release. Publishing a
   prerelease never does.
-- Pins follow the tag: `KIOSK_REF=v0.8` today, `KIOSK_REF=v0.9.0` after the
-  first full-semver release.
+- Pins follow the tag: `KIOSK_REF=v0.9.5` today, `KIOSK_REF=v0.9.6` after the
+  release ships.
 - The installer's `INSTALLER_VERSION` (`2.0`) and the sync protocol's
   `apiVersion` are separate version spaces. They do not track product tags.
 
