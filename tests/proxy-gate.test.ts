@@ -157,6 +157,13 @@ describe('proxy gate wiring', () => {
     const secret = 's'.repeat(40)
     env.FRAME_ADMIN_SECRET = secret
     env.FRAME_ADMIN_HASH = hashAdminPassword('frame-password')
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (_input: any, init?: any) => {
+      const cookie = (init?.headers as Record<string, string> | undefined)?.cookie ?? ''
+      if (cookie.includes('dscos_admin=')) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 }) as any
+      }
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }) as any
+    })
     const mod = await import('@/proxy')
 
     const denied = await mod.default(makeRequest('/api/albums', 'POST', 'x:8808'), {} as any)
@@ -169,6 +176,7 @@ describe('proxy gate wiring', () => {
       headers: { host: 'x:8808', cookie: `dscos_admin=${token}` },
     })
     expectFallThrough(await mod.default(allowedRequest, {} as any))
+    fetchSpy.mockRestore()
   })
 
   it('ALLOW_INSECURE_LOCAL_WRITES=1 allows LAN mgmt POST when no admin configured', async () => {
