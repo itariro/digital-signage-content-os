@@ -1,48 +1,74 @@
 'use client'
 
-import { Download, Frame, Loader2, Moon, Play, Redo2, Sun, Undo2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Download, Frame, Loader2, Moon, MoonStar, Play, Redo2, Sun, Undo2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import type { EditorApi } from '@/hooks/use-editor'
-import { IconButton } from './controls'
+import { EditorButton, IconButton } from './controls'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
+import { resolveEditorTheme, saveEditorThemePreference } from '@/lib/editor-theme'
 import { FrameSwitcher } from './frame-switcher'
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
+import { toast } from 'sonner'
 
 type TopBarProps = {
   singleFrame?: boolean
   editor: EditorApi
   isActive: boolean
   saving: boolean
+  nightPreview: boolean
   onSave: () => void
   onPreview: () => void
+  onToggleNight: () => void
   onExport: () => void
 }
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true)
+  const [isDark, setIsDark] = useState(false)
+  const hasExplicitPreference = useRef(false)
 
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
+    const root = document.documentElement
+    const systemPreference = window.matchMedia('(prefers-color-scheme: dark)')
+    const savedPreference = root.classList.contains('light')
+      ? 'light'
+      : root.classList.contains('dark')
+        ? 'dark'
+        : null
+
+    hasExplicitPreference.current = savedPreference !== null
+    setIsDark(resolveEditorTheme(savedPreference, systemPreference.matches) === 'dark')
+
+    function handleSystemPreferenceChange(event: MediaQueryListEvent) {
+      if (!hasExplicitPreference.current) setIsDark(event.matches)
+    }
+
+    systemPreference.addEventListener('change', handleSystemPreferenceChange)
+    return () => systemPreference.removeEventListener('change', handleSystemPreferenceChange)
   }, [])
 
   function toggleTheme() {
     const nextIsDark = !isDark
+    hasExplicitPreference.current = true
     document.documentElement.classList.toggle('dark', nextIsDark)
+    document.documentElement.classList.toggle('light', !nextIsDark)
     setIsDark(nextIsDark)
+
+    const result = saveEditorThemePreference(() => window.localStorage, nextIsDark ? 'dark' : 'light')
+    if (!result.ok) toast.error('Could not save theme preference')
   }
 
   return (
-    <button type="button" onClick={toggleTheme} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground">
+    <button type="button" onClick={toggleTheme} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="editor-icon-button">
       {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
     </button>
   )
 }
 
-export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, singleFrame = false }: TopBarProps) {
+export function TopBar({ editor, isActive, saving, nightPreview, onSave, onPreview, onToggleNight, onExport, singleFrame = false }: TopBarProps) {
   const { state, dirty } = editor
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 lg:px-4">
+    <header className="editor-panel sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border px-3 lg:px-4">
       <div className="flex items-center gap-2 pr-2">
         <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <Frame className="size-4" aria-hidden />
@@ -65,7 +91,7 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
           maxLength={80}
           onFocus={() => editor.checkpoint()}
           onChange={(e) => editor.rename(e.target.value, false)}
-          className="h-7 w-full min-w-0 max-w-64 rounded-sm bg-transparent px-2 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:bg-secondary"
+          className="h-8 w-full min-w-0 max-w-64 rounded-md bg-transparent px-2 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:bg-secondary"
         />
         {isActive && (
           <span className="hidden shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary md:inline">On frame</span>
@@ -86,26 +112,40 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
         </IconButton>
       </div>
 
-      <button
+      <EditorButton
         type="button"
+        variant="secondary"
         onClick={onPreview}
-        className="flex h-8 items-center gap-1.5 rounded-lg bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
+        className="h-9 rounded-lg bg-secondary px-3 text-sm font-medium hover:bg-secondary/70"
       >
-        <Play className="size-3.5" aria-hidden />
+        <Play className="size-4" aria-hidden />
         <span className="hidden sm:inline">Preview</span>
-      </button>
-      <button
+      </EditorButton>
+      <EditorButton
         type="button"
-        onClick={onSave}
-        disabled={saving || !dirty}
+        aria-label="Night preview"
+        aria-pressed={nightPreview}
+        variant="quiet"
+        onClick={onToggleNight}
         className={cn(
-          'relative flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity disabled:opacity-50',
+          'h-9 rounded-lg px-2.5 text-sm transition-colors',
+          nightPreview ? 'bg-primary/10 text-primary' : 'bg-secondary text-foreground hover:bg-secondary/70',
         )}
       >
-        {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+        <MoonStar className="size-4" aria-hidden />
+        <span className="hidden sm:inline">Night</span>
+      </EditorButton>
+      <EditorButton
+        type="button"
+        variant="primary"
+        onClick={onSave}
+        disabled={saving || !dirty}
+        className="relative h-9 rounded-lg px-4 text-sm font-semibold transition-opacity"
+      >
+        {saving && <Loader2 className="size-4 animate-spin" aria-hidden />}
         {dirty ? 'Save' : 'Saved'}
         {dirty && !saving && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-card" aria-label="Unsaved changes" />}
-      </button>
+      </EditorButton>
       <div className="ml-2 flex items-center gap-2">
         <Show when="signed-in">
           <UserButton />

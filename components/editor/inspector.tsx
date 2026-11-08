@@ -51,7 +51,7 @@ export function Inspector({ editor, customFonts, albums, onOpenAlbums, onSavePre
   if (selection.length === 0) return <LayoutSettingsPanel editor={editor} albums={albums} onOpenAlbums={onOpenAlbums} />
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="editor-panel flex min-h-0 flex-col">
       <SelectionHeader editor={editor} selection={selection} onSavePreset={onSavePreset} />
       {selection.length === 1 && <TemplateSection editor={editor} widget={selection[0]} />}
       {selection.length === 1 && selection[0].type === 'sticker' && <StickerLayersSection editor={editor} widget={selection[0]} />}
@@ -84,7 +84,7 @@ function SelectionHeader({
   const Icon = def.icon
 
   return (
-    <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
+    <div className="editor-panel sticky top-0 z-10 flex flex-col gap-2 border-b border-border bg-card/95 px-3 py-3 backdrop-blur">
       <div className="flex items-center gap-3">
         <span className="flex size-9 items-center justify-center rounded-lg bg-secondary text-foreground">
           <Icon className="size-4" aria-hidden />
@@ -170,13 +170,13 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
         if (field.showWhen && String(widget.props[field.showWhen.key]) !== field.showWhen.value) return null
         if (field.kind === 'date') {
           return (
-            <label key={field.key} className="flex items-center justify-between gap-3 text-sm text-foreground">
+            <label key={field.key} className="flex items-center justify-between gap-3 text-sm font-medium text-foreground">
               {field.label}
               <input
                 type="date"
                 value={String(widget.props[field.key] ?? '')}
                 onChange={(e) => e.target.value && setProp(field.key, e.target.value)}
-                className="h-8 rounded-md border border-border bg-secondary px-2 font-mono text-xs text-foreground outline-none [color-scheme:dark] focus-visible:border-primary"
+                className="editor-control h-8 px-2 font-mono text-xs"
               />
             </label>
           )
@@ -196,7 +196,7 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
           )
         }
         return (
-          <label key={field.key} className="flex flex-col gap-1.5 text-sm text-foreground">
+          <label key={field.key} className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
             {field.label}
             <input
               type="text"
@@ -204,7 +204,7 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
               value={String(widget.props[field.key] ?? '')}
               onFocus={() => editor.checkpoint()}
               onChange={(e) => setProp(field.key, e.target.value, false)}
-              className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none focus-visible:border-primary"
+              className="editor-control h-8"
             />
           </label>
         )
@@ -464,11 +464,11 @@ function ArrangeSection({ editor, selection }: { editor: EditorApi; selection: W
       {selection.length > 2 && (
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => distribute('x')} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary text-xs font-medium text-foreground hover:bg-secondary/70">
-            <AlignHorizontalDistributeCenter className="size-3.5" aria-hidden />
+            <AlignHorizontalDistributeCenter className="size-4" aria-hidden />
             Space horizontally
           </button>
           <button type="button" onClick={() => distribute('y')} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary text-xs font-medium text-foreground hover:bg-secondary/70">
-            <AlignVerticalDistributeCenter className="size-3.5" aria-hidden />
+            <AlignVerticalDistributeCenter className="size-4" aria-hidden />
             Space vertically
           </button>
         </div>
@@ -476,7 +476,7 @@ function ArrangeSection({ editor, selection }: { editor: EditorApi; selection: W
       <button
         type="button"
         onClick={() => (grouped ? editor.ungroup(ids) : editor.group(ids))}
-        className="flex h-9 items-center justify-center gap-2 rounded-lg bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-secondary/70"
+        className="flex h-8 items-center justify-center gap-2 rounded-md bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-secondary/70"
       >
         {grouped ? <Ungroup className="size-4" aria-hidden /> : <Group className="size-4" aria-hidden />}
         {grouped ? 'Ungroup widgets' : 'Combine into group (⌘G)'}
@@ -549,16 +549,16 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
         <SliderField label="Weight" value={s.fontWeight} min={100} max={900} step={100} onCommit={commit} onChange={slide('fontWeight')} />
         <SliderField label="Letter spacing" value={s.letterSpacing} min={-15} max={40} onCommit={commit} onChange={slide('letterSpacing')} />
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Alignment</span>
+          <span className="text-sm font-medium text-foreground">Alignment</span>
           <Segmented
             label="Text alignment"
             value={s.align}
             onChange={(v) => set({ align: v })}
             className="w-32"
             options={[
-              { value: 'start', label: <AlignLeft className="size-3.5" aria-label="Left" />, title: 'Left' },
-              { value: 'center', label: <AlignCenter className="size-3.5" aria-label="Center" />, title: 'Center' },
-              { value: 'end', label: <AlignRight className="size-3.5" aria-label="Right" />, title: 'Right' },
+              { value: 'start', label: <AlignLeft className="size-4" aria-label="Left" />, title: 'Left' },
+              { value: 'center', label: <AlignCenter className="size-4" aria-label="Center" />, title: 'Center' },
+              { value: 'end', label: <AlignRight className="size-4" aria-label="Right" />, title: 'Right' },
             ]}
           />
         </div>
@@ -621,7 +621,7 @@ function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: W
       {layers.length === 0 && <p className="text-xs text-muted-foreground">No layers.</p>}
       {layers.map((layer, index) => (
         <div key={layer.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
-          <label className="flex flex-col gap-1.5 text-sm text-foreground">
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
             Layer {index + 1} text
             <input
               type="text"
@@ -629,29 +629,29 @@ function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: W
               value={layer.text}
               onFocus={() => editor.checkpoint()}
               onChange={(e) => updateLayer(layer.id, { text: e.target.value }, false)}
-              className="h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none focus-visible:border-primary"
+              className="editor-control h-8"
             />
           </label>
           {!layer.style.fill && (
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-foreground">Text color</span>
+              <span className="text-sm font-medium text-foreground">Text color</span>
               <input
                 type="color"
                 value={layer.style.color}
                 onFocus={() => editor.checkpoint()}
                 onChange={(e) => updateLayerStyle(layer.id, { color: e.target.value }, false)}
-                className="h-8 w-12 cursor-pointer rounded-md border border-border bg-secondary"
+                className="editor-control h-8 w-12 cursor-pointer p-1"
               />
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground">Accent</span>
+            <span className="text-sm font-medium text-foreground">Accent</span>
             <input
               type="color"
               value={layer.style.accent}
               onFocus={() => editor.checkpoint()}
               onChange={(e) => updateLayerStyle(layer.id, { accent: e.target.value }, false)}
-              className="h-8 w-12 cursor-pointer rounded-md border border-border bg-secondary"
+              className="editor-control h-8 w-12 cursor-pointer p-1"
             />
           </div>
         </div>

@@ -6,6 +6,7 @@ import type { FrameNotification } from '@/lib/types'
 import { NOTIFICATION_DEFAULT_DURATION, createDemoNotifications, formatNotificationTime, notificationTone } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications/notification-provider'
+import { EditorButton, Section } from './controls'
 
 const VARIANT_META: Record<FrameNotification['variant'], { label: string; icon: typeof Info }> = {
   info: { label: 'Informational', icon: Info },
@@ -63,65 +64,118 @@ export function NotificationsPanel() {
   }
 
   return (
-    <section className="flex flex-col gap-4 p-3" aria-label="Notification manager">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Bell className="size-4 text-primary" aria-hidden />
-            <h2 className="text-sm font-semibold">Notifications</h2>
-          </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Control what appears on your frame and test the experience before publishing.</p>
+    <section className="editor-panel flex flex-col" aria-label="Notification manager">
+      <Section title="Notifications" action={<Toggle checked={enabled} onChange={setEnabled} label="Enable frame notifications" />}>
+        <div className="flex items-start gap-2">
+          <Bell className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <p className="text-xs leading-relaxed text-muted-foreground">Control what appears on your frame and test the experience before publishing.</p>
         </div>
-        <Toggle checked={enabled} onChange={setEnabled} label="Enable frame notifications" />
-      </header>
-
-      <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1" role="tablist" aria-label="Notification history filter">
-        {(['all', 'warning', 'reminder'] as const).map((filter) => (
-          <button key={filter} type="button" role="tab" aria-selected={activeFilter === filter} onClick={() => setActiveFilter(filter)} className={cn('rounded-md px-2 py-1.5 text-[10px] font-medium capitalize', activeFilter === filter ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
-            {filter === 'all' ? 'All history' : filter}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xs font-semibold">Recent activity</h3>
-          <p className="text-[10px] text-muted-foreground">Last 20 events on this frame</p>
+        <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1" role="tablist" aria-label="Notification history filter">
+          {(['all', 'warning', 'reminder'] as const).map((filter) => (
+            <EditorButton
+              key={filter}
+              type="button"
+              role="tab"
+              aria-selected={activeFilter === filter}
+              onClick={() => setActiveFilter(filter)}
+              variant={activeFilter === filter ? 'secondary' : 'quiet'}
+              className="min-h-8 px-2 text-xs capitalize"
+            >
+              {filter === 'all' ? 'All history' : filter}
+            </EditorButton>
+          ))}
         </div>
-        <button type="button" onClick={() => setHistory([])} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground" disabled={!history.length}><Trash2 className="size-3" aria-hidden /> Clear</button>
-      </div>
+      </Section>
 
-      <div className="flex flex-col gap-2">
-        {filteredHistory.length ? filteredHistory.map((item) => {
-          const Icon = VARIANT_META[item.variant].icon
-          return <article key={item.id} className="rounded-lg border border-border bg-background/60 p-2.5">
-            <div className="flex items-start gap-2">
-              <div className={cn('mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border', notificationTone(item.variant))}><Icon className="size-3.5" aria-hidden /></div>
-              <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h4 className="truncate text-[11px] font-medium">{item.title}</h4><span className="shrink-0 text-[9px] text-muted-foreground">{item.variant}</span></div><p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{item.message}</p><p className="mt-1 text-[9px] text-muted-foreground">{formatNotificationTime(item.createdAt)} · auto-dismisses</p></div>
-            </div>
-          </article>
-        }) : <p className="rounded-lg border border-dashed border-border p-4 text-center text-[10px] text-muted-foreground">No notifications in this view.</p>}
-      </div>
+      <Section
+        title="Recent activity"
+        action={
+          <EditorButton type="button" variant="destructive" onClick={() => setHistory([])} disabled={!history.length} className="min-h-8 px-2.5 text-xs">
+            <Trash2 className="size-4" aria-hidden />
+            Clear
+          </EditorButton>
+        }
+      >
+        <p className="text-xs text-muted-foreground">Last 20 events on this frame</p>
+        <div className="flex flex-col gap-2">
+          {filteredHistory.length ? filteredHistory.map((item) => {
+            const Icon = VARIANT_META[item.variant].icon
+            return (
+              <article key={item.id} className="rounded-lg border border-border bg-card p-3">
+                <div className="flex items-start gap-2">
+                  <div className={cn('mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border', notificationTone(item.variant))}>
+                    <Icon className="size-4" aria-hidden />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="truncate text-xs font-medium text-foreground">{item.title}</h4>
+                      <span className="shrink-0 text-[11px] text-muted-foreground">{item.variant}</span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.message}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{formatNotificationTime(item.createdAt)} · auto-dismisses</p>
+                  </div>
+                </div>
+              </article>
+            )
+          }) : <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No notifications in this view.</p>}
+        </div>
+      </Section>
 
-      <div className="border-t border-border pt-4">
-        <div className="mb-2 flex items-center gap-2"><Play className="size-3.5 text-primary" aria-hidden /><h3 className="text-xs font-semibold">Preview lab</h3></div>
-        <p className="mb-3 text-[10px] leading-relaxed text-muted-foreground">Trigger sample events to see how unattended notices look on the frame.</p>
+      <Section title="Preview lab">
+        <div className="flex items-start gap-2">
+          <Play className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <p className="text-xs leading-relaxed text-muted-foreground">Trigger sample events to see how unattended notices look on the frame.</p>
+        </div>
         <div className="grid grid-cols-2 gap-2">
-          {(['info', 'success', 'warning', 'error'] as const).map((variant) => <button key={variant} type="button" onClick={() => sendTest(variant)} className="flex items-center gap-2 rounded-md border border-border px-2 py-2 text-left text-[10px] capitalize hover:bg-muted"><span className={cn('size-2 rounded-full', variant === 'error' ? 'bg-destructive' : variant === 'warning' ? 'bg-accent' : variant === 'success' ? 'bg-primary' : 'bg-muted-foreground')} /> Test {variant}</button>)}
+          {(['info', 'success', 'warning', 'error'] as const).map((variant) => (
+            <EditorButton key={variant} type="button" variant="secondary" onClick={() => sendTest(variant)} className="justify-start px-2 text-xs capitalize">
+              <span className={cn('size-2 rounded-full', variant === 'error' ? 'bg-destructive' : variant === 'warning' ? 'bg-accent' : variant === 'success' ? 'bg-primary' : 'bg-muted-foreground')} />
+              Test {variant}
+            </EditorButton>
+          ))}
         </div>
-      </div>
+      </Section>
 
-      <div className="border-t border-border pt-4"><button type="button" onClick={sendToLiveFrame} disabled={!testNotification || liveStatus === 'sending'} className="flex w-full items-center justify-center rounded-md bg-primary px-3 py-2 text-[10px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60">{liveStatus === 'sending' ? 'Sending…' : liveStatus === 'sent' ? 'Sent to Home frame' : liveStatus === 'error' ? 'Retry live send' : 'Send to live Home frame'}</button>{!testNotification && <p className="mt-1 text-center text-[10px] text-muted-foreground">Run a test notification first.</p>}{liveStatus === 'error' && <p className="mt-1 text-center text-[10px] text-destructive">Could not reach the live frame.</p>}</div>
+      <Section title="Live frame">
+        <EditorButton
+          type="button"
+          variant="primary"
+          onClick={sendToLiveFrame}
+          disabled={!testNotification || liveStatus === 'sending'}
+          aria-live="polite"
+          className="w-full"
+        >
+          {liveStatus === 'sending' ? 'Sending…' : liveStatus === 'sent' ? 'Sent to Home frame' : liveStatus === 'error' ? 'Retry live send' : 'Send to live Home frame'}
+        </EditorButton>
+        {!testNotification && <p className="text-center text-xs text-muted-foreground">Run a test notification first.</p>}
+        {liveStatus === 'sent' && <p role="status" className="text-center text-xs text-primary">Notification sent to the Home frame.</p>}
+        {liveStatus === 'error' && <p role="alert" className="text-center text-xs text-destructive">Could not reach the live frame.</p>}
+      </Section>
 
-      <div className="border-t border-border pt-4">
-        <div className="mb-3 flex items-center gap-2"><Settings2 className="size-3.5 text-primary" aria-hidden /><h3 className="text-xs font-semibold">Display settings</h3></div>
+      <Section title="Display settings">
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Eye className="size-3.5 text-muted-foreground" aria-hidden /><span className="text-[11px]">Show live preview</span></div><Toggle checked={showPreview} onChange={setShowPreview} label="Show live preview" /></div>
-          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Volume2 className="size-3.5 text-muted-foreground" aria-hidden /><span className="text-[11px]">Sound cues</span></div><Toggle checked={sound} onChange={setSound} label="Sound cues" /></div>
-          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Clock3 className="size-3.5 text-muted-foreground" aria-hidden /><span className="text-[11px]">Default duration</span></div><span className="text-[10px] text-muted-foreground">6 seconds</span></div>
+          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Eye className="size-4 text-muted-foreground" aria-hidden /><span className="text-sm text-foreground">Show live preview</span></div><Toggle checked={showPreview} onChange={setShowPreview} label="Show live preview" /></div>
+          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Volume2 className="size-4 text-muted-foreground" aria-hidden /><span className="text-sm text-foreground">Sound cues</span></div><Toggle checked={sound} onChange={setSound} label="Sound cues" /></div>
+          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Clock3 className="size-4 text-muted-foreground" aria-hidden /><span className="text-sm text-foreground">Default duration</span></div><span className="text-xs text-muted-foreground">6 seconds</span></div>
         </div>
-      </div>
-      <button type="button" onClick={() => { setHistory(createDemoNotifications()); setTestNotification(null); setActiveFilter('all') }} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-[10px] text-muted-foreground hover:bg-muted"><RotateCcw className="size-3" aria-hidden /> Reset demo data</button>
+      </Section>
+
+      <Section
+        title="Demo data"
+        action={
+          <EditorButton
+            type="button"
+            variant="quiet"
+            onClick={() => { setHistory(createDemoNotifications()); setTestNotification(null); setActiveFilter('all') }}
+            className="min-h-8 px-2.5 text-xs"
+          >
+            <RotateCcw className="size-4" aria-hidden />
+            Reset
+          </EditorButton>
+        }
+      >
+        <p className="text-xs text-muted-foreground">Restore the sample notification history.</p>
+      </Section>
     </section>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { Bell, CalendarClock, GalleryVerticalEnd, Layers, LayoutTemplate, Sparkles, Type } from 'lucide-react'
+import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -29,7 +29,9 @@ import { ThemeToggle, TopBar } from './top-bar'
 import { PreviewOverlay } from './preview-overlay'
 import { LiveDataContext } from './widget-preview'
 import { cn } from '@/lib/utils'
-import { WidgetToolbar } from './widget-toolbar'
+import { LibraryPanel } from './library-panel'
+import { FrameAdminPanel } from './frame-admin-panel'
+import { IconButton } from './controls'
 
 const PANELS = [
   { id: 'layers', label: 'Layers', icon: Layers },
@@ -41,7 +43,8 @@ const PANELS = [
   { id: 'experiences', label: 'Bob', icon: Sparkles },
 ] as const
 
-type TabId = (typeof PANELS)[number]['id']
+type PanelId = 'widgets' | 'frames' | (typeof PANELS)[number]['id']
+type DrawerId = PanelId | 'properties'
 
 function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : 'Something went wrong'
@@ -54,13 +57,28 @@ function isTyping(target: EventTarget | null) {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
 
-export function Editor({ initialStore, frameId, singleFrame = false }: { initialStore: FrameStore; frameId?: string; singleFrame?: boolean }) {
+export function Editor({
+  initialStore,
+  frameId,
+  singleFrame = false,
+  canManageFrames = false,
+  initialPanel = null,
+}: {
+  initialStore: FrameStore
+  frameId?: string
+  singleFrame?: boolean
+  canManageFrames?: boolean
+  initialPanel?: 'frames' | null
+}) {
   const { store, call } = useFrameStore(initialStore, frameId)
   const editor = useEditor(initialStore.layouts.find((l) => l.id === initialStore.activeId) ?? initialStore.layouts[0])
   const { state, dirty } = editor
   const now = useNow()
   const weather = useWeather(state.settings)
-  const [tab, setTab] = useState<TabId>('layers')
+  const [activeDrawer, setActiveDrawer] = useState<DrawerId | null>(() =>
+    canManageFrames && initialPanel === 'frames' ? 'frames' : null,
+  )
+  const drawerTriggers = useRef(new Map<DrawerId, HTMLButtonElement>())
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewDecision, setPreviewDecision] = useState<DisplayDecision | null>(null)
   const [saving, setSaving] = useState(false)
@@ -71,6 +89,30 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
   const albumDraftRef = useRef<Album | null>(null)
   const albumQueue = useRef<Promise<unknown>>(Promise.resolve())
   const clipboard = useRef<Widget[]>([])
+
+  function closeDrawer() {
+    if (!activeDrawer) return
+    const trigger = drawerTriggers.current.get(activeDrawer)
+    setActiveDrawer(null)
+    requestAnimationFrame(() => trigger?.focus())
+  }
+
+  function showDrawer(id: DrawerId) {
+    if (activeDrawer === null) {
+      const trigger = document.activeElement
+      if (trigger instanceof HTMLButtonElement) drawerTriggers.current.set(id, trigger)
+    }
+    setActiveDrawer(id)
+  }
+
+  function toggleDrawer(id: DrawerId, trigger: HTMLButtonElement) {
+    if (activeDrawer === id) {
+      closeDrawer()
+      return
+    }
+    drawerTriggers.current.set(id, trigger)
+    setActiveDrawer(id)
+  }
 
   const liveAlbums = useMemo(
     () => store.albums.map((a) => (albumDraft?.id === a.id ? albumDraft : a)),
@@ -177,7 +219,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
       const { store: next, id } = await call('/api/layouts', 'POST', input)
       await mutateCache('/api/frames')
       if (id) openLayout(id, next.layouts)
-      setTab('layouts')
+      showDrawer('layouts')
       toast.success(message)
     } catch (e) {
       toast.error(errorMessage(e))
@@ -236,7 +278,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
     if (!name?.trim()) return
     try {
       await call('/api/presets', 'POST', { name: name.trim(), widgets: normalizeGroup(widgets) })
-      setTab('layers')
+      showDrawer('layers')
       toast.success(`Saved "${name.trim()}" to My widgets`)
     } catch (e) {
       toast.error(errorMessage(e))
@@ -342,11 +384,25 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
     }
   })
 
+  const dismissDrawerOnEscape = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key !== 'Escape') return
+    e.preventDefault()
+    e.stopPropagation()
+    closeDrawer()
+  })
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => onKeyDown(e)
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  useEffect(() => {
+    if (!activeDrawer) return
+    const handler = (e: KeyboardEvent) => dismissDrawerOnEscape(e)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [activeDrawer])
 
   useEffect(() => {
     if (!dirty) return
@@ -390,6 +446,14 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
     () => ({ now, weather, settings: state.settings, slide: activeSlide(layoutAlbum, now) }),
     [now, weather, state.settings, layoutAlbum],
   )
+  const drawerTitle =
+    activeDrawer === 'widgets'
+      ? 'Widgets'
+      : activeDrawer === 'frames'
+        ? 'Frame administration'
+        : activeDrawer === 'properties'
+          ? 'Properties'
+          : PANELS.find((panel) => panel.id === activeDrawer)?.label ?? 'Editor panel'
 
   return (
     <LiveDataContext value={liveData}>
@@ -403,34 +467,67 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
           editor={editor}
           isActive={store.activeId === state.layoutId}
           saving={saving}
+          nightPreview={nightPreview}
           onSave={save}
           onPreview={() => setPreviewOpen(true)}
+          onToggleNight={() => setNightPreview((value) => !value)}
           onExport={exportLayout}
         />
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          <aside className="order-2 flex min-h-0 overflow-hidden border-t border-border bg-card lg:order-1 lg:h-full lg:w-[380px] lg:shrink-0 lg:border-r lg:border-t-0">
-            <nav aria-label="Editor sections" className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-card py-2">
-              {PANELS.map((panel) => {
-                const Icon = panel.icon
-                return <button key={panel.id} type="button" aria-label={panel.label} aria-pressed={tab === panel.id} onClick={() => setTab(panel.id)} className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', tab === panel.id && 'bg-primary/10 text-primary')}><Icon className="size-4" aria-hidden /></button>
-              })}
-              <div className="mt-auto border-t border-border pt-2"><ThemeToggle /></div>
-            </nav>
-            <div role="tabpanel" id={`panel-${tab}`} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-border px-3 py-2.5"><h2 className="text-base font-semibold tracking-tight">{PANELS.find((panel) => panel.id === tab)?.label}</h2></div>
-              {tab === 'layers' && <LayersPanel editor={editor} />}
-              {tab === 'layouts' && (
-                <LayoutsPanel layouts={liveLayouts} activeId={store.activeId} editingId={state.layoutId} onOpen={(id) => id !== state.layoutId && confirmDiscard() && openLayout(id)} onCreate={() => createLayout({ name: 'Untitled layout', widgets: [], settings: state.settings }, 'New layout created')} onDuplicate={(l) => createLayout({ name: `${l.name} copy`.slice(0, 80), widgets: l.widgets, settings: l.settings }, 'Layout duplicated')} onDelete={deleteLayout} onActivate={activate} onImport={importLayout} />
-              )}
-              {tab === 'albums' && <AlbumsPanel albums={liveAlbums} openId={openAlbumId} layoutAlbumId={state.settings.albumId} onOpen={setOpenAlbumId} onCreate={createAlbum} onUpdate={updateAlbum} onDelete={deleteAlbum} onUseOnLayout={attachAlbum} />}
-              {tab === 'fonts' && <FontsPanel customFonts={store.customFonts} onAdd={addFont} onRemove={removeFont} />}
-              {tab === 'schedule' && <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />}
-              {tab === 'experiences' && <ExperiencesPanel experiences={store.experiences} layouts={liveLayouts} onSave={saveExperiences} />}
-              {tab === 'notifications' && <NotificationsPanel />}
-            </div>
-          </aside>
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          <nav aria-label="Editor sections" className="editor-panel flex w-10 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-border py-2">
+            <button
+              type="button"
+              aria-label="Widgets"
+              aria-expanded={activeDrawer === 'widgets'}
+              aria-controls="editor-drawer"
+              onClick={(event) => toggleDrawer('widgets', event.currentTarget)}
+              className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'widgets' && 'bg-primary/10 text-primary')}
+            >
+              <Grid2X2 className="size-[18px]" aria-hidden />
+            </button>
+            {canManageFrames && (
+              <button
+                type="button"
+                aria-label="Frames"
+                aria-expanded={activeDrawer === 'frames'}
+                aria-controls="editor-drawer"
+                onClick={(event) => toggleDrawer('frames', event.currentTarget)}
+                className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'frames' && 'bg-primary/10 text-primary')}
+              >
+                <Frame className="size-[18px]" aria-hidden />
+              </button>
+            )}
+            {PANELS.map((panel) => {
+              const Icon = panel.icon
+              const label = panel.id === 'experiences' ? 'Experiences' : panel.label
+              return (
+                <button
+                  key={panel.id}
+                  type="button"
+                  aria-label={label}
+                  aria-expanded={activeDrawer === panel.id}
+                  aria-controls="editor-drawer"
+                  onClick={(event) => toggleDrawer(panel.id, event.currentTarget)}
+                  className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === panel.id && 'bg-primary/10 text-primary')}
+                >
+                  <Icon className="size-[18px]" aria-hidden />
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              aria-label="Properties"
+              aria-expanded={activeDrawer === 'properties'}
+              aria-controls="editor-drawer"
+              onClick={(event) => toggleDrawer('properties', event.currentTarget)}
+              className={cn('editor-icon-button size-8 rounded-lg lg:hidden', activeDrawer === 'properties' && 'bg-primary/10 text-primary')}
+            >
+              <SlidersHorizontal className="size-[18px]" aria-hidden />
+            </button>
+            <div className="mt-auto border-t border-border pt-2"><ThemeToggle /></div>
+          </nav>
 
-          <main className="canvas-surface relative order-1 min-h-0 min-w-0 overflow-hidden lg:order-2 lg:flex-1">
+          <main className="canvas-surface editor-canvas relative min-h-0 min-w-0 flex-1 overflow-hidden">
             <h1 className="sr-only">Lockscreen layout editor</h1>
             <Canvas
               editor={editor}
@@ -440,12 +537,67 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               night={store.schedule.night}
               nightPreview={nightPreview}
               overlay={overlay}
+              onOverlayChange={setOverlay}
               onDrop={addItem}
             />
-            <WidgetToolbar onAdd={addItem} overlay={overlay} onOverlayChange={setOverlay} nightPreview={nightPreview} onToggleNight={() => setNightPreview((v) => !v)} />
+            <section
+              id="editor-drawer"
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="editor-drawer-title"
+              className={cn(
+                'editor-panel absolute inset-y-0 right-0 z-20 max-w-[calc(100%-1rem)] flex-col overflow-hidden border-l border-border shadow-xl',
+                activeDrawer === 'widgets' ? 'w-72' : 'w-80',
+                activeDrawer ? 'flex' : 'hidden',
+              )}
+            >
+              <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
+                <h2 id="editor-drawer-title" className="text-base font-semibold tracking-tight">
+                  {drawerTitle}
+                </h2>
+                <IconButton label={`Close ${drawerTitle} panel`} onClick={closeDrawer}>
+                  <X className="size-4" aria-hidden />
+                </IconButton>
+              </header>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                {canManageFrames && activeDrawer === 'frames' && <FrameAdminPanel />}
+                {activeDrawer === 'widgets' && (
+                  <LibraryPanel
+                    presets={store.presets}
+                    onAdd={(payload) => {
+                      addItem(payload)
+                      closeDrawer()
+                    }}
+                    onDeletePreset={deletePreset}
+                    onClose={closeDrawer}
+                  />
+                )}
+                {activeDrawer === 'layers' && <LayersPanel editor={editor} />}
+                {activeDrawer === 'layouts' && (
+                  <LayoutsPanel layouts={liveLayouts} activeId={store.activeId} editingId={state.layoutId} onOpen={(id) => id !== state.layoutId && confirmDiscard() && openLayout(id)} onCreate={() => createLayout({ name: 'Untitled layout', widgets: [], settings: state.settings }, 'New layout created')} onDuplicate={(l) => createLayout({ name: `${l.name} copy`.slice(0, 80), widgets: l.widgets, settings: l.settings }, 'Layout duplicated')} onDelete={deleteLayout} onActivate={activate} onImport={importLayout} />
+                )}
+                {activeDrawer === 'albums' && <AlbumsPanel albums={liveAlbums} openId={openAlbumId} layoutAlbumId={state.settings.albumId} onOpen={setOpenAlbumId} onCreate={createAlbum} onUpdate={updateAlbum} onDelete={deleteAlbum} onUseOnLayout={attachAlbum} />}
+                {activeDrawer === 'fonts' && <FontsPanel customFonts={store.customFonts} onAdd={addFont} onRemove={removeFont} />}
+                {activeDrawer === 'schedule' && <SchedulePanel schedule={store.schedule} layouts={liveLayouts} activeId={store.activeId} now={now} onSave={saveSchedule} />}
+                {activeDrawer === 'experiences' && <ExperiencesPanel experiences={store.experiences} layouts={liveLayouts} onSave={saveExperiences} />}
+                {activeDrawer === 'notifications' && <NotificationsPanel />}
+                {activeDrawer === 'properties' && (
+                  <Inspector
+                    editor={editor}
+                    customFonts={store.customFonts}
+                    albums={liveAlbums}
+                    onOpenAlbums={() => {
+                      setOpenAlbumId(state.settings.albumId)
+                      showDrawer('albums')
+                    }}
+                    onSavePreset={savePreset}
+                  />
+                )}
+              </div>
+            </section>
           </main>
 
-          <aside aria-label="Inspector" className="order-3 flex min-h-0 flex-col overflow-hidden border-t border-border bg-card lg:h-full lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
+          <aside aria-label="Inspector" className="editor-panel hidden min-h-0 flex-col overflow-hidden border-l border-border lg:flex lg:h-full lg:w-72 lg:shrink-0">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <Inspector
                 editor={editor}
@@ -453,7 +605,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
                 albums={liveAlbums}
                 onOpenAlbums={() => {
                   setOpenAlbumId(state.settings.albumId)
-                  setTab('albums')
+                  showDrawer('albums')
                 }}
                 onSavePreset={savePreset}
               />

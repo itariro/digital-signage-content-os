@@ -4,7 +4,7 @@ import { useRef } from 'react'
 import { Copy, FileUp, MonitorCheck, Plus, Trash2 } from 'lucide-react'
 import type { Layout } from '@/lib/types'
 import { FrameScene } from '@/components/frame/frame-scene'
-import { IconButton } from './controls'
+import { EditorButton, IconButton } from './controls'
 import { useLiveData } from './widget-preview'
 import { cn } from '@/lib/utils'
 
@@ -25,24 +25,26 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
   const fileRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="editor-panel flex flex-col gap-2 p-3">
       <div className="flex gap-2">
-        <button
+        <EditorButton
           type="button"
+          variant="primary"
           onClick={onCreate}
-          className="flex h-7 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          className="h-8 min-h-8 flex-1"
         >
           <Plus className="size-4" aria-hidden />
           New layout
-        </button>
-        <button
+        </EditorButton>
+        <EditorButton
           type="button"
+          variant="secondary"
           onClick={() => fileRef.current?.click()}
-          className="flex h-7 items-center justify-center gap-1.5 rounded-lg bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
+          className="h-8 min-h-8"
         >
           <FileUp className="size-4" aria-hidden />
           Import
-        </button>
+        </EditorButton>
         <input
           ref={fileRef}
           type="file"
@@ -64,7 +66,7 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
             <li
               key={layout.id}
               className={cn(
-                'flex gap-3 rounded-xl p-2 ring-1 transition',
+                'flex gap-3 rounded-lg p-2 ring-1 transition',
                 editing ? 'bg-primary/10 ring-primary' : 'bg-secondary ring-border hover:ring-muted-foreground',
               )}
             >
@@ -88,29 +90,30 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
                 </button>
                 <div className="mt-auto flex items-center gap-0.5 pt-2">
                   {active ? (
-                    <span className="flex h-7 items-center gap-1 rounded-full bg-primary/15 px-2.5 text-xs font-medium text-primary">
-                      <MonitorCheck className="size-3.5" aria-hidden />
+                    <span className="flex h-8 items-center gap-1 rounded-full bg-primary/15 px-2.5 text-xs font-medium text-primary">
+                      <MonitorCheck className="size-4" aria-hidden />
                       On frame
                     </span>
                   ) : (
-                    <button
+                    <EditorButton
                       type="button"
+                      variant="secondary"
                       onClick={() => onActivate(layout.id)}
-                      className="h-7 rounded-full bg-card px-2.5 text-xs font-medium text-foreground ring-1 ring-border hover:ring-primary"
+                      className="h-8 min-h-8 rounded-full px-2.5 text-xs"
                     >
                       Show on frame
-                    </button>
+                    </EditorButton>
                   )}
-                  <IconButton label={`Duplicate ${layout.name}`} onClick={() => onDuplicate(layout)} className="ml-auto size-7">
-                    <Copy className="size-3.5" />
+                  <IconButton label={`Duplicate ${layout.name}`} onClick={() => onDuplicate(layout)} className="ml-auto">
+                    <Copy className="size-4" />
                   </IconButton>
                   <IconButton
                     label={`Delete ${layout.name}`}
                     onClick={() => onDelete(layout)}
                     disabled={layouts.length <= 1}
-                    className="size-7 hover:text-destructive"
+                    className="hover:text-destructive"
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 className="size-4" />
                   </IconButton>
                 </div>
               </div>

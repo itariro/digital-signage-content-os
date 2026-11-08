@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid'
 import { CalendarClock, ExternalLink, MoonStar, Plus, Trash2 } from 'lucide-react'
 import type { FrameSchedule, Layout, ScheduleRule } from '@/lib/types'
 import { DAY_LABELS, clockParts, describeDays, resolveDisplay } from '@/lib/schedule'
-import { Section, SliderField, TimeField, ToggleField } from './controls'
+import { EditorButton, Section, SliderField, TimeField, ToggleField } from './controls'
 import { FRAME_WIDTH } from '@/lib/types'
 import { FrameScene } from '@/components/frame/frame-scene'
 import { useLiveData } from './widget-preview'
@@ -49,11 +49,10 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-col gap-3 border-b border-border p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">On the frame right now</p>
+    <div className="editor-panel flex flex-col">
+      <Section title="On the frame right now">
         {showing ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
             <div className="shrink-0 overflow-hidden rounded-md ring-1 ring-border">
               <FrameScene
                 widgets={showing.widgets}
@@ -73,13 +72,13 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
             </div>
           </div>
         ) : (
-          <span className="text-sm text-muted-foreground">No layout available</span>
+          <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">No layout available</p>
         )}
         <a
           href="/frame"
           target="_blank"
           rel="noreferrer"
-          className="flex h-9 items-center justify-center gap-2 rounded-lg bg-secondary text-sm font-medium text-foreground hover:bg-secondary/70"
+          className="editor-button editor-button-secondary w-full"
         >
           <ExternalLink className="size-4" aria-hidden />
           Open frame display
@@ -88,20 +87,20 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
           Point the frame&apos;s kiosk browser at <code className="rounded bg-secondary px-1 font-mono text-foreground">/frame</code>. It
           follows this schedule and picks up saved edits within 30 seconds.
         </p>
-      </div>
+      </Section>
 
       <Section
         title="Layout schedule"
         action={
-          <button type="button" onClick={addRule} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            <Plus className="size-3.5" aria-hidden />
+          <EditorButton type="button" variant="primary" onClick={addRule} className="min-h-8 px-2.5 text-xs">
+            <Plus className="size-4" aria-hidden />
             Add slot
-          </button>
+          </EditorButton>
         }
       >
         <ToggleField label="Switch layouts by time" checked={draft.enabled} onChange={(enabled) => update({ ...draft, enabled })} />
         {draft.rules.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-4 text-center">
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border p-4 text-center">
             <CalendarClock className="size-5 text-muted-foreground" aria-hidden />
             <p className="text-xs leading-relaxed text-muted-foreground">
               Add a slot to show a different layout at certain times, for example a planner on weekday mornings.
@@ -110,7 +109,7 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
         ) : (
           <ol className={cn('flex flex-col gap-2', !draft.enabled && 'opacity-50')}>
             {draft.rules.map((rule, index) => (
-              <li key={rule.id} className={cn('flex flex-col gap-3 rounded-xl bg-secondary p-3 ring-1', resolved?.rule?.id === rule.id ? 'ring-primary' : 'ring-border')}>
+              <li key={rule.id} className={cn('flex flex-col gap-2 rounded-lg border bg-card p-3', resolved?.rule?.id === rule.id ? 'border-primary' : 'border-border')}>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-muted-foreground">#{index + 1}</span>
                   <label className="sr-only" htmlFor={`rule-${rule.id}`}>
@@ -120,7 +119,7 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
                     id={`rule-${rule.id}`}
                     value={rule.layoutId}
                     onChange={(e) => updateRule(rule.id, { layoutId: e.target.value })}
-                    className="h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground"
+                    className="editor-control h-8 min-w-0 flex-1 px-2"
                   >
                     {layouts.map((l) => (
                       <option key={l.id} value={l.id}>
@@ -132,12 +131,12 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
                     type="button"
                     aria-label={`Remove slot ${index + 1}`}
                     onClick={() => update({ ...draft, rules: draft.rules.filter((r) => r.id !== rule.id) })}
-                    className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-card hover:text-destructive"
+                    className="editor-icon-button hover:text-destructive"
                   >
                     <Trash2 className="size-4" aria-hidden />
                   </button>
                 </div>
-                <div className="grid grid-cols-7 gap-1" role="group" aria-label={`Days for slot ${index + 1}`}>
+                <div className="editor-control flex h-auto w-full gap-1 p-1" role="group" aria-label={`Days for slot ${index + 1}`}>
                   {DAY_LABELS.map((label, day) => {
                     const on = rule.days.includes(day)
                     return (
@@ -148,7 +147,7 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
                         aria-label={label}
                         onClick={() => updateRule(rule.id, { days: on ? rule.days.filter((d) => d !== day) : [...rule.days, day] })}
                         className={cn(
-                          'h-7 rounded-md text-[11px] font-medium transition-colors',
+                          'h-8 rounded-md text-[11px] font-medium transition-colors',
                           on ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground',
                         )}
                       >
@@ -173,7 +172,7 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
       </Section>
 
       <Section title="Night mode">
-        <div className="flex items-start gap-3 rounded-xl bg-secondary p-3">
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-3">
           <MoonStar className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
           <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
             Dims and warms the whole screen overnight so the frame is easy on the eyes in a dark room.
@@ -220,7 +219,7 @@ function TimeInput({ label, value, onChange }: { label: string; value: string; o
         type="time"
         value={value}
         onChange={(e) => e.target.value && onChange(e.target.value)}
-        className="h-8 w-full rounded-md border border-border bg-card px-2 font-mono text-xs text-foreground outline-none [color-scheme:dark] focus-visible:border-primary"
+        className="editor-control h-8 w-full px-2 font-mono text-xs"
       />
     </label>
   )

@@ -6,7 +6,7 @@ import { audit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
-const resolutionSchema = z.enum(['local', 'remote'])
+const resolutionSchema = z.enum(['local', 'remote', 'discard'])
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const outcome = await resolveActor(req)
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const form = await req.formData().catch(() => null)
   const parsed = resolutionSchema.safeParse(form?.get('resolution'))
-  if (!parsed.success) return NextResponse.json({ error: 'resolution must be local or remote' }, { status: 400 })
+  if (!parsed.success) return NextResponse.json({ error: 'resolution must be local, remote, or discard' }, { status: 400 })
 
   const resolved = await resolveConflict(id, parsed.data, outcome.actor)
   if (!resolved) return NextResponse.json({ error: 'conflict not found or already resolved' }, { status: 404 })

@@ -1,7 +1,7 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Lock } from 'lucide-react'
+import { Grid3x3, Lock, Scan } from 'lucide-react'
 import type { Album, NightMode, WeatherData, Widget } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { getDefinition } from '@/lib/widgets'
@@ -9,6 +9,7 @@ import type { EditorApi } from '@/hooks/use-editor'
 import { FrameScene, surfaceStyle } from '@/components/frame/frame-scene'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { cn } from '@/lib/utils'
+import { Segmented } from './controls'
 
 export type DropPayload = { kind: 'widget'; type: Widget['type'] } | { kind: 'preset'; id: string } | { kind: 'combo'; id: string } | { kind: 'sticker'; id: string }
 
@@ -66,13 +67,14 @@ type CanvasProps = {
   night: NightMode
   nightPreview: boolean
   overlay: Overlay
+  onOverlayChange: (value: Overlay) => void
   onDrop: (payload: DropPayload, point: { x: number; y: number }) => void
 }
 
 export type Overlay = 'none' | 'thirds' | 'safe'
 const SAFE_MARGIN = 72
 
-export function Canvas({ editor, weather, now, album, night, nightPreview, overlay, onDrop }: CanvasProps) {
+export function Canvas({ editor, weather, now, album, night, nightPreview, overlay, onOverlayChange, onDrop }: CanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const scale = useFitScale(wrapRef, 140)
@@ -377,7 +379,18 @@ export function Canvas({ editor, weather, now, album, night, nightPreview, overl
             {guides.h && <div aria-hidden className="pointer-events-none absolute left-0 w-full bg-primary" style={{ top: FRAME_HEIGHT / 2 - line / 2, height: line }} />}
           </FrameScene>
         </div>
-        <div className="mt-6 flex flex-col items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="mt-4 flex flex-col items-center gap-2" onPointerDown={(event) => event.stopPropagation()}>
+          <Segmented
+            label="Composition guides"
+            value={overlay}
+            onChange={onOverlayChange}
+            className="w-full max-w-sm"
+            options={[
+              { value: 'none', label: 'No guides' },
+              { value: 'thirds', label: <><Grid3x3 className="size-4" aria-hidden />Thirds</> },
+              { value: 'safe', label: <><Scan className="size-4" aria-hidden />Safe area</> },
+            ]}
+          />
           <p className="text-center font-mono text-xs text-muted-foreground">
             {resW} × {resH} portrait · {Math.round(scale * 100)}% · {widgets.length} widget{widgets.length === 1 ? '' : 's'}
           </p>

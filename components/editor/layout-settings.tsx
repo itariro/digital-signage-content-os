@@ -50,15 +50,15 @@ export function LayoutSettingsPanel({
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
-      <div className="border-b border-border px-4 py-3">
+    <div className="editor-panel flex min-h-0 flex-col">
+      <div className="editor-panel-heading flex flex-col gap-1">
         <p className="text-sm font-semibold text-foreground">Layout settings</p>
         <p className="text-xs text-muted-foreground">Select a widget on the canvas to edit its style.</p>
       </div>
 
       <Section title="Frame">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Panel</span>
+          <span className="text-sm font-medium text-foreground">Panel</span>
           <Segmented
             label="Frame resolution"
             value={settings.resolution}
@@ -206,7 +206,7 @@ export function LayoutSettingsPanel({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search a city"
             aria-label="Search a city"
-            className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary"
+            className="editor-control h-8 w-full pl-9 pr-3"
           />
           {isLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
         </div>
@@ -229,7 +229,7 @@ export function LayoutSettingsPanel({
           </ul>
         )}
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Units</span>
+          <span className="text-sm font-medium text-foreground">Units</span>
           <Segmented
             label="Temperature units"
             value={settings.units}

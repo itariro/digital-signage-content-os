@@ -6,6 +6,7 @@ import type { Album, DisplayDecision, LayoutSettings, NightMode, WeatherData, Wi
 import { FrameScene } from '@/components/frame/frame-scene'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { useFitScale } from './canvas'
+import { EditorButton } from './controls'
 
 type PreviewOverlayProps = {
   name: string
@@ -24,7 +25,7 @@ export function PreviewOverlay({ name, widgets, settings, weather, now, album, n
   const scale = useFitScale(ref)
   return (
     <div role="dialog" aria-modal="true" aria-label={`Preview of ${name}`} className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="editor-panel flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div>
           <p className="text-sm font-semibold text-foreground">{name}</p>
           <p className="text-xs text-muted-foreground">
@@ -33,16 +34,17 @@ export function PreviewOverlay({ name, widgets, settings, weather, now, album, n
             {night ? ' · night mode' : ''}
           </p>
         </div>
-        <button
+        <EditorButton
           type="button"
+          variant="secondary"
           autoFocus
           onClick={onClose}
-          className="flex h-9 items-center gap-1.5 rounded-lg bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
+          className="h-9 bg-secondary px-3 text-sm hover:bg-secondary/70"
         >
           <X className="size-4" aria-hidden />
           Close
           <kbd className="ml-1 rounded bg-card px-1.5 font-mono text-[10px] text-muted-foreground">Esc</kbd>
-        </button>
+        </EditorButton>
       </div>
       <div ref={ref} className="flex min-h-0 flex-1 items-center justify-center">
         <div className="overflow-hidden rounded-[18px]" style={{ boxShadow: '0 0 0 12px var(--bezel), 0 40px 100px -20px rgba(0,0,0,0.7)' }}>
