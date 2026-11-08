@@ -1296,6 +1296,12 @@ while true; do
     /usr/bin/Xorg :0 -nolisten tcp -s 0 -dpms vt1 &
     XORG_PID=$!
     sleep 2
+    # Xorg started as root mints its cookie in /root/.Xauthority; without this
+    # the kiosk user's empty /home/kiosk/.Xauthority is rejected ("No protocol
+    # specified") and Surf exits immediately, leaving a black screen with a
+    # stray pointer. -nolisten tcp keeps this local-only (+local: = Unix
+    # socket access, no network exposure).
+    DISPLAY=:0 xhost +local: >/dev/null 2>&1 || true
     su - kiosk -c 'exec /usr/local/lib/kiosk/session.sh'
     kill "$XORG_PID" 2>/dev/null || true
     wait "$XORG_PID" 2>/dev/null || true
