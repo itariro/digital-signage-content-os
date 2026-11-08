@@ -14,7 +14,7 @@
 
 The approved design is [the Frame Editor UI Redesign spec](../specs/2026-11-08-frame-editor-ui-redesign-design.md). The reference uses white surfaces, fine neutral dividers, charcoal labels, restrained blue active states, compact controls, and subtle floating shadows. Keep the existing Inter and JetBrains Mono fonts and Lucide icons.
 
-The editor currently has a left rail plus permanently docked panel, a center canvas with a bottom `WidgetToolbar`, and a right `Inspector`. `LibraryPanel` already renders widgets, combinations, stickers, and saved presets, but it is not mounted by `Editor`. `WidgetToolbar` is a distinct quick-add surface with search, category chips, composition guides, and Night preview; keep it.
+The editor has a left rail, a canvas, and a right `Inspector`. `LibraryPanel` renders widgets, combinations, stickers, and saved presets. This plan records the initial implementation direction. Its instructions to preserve the bottom `WidgetToolbar` are superseded by the approved [widget panel hierarchy follow-up plan](./2026-11-08-widget-panel-hierarchy.md), which moves guides below the canvas preview, moves Night preview to the top bar, and removes the redundant toolbar.
 
 Vitest uses the Node environment and has no jsdom or React Testing Library. Follow the established source-contract and pure-helper testing pattern in `tests/widget-toolbar.test.ts`, and use browser interaction checks for mounted UI behavior. Before editing Next.js layout behavior, read the installed Next.js 16 docs under `node_modules/next/dist/docs/` for the relevant layout, client-component, and script guidance.
 
