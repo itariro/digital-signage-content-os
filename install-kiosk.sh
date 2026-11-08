@@ -1089,7 +1089,10 @@ t_build_app() {
     local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
     cd "$app_dir"
     # frame.env must exist BEFORE the build so NEXT_PUBLIC_* values inline.
-    [[ -f /etc/dscos/frame.env ]] && set -a && . /etc/dscos/frame.env && set +a
+    if [[ -f /etc/dscos/frame.env ]]; then
+        source lib/kiosk/build-env.sh
+        load_frame_build_env /etc/dscos/frame.env
+    fi
     pnpm run build
 }
 

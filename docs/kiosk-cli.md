@@ -174,8 +174,10 @@ sudo kiosk-ctl enroll https://console.example.com A1B2C3D4E5F6
 returned keys to `/etc/dscos/frame.env` (mode 0640, root:kiosk): `FRAME_MODE=instance`,
 `SYNC_ENABLED=true`, `SYNC_ENDPOINT`, `INSTANCE_ID`, `SYNC_TOKEN` (the device
 token), `FRAME_ADMIN_SECRET`, and the Clerk publishable key when the console
-sends one. The app service sources the file before it builds, so publishable
-keys inline correctly. After it writes, `enroll` restarts the app.
+sends one. At build time, the installer reads only `NEXT_PUBLIC_*` values
+literally from this file, so dollar signs in private values are never expanded
+as shell syntax. At runtime, systemd loads the environment file for the app.
+After it writes, `enroll` restarts the app.
 
 Enrollment requires an https console URL. Plain http is accepted only for
 loopback development addresses (`localhost`, `127.0.0.1`, `::1`). The response
@@ -200,6 +202,8 @@ file update. It keeps a valid secret already in `frame.env`, otherwise writes a
 valid `FRAME_ADMIN_SECRET` from the environment, otherwise generates one. An
 invalid stored secret is replaced with a warning. Passwords shorter than 8
 characters are rejected and nothing is written. The app restarts on Linux.
+Password setup and reset are CLI-only; the browser sign-in page does not offer a
+password change flow.
 
 ### Two ports on a frame
 
@@ -220,7 +224,9 @@ guide). The proxy gates routes by the `Host` header port:
   before this feature existed.
 - On the management port, reads work, but every mutation returns `401` until
   you set a frame-local admin password with `kiosk password`. After that, the
-  cookie from `POST /api/admin/login` on that port authorizes mutations.
+  editor shows a local sign-in page. Entering the frame password creates an
+  HTTP-only session cookie that authorizes mutations from that browser. Password
+  setup and recovery stay on the frame's command line.
 - The console web UI (`/console`) and console-only APIs (`/api/instances`)
   answer on neither port of a frame. They live on the console deployment.
 
