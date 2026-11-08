@@ -17,6 +17,12 @@ const shellSources = Object.fromEntries(
     readFileSync(path.join(root, `components/editor/${name}.tsx`), 'utf8'),
   ]),
 )
+const contentSources = Object.fromEntries(
+  ['albums-panel', 'album-detail', 'fonts-panel', 'schedule-panel', 'notifications-panel', 'experiences-panel'].map((name) => [
+    name,
+    readFileSync(path.join(root, `components/editor/${name}.tsx`), 'utf8'),
+  ]),
+)
 
 describe('editor visual system', () => {
   it('defines editor-scoped action variants and field focus treatment', () => {
@@ -104,5 +110,50 @@ describe('editor visual system', () => {
     expect(canvas).toContain('onPointerDown={(e) => onWidgetPointerDown(e, widget)}')
     expect(editor).toContain('onDrop={addItem}')
     expect(canvas).toContain('onChange={onOverlayChange}')
+  })
+
+  it('uses shared actions, fields, and section spacing in content panels', () => {
+    const { 'albums-panel': albums, 'album-detail': albumDetail, 'fonts-panel': fonts, 'schedule-panel': schedule, 'notifications-panel': notifications, 'experiences-panel': experiences } = contentSources
+
+    for (const source of Object.values(contentSources)) {
+      expect(source).toContain('<EditorButton')
+    }
+
+    for (const source of [albumDetail, fonts, schedule, experiences]) {
+      expect(source).toContain('className="editor-control')
+    }
+
+    for (const source of [albums, albumDetail, fonts, schedule, experiences, notifications]) {
+      expect(source).toContain('<Section')
+    }
+
+    expect(albums).toContain("variant={choosing ? 'quiet' : 'primary'}")
+    expect(albums).toContain('variant="secondary"')
+    expect(albumDetail).toContain('variant="destructive"')
+    expect(fonts).toContain('variant="primary"')
+    expect(schedule).toContain('editor-button editor-button-secondary')
+    expect(notifications).toContain('variant="destructive"')
+    expect(experiences).toContain('variant="primary"')
+  })
+
+  it('preserves existing submit, cancel, delete, reset, and save callbacks', () => {
+    const { 'albums-panel': albums, 'album-detail': albumDetail, 'fonts-panel': fonts, 'schedule-panel': schedule, 'notifications-panel': notifications, 'experiences-panel': experiences } = contentSources
+
+    expect(albums).toContain('onCreate(theme)')
+    expect(albums).toContain('setChoosing(false)')
+    expect(albums).toContain('onDelete(open)')
+    expect(albumDetail).toContain('onClick={onBack}')
+    expect(albumDetail).toContain('onClick={onDelete}')
+    expect(albumDetail).toContain('onUpdate(album.id')
+
+    expect(fonts).toContain('onSubmit={submit}')
+    expect(fonts).toContain('await onAdd(family.trim())')
+    expect(fonts).toContain('onRemove(f)')
+    expect(schedule).toContain('onSave(next)')
+    expect(experiences).toContain('onSave(next)')
+
+    expect(notifications).toContain('onClick={() => setHistory([])}')
+    expect(notifications).toContain('setHistory(createDemoNotifications())')
+    expect(notifications).toContain('onClick={sendToLiveFrame}')
   })
 })

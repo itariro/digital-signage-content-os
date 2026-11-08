@@ -12,7 +12,7 @@ import { downscaleImage } from '@/lib/frame-utils'
 import { useArtworkSearch, usePortraitSearch, type ArtworkResult, type PortraitResult } from '@/hooks/use-frame-store'
 import { useNow } from '@/hooks/use-now'
 import { AlbumSlideshow } from '@/components/frame/album-slideshow'
-import { ColorField, Section, Segmented, SelectField, SliderField, ToggleField } from './controls'
+import { ColorField, EditorButton, Section, Segmented, SelectField, SliderField, ToggleField } from './controls'
 import { cn } from '@/lib/utils'
 
 export type AlbumUpdater = (id: string, fn: (album: Album) => Album, persist?: boolean) => void
@@ -323,14 +323,15 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
       ) : null}
 
       <div className="p-4">
-        <button
+        <EditorButton
           type="button"
           onClick={onDelete}
-          className="flex h-8 w-full items-center justify-center gap-2 rounded-md border border-border text-sm text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+          variant="destructive"
+          className="w-full"
         >
           <Trash2 className="size-4" aria-hidden />
           Delete album
-        </button>
+        </EditorButton>
       </div>
     </div>
   )
@@ -352,7 +353,7 @@ function NameField({ value, onCommit }: { value: string; onCommit: (name: string
         if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) e.currentTarget.blur()
       }}
       aria-label="Album name"
-      className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-sm font-semibold text-foreground outline-none hover:border-border focus-visible:border-primary"
+      className="editor-control min-w-0 flex-1 border-transparent bg-transparent px-2 text-sm font-semibold text-foreground"
     />
   )
 }
@@ -464,9 +465,9 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
     <Section title={`Add ${meta.noun}s`}>
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground">Search one item or build a batch</span>
-        <button type="button" onClick={() => { setAdvanced((value) => !value); setQuery(''); setPage(1) }} aria-pressed={advanced} className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground aria-pressed:border-primary aria-pressed:text-foreground">
+        <EditorButton type="button" variant="quiet" onClick={() => { setAdvanced((value) => !value); setQuery(''); setPage(1) }} aria-pressed={advanced} className="min-h-7 border border-border px-2 py-1 text-[11px] aria-pressed:border-primary aria-pressed:text-foreground">
           Advanced search
-        </button>
+        </EditorButton>
       </div>
       <div className="relative">
         {!advanced && <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />}
@@ -480,7 +481,7 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
       {advanced && <p className="text-[11px] leading-relaxed text-muted-foreground">Use an array of strings or objects. Objects can contain title, artist, album, actor, director, or author.</p>}
       <div className="flex flex-wrap gap-1.5">
         {meta.suggestions.map((s) => (
-          <button
+          <EditorButton
             key={s}
             type="button"
             onClick={() => {
@@ -488,17 +489,15 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
               setPage(1)
             }}
             aria-pressed={query === s}
-            className={cn(
-              'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
-              query === s ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:text-foreground',
-            )}
+            variant="quiet"
+            className={cn('min-h-7 rounded-full border px-2.5 py-1 text-[11px]', query === s ? 'border-primary bg-primary/10 text-foreground' : 'border-border')}
           >
             {s}
-          </button>
+          </EditorButton>
         ))}
       </div>
       {error && <p className="text-xs text-destructive">Search is unavailable right now. Try again in a moment.</p>}
-      {partialFailures.length > 0 && !error && <p className="text-xs text-amber-600">{partialFailures.length} search item{partialFailures.length === 1 ? '' : 's'} could not be loaded. Showing the available results.</p>}
+      {partialFailures.length > 0 && !error && <p className="rounded-md bg-accent px-2 py-1 text-xs text-accent-foreground">{partialFailures.length} search item{partialFailures.length === 1 ? '' : 's'} could not be loaded. Showing the available results.</p>}
       {query.trim().length >= 2 && !isLoading && !error && results.length === 0 && (
         <p className="text-xs text-muted-foreground">No artwork found for that search.</p>
       )}
@@ -540,23 +539,25 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
       )}
       {results.length > 0 && query.trim().length >= 2 && !error && (
         <div className="flex items-center justify-between gap-3">
-          <button
+          <EditorButton
             type="button"
             onClick={() => setPage((current) => Math.max(1, current - 1))}
             disabled={page === 1 || isLoading}
-            className="h-8 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            variant="secondary"
+            className="min-h-8 px-2.5 text-xs text-muted-foreground"
           >
             Previous
-          </button>
+          </EditorButton>
           <span className="text-xs tabular-nums text-muted-foreground">Page {page}</span>
-          <button
+          <EditorButton
             type="button"
             onClick={() => setPage((current) => current + 1)}
             disabled={!hasMore || isLoading}
-            className="h-8 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            variant="secondary"
+            className="min-h-8 px-2.5 text-xs text-muted-foreground"
           >
             Next
-          </button>
+          </EditorButton>
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Artwork via {meta.source}. Tap to add, tap again to remove.</p>
@@ -600,15 +601,16 @@ function PhotoUpload({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: Alb
 
   return (
     <Section title="Add photos">
-      <button
+      <EditorButton
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={busy > 0}
-        className="flex h-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary hover:text-foreground disabled:opacity-60"
+        variant="secondary"
+        className="h-20 min-h-0 flex-col gap-1 border-dashed text-xs text-muted-foreground"
       >
         {busy > 0 ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
         {busy > 0 ? `Uploading ${busy}…` : 'Choose photos'}
-      </button>
+      </EditorButton>
       <input ref={fileRef} type="file" accept="image/*" multiple className="sr-only" onChange={(e) => onFiles(e.target.files)} />
     </Section>
   )
@@ -740,15 +742,16 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
         </>
       )}
       {!subject && (
-        <button
+        <EditorButton
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={Boolean(busy)}
-          className="flex h-12 items-center justify-center gap-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary hover:text-foreground disabled:opacity-60"
+          variant="secondary"
+          className="h-12 min-h-0 border-dashed text-xs text-muted-foreground"
         >
           {busy === 'upload' ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
           {busy === 'upload' ? 'Uploading…' : 'Choose a photo'}
-        </button>
+        </EditorButton>
       )}
       <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files)} />
     </Section>

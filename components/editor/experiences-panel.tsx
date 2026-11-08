@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid'
 import { Plus, Trash2 } from 'lucide-react'
 import type { BobExpression, ExperienceRule, Experiences } from '@/lib/types'
 import { mergeDaysCondition, toggleWeekday } from '@/lib/experience-draft'
-import { Section, ToggleField } from './controls'
+import { EditorButton, Section, ToggleField } from './controls'
 
 type ExperiencesPanelProps = {
   experiences: Experiences
@@ -100,10 +100,10 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
       <Section
         title="Experiences"
         action={
-          <button type="button" onClick={addRule} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          <EditorButton type="button" variant="primary" onClick={addRule} className="min-h-8 px-2.5 text-xs">
             <Plus className="size-4" aria-hidden />
             Add rule
-          </button>
+          </EditorButton>
         }
       >
         <ToggleField
@@ -120,7 +120,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
         ) : (
           <ol className={!draft.enabled ? 'flex flex-col gap-2 opacity-50' : 'flex flex-col gap-2'}>
             {draft.rules.map((rule, index) => (
-              <li key={rule.id} className="flex flex-col gap-2 rounded-lg bg-secondary p-3 ring-1 ring-border">
+              <li key={rule.id} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-muted-foreground">#{index + 1}</span>
                   <label className="sr-only" htmlFor={`exp-name-${rule.id}`}>
@@ -137,7 +137,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                       type="checkbox"
                       checked={rule.enabled}
                       onChange={(e) => updateRule(rule.id, { enabled: e.target.checked })}
-                      className="size-4"
+                      className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-ring"
                     />
                     On
                   </label>
@@ -409,14 +409,15 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
           className="editor-control h-8 px-2"
         />
       </label>
-      <button
+      <EditorButton
         type="button"
         onClick={runPreview}
         disabled={loading || !dateTime}
-        className="flex h-8 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        variant="primary"
+        className="text-xs"
       >
         {loading ? 'Loading...' : 'Preview decision'}
-      </button>
+      </EditorButton>
       <p className="text-pretty text-[11px] leading-relaxed text-muted-foreground">
         Shows the rule whose Bob speech a live frame would publish. The layout on the frame itself is chosen by the schedule.
       </p>
@@ -439,7 +440,7 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
             <span className="text-muted-foreground">Period:</span>
             <span className="font-mono text-foreground">{preview.context?.period ?? 'none'}</span>
           </div>
-          {preview.warning && <p className="text-pretty text-amber-600">{preview.warning}</p>}
+          {preview.warning && <p className="rounded-md bg-accent px-2 py-1 text-pretty text-xs text-accent-foreground">{preview.warning}</p>}
         </div>
       )}
     </div>
