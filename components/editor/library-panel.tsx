@@ -1,14 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Trash2, X } from 'lucide-react'
 import type { Preset } from '@/lib/types'
-import { BUILTIN_COMBOS, WIDGETS, createWidget } from '@/lib/widgets'
+import { BUILTIN_COMBOS, WIDGETS, createWidget, getDefinition } from '@/lib/widgets'
 import { BUILTIN_STICKERS, createStickerWidget } from '@/lib/text-stickers'
+import {
+  matchesLibrarySearch,
+  matchesWidgetCategory,
+  WIDGET_LIBRARY_CATEGORIES,
+  type WidgetLibraryCategory,
+} from '@/lib/editor-library'
 import { DRAG_MIME, type DropPayload } from './canvas'
 import { WidgetPreview } from './widget-preview'
-
-const CATEGORIES = ['Time', 'Weather', 'Planner', 'Decor'] as const
 
 function dragProps(payload: DropPayload) {
   return {
@@ -27,8 +31,30 @@ type LibraryPanelProps = {
 }
 
 export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelProps) {
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<WidgetLibraryCategory>('All')
   const samples = useMemo(() => Object.fromEntries(WIDGETS.map((d) => [d.type, createWidget(d.type)])), [])
   const combos = useMemo(() => BUILTIN_COMBOS.map((c) => ({ ...c, widgets: c.build() })), [])
+  const visibleWidgets = WIDGETS.filter(
+    (widget) =>
+      matchesWidgetCategory(category, widget.category) &&
+      matchesLibrarySearch(query, [widget.label, widget.description, widget.category]),
+  )
+  const visibleCombos = combos.filter((combo) =>
+    matchesLibrarySearch(query, [combo.name, combo.description]),
+  )
+  const visibleStickers = BUILTIN_STICKERS.filter((sticker) =>
+    matchesLibrarySearch(query, [sticker.name, sticker.description]),
+  )
+  const visiblePresets = presets.filter((preset) =>
+    matchesLibrarySearch(query, [
+      preset.name,
+      String(preset.widgets.length),
+      ...preset.widgets.map((widget) => getDefinition(widget.type).label),
+    ]),
+  )
+  const widgetCategories =
+    category === 'All' ? WIDGET_LIBRARY_CATEGORIES.slice(1) : [category]
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -36,72 +62,134 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelPro
         Drag a widget onto the frame, or click to drop it in the center.
       </p>
 
-      {CATEGORIES.map((category) => (
-        <section key={category} className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{category}</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {WIDGETS.filter((d) => d.category === category).map((def) => (
+      <div className="flex flex-col gap-2">
+        <label htmlFor="library-search" className="sr-only">Search library</label>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2">
+          <input
+            id="library-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search widgets, combinations, stickers…"
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQuery('')}
+              className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          )}
+        </div>
+        <div role="group" aria-label="Filter widgets by category" className="flex flex-wrap gap-1.5">
+          {WIDGET_LIBRARY_CATEGORIES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={category === option}
+              onClick={() => setCategory(option)}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                category === option
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {widgetCategories.map((widgetCategory) => {
+        const widgets = visibleWidgets.filter((widget) => widget.category === widgetCategory)
+        return (
+          <section key={widgetCategory} className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{widgetCategory}</h3>
+            {widgets.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+                No {widgetCategory.toLowerCase()} widgets match your search.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {widgets.map((def) => (
+                  <button
+                    key={def.type}
+                    type="button"
+                    {...dragProps({ kind: 'widget', type: def.type })}
+                    onClick={() => onAdd({ kind: 'widget', type: def.type })}
+                    className="group flex cursor-grab flex-col overflow-hidden rounded-xl bg-secondary text-left ring-1 ring-border transition hover:ring-primary active:cursor-grabbing"
+                  >
+                    <WidgetPreview widgets={[samples[def.type]]} width={128} height={76} className="w-full" />
+                    <span className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-foreground">
+                      <def.icon className="size-3.5 text-muted-foreground group-hover:text-primary" aria-hidden />
+                      {def.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )
+      })}
+
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Combinations</h3>
+        {visibleCombos.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+            No combinations match your search.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {visibleCombos.map((combo) => (
               <button
-                key={def.type}
+                key={combo.id}
                 type="button"
-                {...dragProps({ kind: 'widget', type: def.type })}
-                onClick={() => onAdd({ kind: 'widget', type: def.type })}
-                className="group flex cursor-grab flex-col overflow-hidden rounded-xl bg-secondary text-left ring-1 ring-border transition hover:ring-primary active:cursor-grabbing"
+                {...dragProps({ kind: 'combo', id: combo.id })}
+                onClick={() => onAdd({ kind: 'combo', id: combo.id })}
+                className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
               >
-                <WidgetPreview widgets={[samples[def.type]]} width={128} height={76} className="w-full" />
-                <span className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-foreground">
-                  <def.icon className="size-3.5 text-muted-foreground group-hover:text-primary" aria-hidden />
-                  {def.label}
+                <WidgetPreview widgets={combo.widgets} width={96} height={72} className="shrink-0" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium text-foreground">{combo.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">{combo.description}</span>
                 </span>
               </button>
             ))}
           </div>
-        </section>
-      ))}
-
-      <section className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Combinations</h3>
-        <div className="flex flex-col gap-2">
-          {combos.map((combo) => (
-            <button
-              key={combo.id}
-              type="button"
-              {...dragProps({ kind: 'combo', id: combo.id })}
-              onClick={() => onAdd({ kind: 'combo', id: combo.id })}
-              className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
-            >
-              <WidgetPreview widgets={combo.widgets} width={96} height={72} className="shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium text-foreground">{combo.name}</span>
-                <span className="truncate text-xs text-muted-foreground">{combo.description}</span>
-              </span>
-            </button>
-          ))}
-        </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Text stickers</h3>
-        <div className="flex flex-col gap-2">
-          {BUILTIN_STICKERS.map((sticker) => {
-            const widgets = [createStickerWidget(sticker)]
-            return (
-              <button
-                key={sticker.id}
-                type="button"
-                {...dragProps({ kind: 'sticker', id: sticker.id })}
-                onClick={() => onAdd({ kind: 'sticker', id: sticker.id })}
-                className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
-              >
-                <WidgetPreview widgets={widgets} width={96} height={72} className="shrink-0" />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-medium text-foreground">{sticker.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">{sticker.description}</span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        {visibleStickers.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+            No text stickers match your search.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {visibleStickers.map((sticker) => {
+              const widgets = [createStickerWidget(sticker)]
+              return (
+                <button
+                  key={sticker.id}
+                  type="button"
+                  {...dragProps({ kind: 'sticker', id: sticker.id })}
+                  onClick={() => onAdd({ kind: 'sticker', id: sticker.id })}
+                  className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
+                >
+                  <WidgetPreview widgets={widgets} width={96} height={72} className="shrink-0" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm font-medium text-foreground">{sticker.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{sticker.description}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-2">
@@ -110,9 +198,13 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelPro
           <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
             Style a widget or group, then use the bookmark button in the inspector to save it here.
           </p>
+        ) : visiblePresets.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+            No saved widgets match your search.
+          </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {presets.map((preset) => (
+            {visiblePresets.map((preset) => (
               <div key={preset.id} className="flex items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-1 ring-1 ring-border transition hover:ring-primary">
                 <button
                   type="button"
