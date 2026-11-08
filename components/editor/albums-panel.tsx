@@ -57,7 +57,7 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="editor-panel flex flex-col gap-2 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Albums</h2>
@@ -69,7 +69,7 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
           aria-expanded={choosing}
           className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
         >
-          {choosing ? <X className="size-3.5" aria-hidden /> : <Plus className="size-3.5" aria-hidden />}
+          {choosing ? <X className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
           {choosing ? 'Cancel' : 'New album'}
         </button>
       </div>
@@ -123,7 +123,7 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-sm font-medium text-foreground">{album.name}</span>
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <meta.icon className="size-3.5" aria-hidden />
+                      <meta.icon className="size-4" aria-hidden />
                       {meta.label} · {album.items.length}
                     </span>
                     {live && <span className="text-[11px] font-medium text-primary">On this layout</span>}

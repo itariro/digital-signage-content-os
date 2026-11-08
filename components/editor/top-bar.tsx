@@ -57,7 +57,7 @@ export function ThemeToggle() {
   }
 
   return (
-    <button type="button" onClick={toggleTheme} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground">
+    <button type="button" onClick={toggleTheme} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="editor-icon-button">
       {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
     </button>
   )
@@ -66,7 +66,7 @@ export function ThemeToggle() {
 export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, singleFrame = false }: TopBarProps) {
   const { state, dirty } = editor
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 lg:px-4">
+    <header className="editor-panel sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border px-3 lg:px-4">
       <div className="flex items-center gap-2 pr-2">
         <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <Frame className="size-4" aria-hidden />
@@ -89,7 +89,7 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
           maxLength={80}
           onFocus={() => editor.checkpoint()}
           onChange={(e) => editor.rename(e.target.value, false)}
-          className="h-7 w-full min-w-0 max-w-64 rounded-sm bg-transparent px-2 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:bg-secondary"
+          className="h-8 w-full min-w-0 max-w-64 rounded-md bg-transparent px-2 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:bg-secondary"
         />
         {isActive && (
           <span className="hidden shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary md:inline">On frame</span>
@@ -115,7 +115,7 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
         onClick={onPreview}
         className="flex h-8 items-center gap-1.5 rounded-lg bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
       >
-        <Play className="size-3.5" aria-hidden />
+        <Play className="size-4" aria-hidden />
         <span className="hidden sm:inline">Preview</span>
       </button>
       <button
@@ -126,7 +126,7 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
           'relative flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity disabled:opacity-50',
         )}
       >
-        {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+        {saving && <Loader2 className="size-4 animate-spin" aria-hidden />}
         {dirty ? 'Save' : 'Saved'}
         {dirty && !saving && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-card" aria-label="Unsaved changes" />}
       </button>

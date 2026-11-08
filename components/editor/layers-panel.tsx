@@ -11,11 +11,11 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
   const ordered = [...widgets].reverse()
 
   if (widgets.length === 0) {
-    return <p className="p-6 text-center text-sm text-muted-foreground">No widgets yet. Add some from the Widgets tab.</p>
+    return <p className="editor-panel p-6 text-center text-sm text-muted-foreground">No widgets yet. Add some from the Widgets tab.</p>
   }
 
   return (
-    <ul className="flex flex-col gap-1 p-2" aria-label="Layers, top to bottom">
+    <ul className="editor-panel flex flex-col gap-1 p-2" aria-label="Layers, top to bottom">
       {ordered.map((w, i) => {
         const def = getDefinition(w.type)
         const template = def.templates.find((t) => t.id === w.template)?.label
@@ -38,16 +38,16 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
                   editor.select([w.id])
                 }
               }}
-              className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
+              className="flex min-h-8 min-w-0 flex-1 items-center gap-2 py-2 text-left"
             >
-              <def.icon className={cn('size-3.5 shrink-0', isSelected ? 'text-primary' : 'text-muted-foreground')} aria-hidden />
+              <def.icon className={cn('size-4 shrink-0', isSelected ? 'text-primary' : 'text-muted-foreground')} aria-hidden />
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-sm text-foreground">
                   {w.type === 'text' ? String(w.props.text || def.label) : def.label}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">{template}</span>
               </span>
-              {w.groupId && <Link2 className="size-3.5 shrink-0 text-primary" aria-label="Grouped" />}
+              {w.groupId && <Link2 className="size-4 shrink-0 text-primary" aria-label="Grouped" />}
             </button>
             <IconButton label="Move up" disabled={i === 0} onClick={() => editor.reorder(w.id, 'up')}>
               <ChevronUp className="size-4" />

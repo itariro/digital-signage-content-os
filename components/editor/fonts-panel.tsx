@@ -27,7 +27,7 @@ export function FontsPanel({ customFonts, onAdd, onRemove }: FontsPanelProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4">
+    <div className="editor-panel flex flex-col gap-2 p-3">
       <form onSubmit={submit} className="flex flex-col gap-2">
         <label htmlFor="font-family" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Add a Google Font
@@ -39,12 +39,12 @@ export function FontsPanel({ customFonts, onAdd, onRemove }: FontsPanelProps) {
             onChange={(e) => setFamily(e.target.value)}
             placeholder="e.g. Fraunces"
             maxLength={60}
-            className="h-9 min-w-0 flex-1 rounded-md border border-border bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary"
+            className="editor-control h-8 min-w-0 flex-1"
           />
           <button
             type="submit"
             disabled={pending || !family.trim()}
-            className="flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className="flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Plus className="size-4" aria-hidden />}
             Add
@@ -60,7 +60,7 @@ export function FontsPanel({ customFonts, onAdd, onRemove }: FontsPanelProps) {
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Custom fonts</h3>
           <ul className="flex flex-col gap-2">
             {customFonts.map((f) => (
-              <li key={f} className="flex items-center gap-3 rounded-xl bg-secondary px-3 py-3 ring-1 ring-border">
+              <li key={f} className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-3 ring-1 ring-border">
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-2xl leading-tight text-foreground" style={{ fontFamily: fontStack(customFontId(f)) }}>
                     10:42 Aa
@@ -71,7 +71,7 @@ export function FontsPanel({ customFonts, onAdd, onRemove }: FontsPanelProps) {
                   type="button"
                   aria-label={`Remove ${f}`}
                   onClick={() => onRemove(f)}
-                  className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-card hover:text-destructive"
+                  className="editor-icon-button hover:text-destructive"
                 >
                   <Trash2 className="size-4" aria-hidden />
                 </button>
@@ -85,7 +85,7 @@ export function FontsPanel({ customFonts, onAdd, onRemove }: FontsPanelProps) {
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Built-in typefaces</h3>
         <ul className="flex flex-col gap-2">
           {BUILTIN_FONTS.map((f) => (
-            <li key={f.id} className="flex items-center gap-3 rounded-xl bg-secondary px-3 py-3 ring-1 ring-border">
+            <li key={f.id} className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-3 ring-1 ring-border">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-2xl leading-tight text-foreground" style={{ fontFamily: f.css }}>
                   10:42 Aa

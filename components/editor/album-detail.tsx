@@ -48,13 +48,13 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
   const commit = () => update((a) => a, true)
 
   return (
-    <div className="flex flex-col">
+    <div className="editor-panel flex flex-col">
       <div className="flex items-center gap-2 border-b border-border px-3 py-3">
         <button
           type="button"
           onClick={onBack}
           aria-label="Back to albums"
-          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+          className="editor-icon-button"
         >
           <ArrowLeft className="size-4" aria-hidden />
         </button>
@@ -326,7 +326,7 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
         <button
           type="button"
           onClick={onDelete}
-          className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border text-sm text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+          className="flex h-8 w-full items-center justify-center gap-2 rounded-md border border-border text-sm text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
         >
           <Trash2 className="size-4" aria-hidden />
           Delete album
@@ -395,9 +395,9 @@ function PreviewStage({ album }: { album: Album }) {
           aria-label="Previous slide"
           disabled={!slide}
           onClick={() => setOffset((o) => o - 1)}
-          className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-40"
+          className="editor-icon-button disabled:opacity-40"
         >
-          <ChevronLeft className="size-3.5" aria-hidden />
+          <ChevronLeft className="size-4" aria-hidden />
         </button>
         <span className="min-w-12 text-center font-mono text-[11px] tabular-nums text-muted-foreground" aria-live="polite">
           {slide ? `${index}/${album.items.length}` : revealStatus ?? '0/0'}
@@ -407,9 +407,9 @@ function PreviewStage({ album }: { album: Album }) {
           aria-label="Next slide"
           disabled={!slide}
           onClick={() => setOffset((o) => o + 1)}
-          className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-40"
+          className="editor-icon-button disabled:opacity-40"
         >
-          <ChevronRight className="size-3.5" aria-hidden />
+          <ChevronRight className="size-4" aria-hidden />
         </button>
       </div>
     </div>
@@ -471,9 +471,9 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
       <div className="relative">
         {!advanced && <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />}
         {advanced ? (
-          <textarea value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder='[{"artist":"50 Cent","album":"Get Rich or Die Trying"}]' aria-label="Advanced search JSON" rows={4} className="w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary" />
+          <textarea value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder='[{"artist":"50 Cent","album":"Get Rich or Die Trying"}]' aria-label="Advanced search JSON" rows={4} className="editor-control w-full resize-y py-2 font-mono text-xs" />
         ) : (
-          <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder={meta.placeholder} aria-label={meta.placeholder} className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-9 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary" />
+          <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder={meta.placeholder} aria-label={meta.placeholder} className="editor-control h-8 w-full pl-9 pr-9" />
         )}
         {isLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
       </div>
@@ -544,7 +544,7 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
             type="button"
             onClick={() => setPage((current) => Math.max(1, current - 1))}
             disabled={page === 1 || isLoading}
-            className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-8 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
             Previous
           </button>
@@ -553,7 +553,7 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
             type="button"
             onClick={() => setPage((current) => current + 1)}
             disabled={!hasMore || isLoading}
-            className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-8 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
             Next
           </button>
@@ -675,7 +675,7 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
               onCommit()
             }}
             aria-label="Remove portrait"
-            className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive"
+            className="editor-icon-button shrink-0 hover:text-destructive"
           >
             <Trash2 className="size-4" aria-hidden />
           </button>
@@ -704,7 +704,7 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search portraits"
               aria-label="Search portraits"
-              className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-9 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary"
+              className="editor-control h-8 w-full pl-9 pr-9"
             />
             {(isLoading || busy) && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
           </div>
@@ -799,9 +799,9 @@ function ItemsGrid({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: Album
                   type="button"
                   onClick={() => onUpdate((a) => ({ ...a, items: a.items.filter((i) => i.id !== item.id) }))}
                   aria-label={`Remove ${item.title}`}
-                  className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-background/80 text-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                  className="editor-icon-button absolute right-0.5 top-0.5 rounded-md bg-background/80 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 hover:text-destructive"
                 >
-                  <X className="size-3" aria-hidden />
+                  <X className="size-4" aria-hidden />
                 </button>
               </li>
             ))}

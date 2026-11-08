@@ -451,7 +451,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
           onExport={exportLayout}
         />
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
-          <nav aria-label="Editor sections" className="flex w-12 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-border bg-card py-2">
+          <nav aria-label="Editor sections" className="editor-panel flex w-10 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-border py-2">
             <button
               type="button"
               aria-label="Widgets"
@@ -460,7 +460,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               onClick={(event) => toggleDrawer('widgets', event.currentTarget)}
               className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', activeDrawer === 'widgets' && 'bg-primary/10 text-primary')}
             >
-              <Grid2X2 className="size-4" aria-hidden />
+              <Grid2X2 className="size-[18px]" aria-hidden />
             </button>
             {PANELS.map((panel) => {
               const Icon = panel.icon
@@ -475,7 +475,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
                   onClick={(event) => toggleDrawer(panel.id, event.currentTarget)}
                   className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', activeDrawer === panel.id && 'bg-primary/10 text-primary')}
                 >
-                  <Icon className="size-4" aria-hidden />
+                  <Icon className="size-[18px]" aria-hidden />
                 </button>
               )
             })}
@@ -487,7 +487,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               onClick={(event) => toggleDrawer('properties', event.currentTarget)}
               className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:hidden', activeDrawer === 'properties' && 'bg-primary/10 text-primary')}
             >
-              <SlidersHorizontal className="size-4" aria-hidden />
+              <SlidersHorizontal className="size-[18px]" aria-hidden />
             </button>
             <div className="mt-auto border-t border-border pt-2"><ThemeToggle /></div>
           </nav>
@@ -528,9 +528,9 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               role="dialog"
               aria-modal="false"
               aria-labelledby="editor-drawer-title"
-              className={cn('absolute inset-y-0 right-0 z-20 w-80 max-w-full flex-col overflow-hidden border-l border-border bg-card shadow-xl', activeDrawer ? 'flex' : 'hidden')}
+              className={cn('editor-panel absolute inset-y-0 right-0 z-20 w-80 max-w-[calc(100%-1rem)] flex-col overflow-hidden border-l border-border shadow-xl', activeDrawer ? 'flex' : 'hidden')}
             >
-              <header className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
+              <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
                 <h2 id="editor-drawer-title" className="text-base font-semibold tracking-tight">
                   {drawerTitle}
                 </h2>
@@ -538,7 +538,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
                   type="button"
                   aria-label={`Close ${drawerTitle} panel`}
                   onClick={closeDrawer}
-                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  className="editor-icon-button"
                 >
                   <X className="size-4" aria-hidden />
                 </button>
@@ -580,7 +580,7 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
             </section>
           </main>
 
-          <aside aria-label="Inspector" className="hidden min-h-0 flex-col overflow-hidden border-l border-border bg-card lg:flex lg:h-full lg:w-80 lg:shrink-0">
+          <aside aria-label="Inspector" className="editor-panel hidden min-h-0 flex-col overflow-hidden border-l border-border lg:flex lg:h-full lg:w-72 lg:shrink-0">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <Inspector
                 editor={editor}

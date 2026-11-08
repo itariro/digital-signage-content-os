@@ -153,9 +153,40 @@
 }
 
 @layer components {
+  .editor-panel {
+    @apply border-border bg-card text-card-foreground;
+  }
+
+  .editor-panel-heading {
+    @apply border-b border-border px-3 py-2 text-sm font-semibold tracking-tight;
+  }
+
+  .editor-panel-section {
+    @apply flex flex-col gap-2 border-b border-border px-3 py-3 last:border-b-0;
+  }
+
+  .editor-control {
+    @apply min-h-8 rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none transition-colors;
+  }
+
+  .editor-control:focus-visible {
+    @apply border-primary ring-2 ring-ring/30;
+  }
+
+  .editor-icon-button {
+    @apply inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .editor-floating-surface {
+    @apply rounded-lg border border-border bg-popover text-popover-foreground shadow-lg;
+  }
+
   .canvas-surface {
     background-color: var(--background);
-    background-image: radial-gradient(color-mix(in srgb, var(--foreground) 8%, transparent) 1px, transparent 1px);
+    background-image: radial-gradient(
+      color-mix(in srgb, var(--foreground) 8%, transparent) 1px,
+      transparent 1px
+    );
     background-size: 20px 20px;
   }
 

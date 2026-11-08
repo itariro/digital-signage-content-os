@@ -96,12 +96,12 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="editor-panel flex flex-col">
       <Section
         title="Experiences"
         action={
           <button type="button" onClick={addRule} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            <Plus className="size-3.5" aria-hidden />
+            <Plus className="size-4" aria-hidden />
             Add rule
           </button>
         }
@@ -112,7 +112,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
           onChange={(enabled) => update({ ...draft, enabled })}
         />
         {draft.rules.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-4 text-center">
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border p-4 text-center">
             <p className="text-xs leading-relaxed text-muted-foreground">
               Add a rule to show different layouts based on time, weather, or special days.
             </p>
@@ -120,7 +120,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
         ) : (
           <ol className={!draft.enabled ? 'flex flex-col gap-2 opacity-50' : 'flex flex-col gap-2'}>
             {draft.rules.map((rule, index) => (
-              <li key={rule.id} className="flex flex-col gap-3 rounded-xl bg-secondary p-3 ring-1 ring-border">
+              <li key={rule.id} className="flex flex-col gap-2 rounded-lg bg-secondary p-3 ring-1 ring-border">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-muted-foreground">#{index + 1}</span>
                   <label className="sr-only" htmlFor={`exp-name-${rule.id}`}>
@@ -130,14 +130,14 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                     id={`exp-name-${rule.id}`}
                     value={rule.name}
                     onChange={(e) => updateRule(rule.id, { name: e.target.value }, true)}
-                    className="h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground"
+                    className="editor-control h-8 min-w-0 flex-1 px-2"
                   />
                   <label className="flex items-center gap-1 text-xs text-muted-foreground">
                     <input
                       type="checkbox"
                       checked={rule.enabled}
                       onChange={(e) => updateRule(rule.id, { enabled: e.target.checked })}
-                      className="size-3.5"
+                      className="size-4"
                     />
                     On
                   </label>
@@ -145,7 +145,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                     type="button"
                     aria-label={`Remove rule ${index + 1}`}
                     onClick={() => removeRule(rule.id)}
-                    className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-card hover:text-destructive"
+                    className="editor-icon-button hover:text-destructive"
                   >
                     <Trash2 className="size-4" aria-hidden />
                   </button>
@@ -164,8 +164,8 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                         onClick={() => updateRule(rule.id, { when: mergeDaysCondition(rule.when, toggleWeekday(currentDays, value, !on)) })}
                         className={
                           on
-                            ? 'h-6 flex-1 rounded-sm bg-primary text-[10px] font-medium text-primary-foreground'
-                            : 'h-6 flex-1 rounded-sm text-[10px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground'
+                            ? 'h-8 flex-1 rounded-sm bg-primary text-[10px] font-medium text-primary-foreground'
+                            : 'h-8 flex-1 rounded-sm text-[10px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground'
                         }
                       >
                         {label[0]}
@@ -176,11 +176,11 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Layout</span>
+                    <span className="text-sm text-foreground">Layout</span>
                     <select
                       value={rule.then.layoutId}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, layoutId: e.target.value } })}
-                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                      className="editor-control h-8 px-2"
                     >
                       {layouts.map((l) => (
                         <option key={l.id} value={l.id}>
@@ -190,11 +190,11 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">State</span>
+                    <span className="text-sm text-foreground">State</span>
                     <select
                       value={rule.then.state}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, state: e.target.value as ExperienceRule['then']['state'] } })}
-                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                      className="editor-control h-8 px-2"
                     >
                       {STATE_OPTIONS.map(({ value, label }) => (
                         <option key={value} value={value}>
@@ -207,7 +207,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Bob expression</span>
+                    <span className="text-sm text-foreground">Bob expression</span>
                     <select
                       value={rule.then.bob?.expression ?? ''}
                       onChange={(e) =>
@@ -220,7 +220,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                           },
                         })
                       }
-                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                      className="editor-control h-8 px-2"
                     >
                       <option value="">No Bob</option>
                       {EXPRESSION_OPTIONS.map(({ value, label }) => (
@@ -231,7 +231,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Bob speech</span>
+                    <span className="text-sm text-foreground">Bob speech</span>
                     <input
                       type="text"
                       maxLength={500}
@@ -244,43 +244,43 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                           : undefined
                         updateRule(rule.id, { then: { ...rule.then, bob } }, true)
                       }}
-                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                      className="editor-control h-8 px-2"
                     />
                   </label>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Priority</span>
+                    <span className="text-sm text-foreground">Priority</span>
                     <input
                       type="number"
                       min={0}
                       max={1000}
                       value={rule.priority}
                       onChange={(e) => updateRule(rule.id, { priority: parseInt(e.target.value) || 0 })}
-                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                      className="editor-control h-8 px-2"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Score</span>
+                    <span className="text-sm text-foreground">Score</span>
                     <input
                       type="number"
                       min={-1000}
                       max={1000}
                       value={rule.then.score}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, score: parseInt(e.target.value) || 0 } })}
-                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                      className="editor-control h-8 px-2"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Duration (ms)</span>
+                    <span className="text-sm text-foreground">Duration (ms)</span>
                     <input
                       type="number"
                       min={0}
                       max={86400000}
                       value={rule.then.durationMs}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, durationMs: parseInt(e.target.value) || 0 } })}
-                      className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                      className="editor-control h-8 px-2"
                     />
                   </label>
                 </div>
@@ -295,7 +295,7 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
 
       <Section title="Settings">
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">School holidays (comma-separated dates)</span>
+          <span className="text-sm text-foreground">School holidays (comma-separated dates)</span>
           <input
             type="text"
             value={draft.settings.schoolHolidays.join(', ')}
@@ -312,17 +312,17 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
               )
             }
             placeholder="2026-12-25, 2026-12-26"
-            className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+            className="editor-control h-8 px-2"
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Timezone</span>
+          <span className="text-sm text-foreground">Timezone</span>
           <input
             type="text"
             value={draft.settings.timezone ?? ''}
             onChange={(e) => update({ ...draft, settings: { ...draft.settings, timezone: e.target.value || undefined } }, true)}
             placeholder="Europe/Zurich"
-            className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+            className="editor-control h-8 px-2"
           />
         </label>
       </Section>
@@ -398,7 +398,7 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
   return (
     <div className="flex flex-col gap-2">
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Simulated time (frame local)</span>
+        <span className="text-sm text-foreground">Simulated time (frame local)</span>
         <input
           type="datetime-local"
           value={dateTime}
@@ -406,7 +406,7 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
             timeTouched.current = true
             setDateTime(e.target.value)
           }}
-          className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+          className="editor-control h-8 px-2"
         />
       </label>
       <button

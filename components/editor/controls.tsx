@@ -8,7 +8,7 @@ import { STYLE_THEMES } from '@/lib/widgets'
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="flex flex-col gap-1.5 border-b border-border px-2.5 py-2 last:border-b-0">
+    <section className="editor-panel-section">
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
         {action}
@@ -39,9 +39,9 @@ export function SliderField({
 }) {
   const id = useId()
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-xs text-foreground">
+        <label htmlFor={id} className="text-sm text-foreground">
           {label}
         </label>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -75,7 +75,7 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-sm text-foreground">{label}</span>
-        <label htmlFor={id} className="flex cursor-pointer items-center gap-2 rounded-md bg-secondary px-2 py-1 font-mono text-xs uppercase text-muted-foreground">
+        <label htmlFor={id} className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-2 font-mono text-xs uppercase text-muted-foreground">
           <span className="size-3.5 rounded-full ring-1 ring-border" style={{ background: value }} />
           {value}
           <input id={id} type="color" value={value} onChange={(e) => onChange(e.target.value)} className="sr-only" aria-label={`${label} custom color`} />
@@ -139,7 +139,7 @@ export function TimeField({ label, value, onChange }: { label: string; value: st
         type="time"
         value={value}
         onChange={(e) => e.target.value && onChange(e.target.value)}
-        className="h-8 rounded-md border border-border bg-secondary px-2 font-mono text-xs text-foreground outline-none [color-scheme:dark] focus-visible:border-primary"
+        className="editor-control h-8 px-2 font-mono text-xs"
       />
     </div>
   )
@@ -152,7 +152,7 @@ export function ToggleField({ label, checked, onChange }: { label: string; check
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between gap-2 text-left text-xs text-foreground"
+      className="flex items-center justify-between gap-2 text-left text-sm text-foreground"
     >
       {label}
       <span className={cn('relative h-4 w-7 shrink-0 rounded-full transition-colors', checked ? 'bg-primary' : 'bg-secondary')}>
@@ -183,7 +183,7 @@ export function SelectField({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 max-w-[60%] rounded-md border border-border bg-secondary px-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+        className="editor-control h-8 max-w-[60%] px-2"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -209,7 +209,7 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn('flex rounded-lg bg-secondary p-0.5', className)}>
+    <div role="radiogroup" aria-label={label} className={cn('flex h-8 rounded-md bg-secondary p-0.5', className)}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -219,8 +219,8 @@ export function Segmented<T extends string>({
           title={o.title}
           onClick={() => onChange(o.value)}
           className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
-            value === o.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors',
+            value === o.value ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
           {o.label}
@@ -233,8 +233,8 @@ export function Segmented<T extends string>({
 export function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   const id = useId()
   return (
-    <div className="flex items-center gap-2 rounded-md bg-secondary px-2">
-      <label htmlFor={id} className="font-mono text-xs text-muted-foreground">
+    <div className="editor-control flex h-8 items-center gap-2 px-2">
+      <label htmlFor={id} className="font-mono text-sm text-muted-foreground">
         {label}
       </label>
       <input
@@ -275,8 +275,8 @@ export function IconButton({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-        active && 'bg-secondary text-foreground',
+        'editor-icon-button',
+        active && 'bg-primary/10 text-primary',
         className,
       )}
     >
@@ -389,7 +389,7 @@ export function GradientStopPicker({
             aria-label={`Stop ${i + 1} color`}
             onFocus={onCommit}
             onChange={(e) => update(i, { color: e.target.value })}
-            className="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-border bg-secondary"
+            className="editor-control h-8 w-10 shrink-0 cursor-pointer p-1"
           />
           <div className="min-w-0 flex-1">
             <SliderField
@@ -410,7 +410,7 @@ export function GradientStopPicker({
               onCommit?.()
               onChange(stops.filter((_, j) => j !== i))
             }}
-            className="shrink-0 rounded-md bg-secondary px-2 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
+            className="flex h-8 shrink-0 items-center rounded-md bg-secondary px-2 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
           >
             Remove
           </button>
@@ -424,7 +424,7 @@ export function GradientStopPicker({
           onCommit?.()
           onChange([...stops, { color: '#ffffff', position: Math.min(100, Math.round(100 / (stops.length + 1))) }])
         }}
-        className="rounded-md bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
+        className="h-8 rounded-md bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
       >
         Add stop
       </button>
@@ -537,12 +537,12 @@ export function ImageFillField({
               value={urlDraft}
               onChange={(e) => setUrlDraft(e.target.value)}
               placeholder="https://… or /api/uploads/…"
-              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none focus-visible:border-primary"
+              className="editor-control h-8 min-w-0 flex-1"
             />
             <button
               type="button"
               onClick={applyUrl}
-              className="shrink-0 rounded-md bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/70"
+              className="flex h-8 shrink-0 items-center rounded-md bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/70"
             >
               Apply
             </button>

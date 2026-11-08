@@ -31,11 +31,11 @@ export function WidgetToolbar({ onAdd, overlay, onOverlayChange, nightPreview, o
   }, [query, chip])
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-10 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-2 py-1.5 shadow-xl backdrop-blur" role="toolbar" aria-label="Widget tools">
+    <div className="editor-floating-surface absolute bottom-4 left-1/2 z-10 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-nowrap items-center justify-start gap-2 overflow-x-auto overscroll-x-contain px-2 py-1.5 shadow-xl backdrop-blur" role="toolbar" aria-label="Widget tools">
       {/* 1. Unified search */}
-      <div className="flex items-center gap-2 rounded-lg bg-secondary px-2.5">
+      <div className="flex h-8 shrink-0 items-center gap-2 rounded-md bg-secondary px-2.5">
         <Search className="size-4" aria-hidden />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search widgets…" className="h-9 w-44 bg-transparent outline-none" aria-label="Search widgets" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search widgets…" className="h-8 w-44 bg-transparent text-sm outline-none" aria-label="Search widgets" />
         {query && (
           <button type="button" aria-label="Clear search" onClick={() => setQuery('')} className="text-muted-foreground hover:text-foreground">
             ×
@@ -50,7 +50,7 @@ export function WidgetToolbar({ onAdd, overlay, onOverlayChange, nightPreview, o
           type="button"
           aria-pressed={chip === c}
           onClick={() => setChip(c)}
-          className={cn('rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors', chip === c ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground')}
+          className={cn('h-8 shrink-0 rounded-full px-2.5 text-xs font-medium transition-colors', chip === c ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground')}
         >
           {c}
         </button>
@@ -66,7 +66,7 @@ export function WidgetToolbar({ onAdd, overlay, onOverlayChange, nightPreview, o
             title={w.label}
             aria-label={`Add ${w.label}`}
             onClick={() => onAdd({ kind: 'widget', type: w.type as WidgetType })}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="editor-icon-button"
           >
             <Icon aria-hidden />
           </button>
@@ -80,15 +80,15 @@ export function WidgetToolbar({ onAdd, overlay, onOverlayChange, nightPreview, o
         onChange={onOverlayChange}
         options={[
           { value: 'none', label: 'No guides' },
-          { value: 'thirds', label: (<><Grid3x3 className="size-3.5" aria-hidden />Thirds</>) },
-          { value: 'safe', label: (<><Scan className="size-3.5" aria-hidden />Safe area</>) },
+          { value: 'thirds', label: (<><Grid3x3 className="size-4" aria-hidden />Thirds</>) },
+          { value: 'safe', label: (<><Scan className="size-4" aria-hidden />Safe area</>) },
         ]}
       />
       <button
         type="button"
         aria-pressed={nightPreview}
         onClick={onToggleNight}
-        className={cn('flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors', nightPreview ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground')}
+        className={cn('flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors', nightPreview ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-foreground')}
       >
         <MoonStar className="size-4" aria-hidden />
         Night

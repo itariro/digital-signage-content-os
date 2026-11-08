@@ -24,7 +24,7 @@ export function PreviewOverlay({ name, widgets, settings, weather, now, album, n
   const scale = useFitScale(ref)
   return (
     <div role="dialog" aria-modal="true" aria-label={`Preview of ${name}`} className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="editor-panel flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div>
           <p className="text-sm font-semibold text-foreground">{name}</p>
           <p className="text-xs text-muted-foreground">
@@ -37,7 +37,7 @@ export function PreviewOverlay({ name, widgets, settings, weather, now, album, n
           type="button"
           autoFocus
           onClick={onClose}
-          className="flex h-9 items-center gap-1.5 rounded-lg bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
+          className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
         >
           <X className="size-4" aria-hidden />
           Close
