@@ -26,10 +26,11 @@ describe('editor navigation shell', () => {
     expect(editorSource).toContain('role="dialog"')
   })
 
-  it('keeps the existing canvas toolbar and inspector mounted', () => {
-    expect(editorSource).toContain('<WidgetToolbar')
+  it('keeps the canvas and inspector mounted without a bottom widget toolbar', () => {
+    expect(editorSource).not.toContain('<WidgetToolbar')
     expect(editorSource).toContain('<Inspector')
     expect(editorSource).toContain('<Canvas')
+    expect(editorSource).toContain('w-72')
   })
 
   it('provides a narrow-screen Properties control', () => {

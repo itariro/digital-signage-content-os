@@ -45,6 +45,22 @@ describe('widget library panel contract', () => {
     expect(librarySource).toContain('const visiblePresets = presets.filter')
   })
 
+  it('renders categories as a separate horizontally scrollable parent row', () => {
+    expect(librarySource).toContain('aria-label="Filter widgets by category"')
+    expect(librarySource).toContain('aria-pressed={category === option}')
+    expect(librarySource).toContain('overflow-x-auto')
+    expect(librarySource).toContain('flex-nowrap')
+    expect(librarySource).toContain('shrink-0')
+    expect(librarySource).toContain('aria-label={`${category} widgets`}')
+  })
+
+  it('keeps global search on supporting sections while category filters widgets only', () => {
+    expect(librarySource).toContain('matchesWidgetCategory(category, widget.category)')
+    expect(librarySource).toContain('matchesLibrarySearch(query, [combo.name, combo.description])')
+    expect(librarySource).toContain('matchesLibrarySearch(query, [sticker.name, sticker.description])')
+    expect(librarySource).toContain('const visiblePresets = presets.filter')
+  })
+
   it('preserves library actions, previews, and descriptions', () => {
     for (const behavior of [
       'BUILTIN_COMBOS',
@@ -60,6 +76,7 @@ describe('widget library panel contract', () => {
       'onClick={() => onAdd({ kind: \'preset\'',
       'combo.description',
       'sticker.description',
+      '{def.description}',
     ]) {
       expect(librarySource).toContain(behavior)
     }

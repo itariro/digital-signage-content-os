@@ -1,6 +1,6 @@
 'use client'
 
-import { Download, Frame, Loader2, Moon, Play, Redo2, Sun, Undo2 } from 'lucide-react'
+import { Download, Frame, Loader2, Moon, MoonStar, Play, Redo2, Sun, Undo2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { EditorApi } from '@/hooks/use-editor'
 import { IconButton } from './controls'
@@ -16,8 +16,10 @@ type TopBarProps = {
   editor: EditorApi
   isActive: boolean
   saving: boolean
+  nightPreview: boolean
   onSave: () => void
   onPreview: () => void
+  onToggleNight: () => void
   onExport: () => void
 }
 
@@ -63,7 +65,7 @@ export function ThemeToggle() {
   )
 }
 
-export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, singleFrame = false }: TopBarProps) {
+export function TopBar({ editor, isActive, saving, nightPreview, onSave, onPreview, onToggleNight, onExport, singleFrame = false }: TopBarProps) {
   const { state, dirty } = editor
   return (
     <header className="editor-panel sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border px-3 lg:px-4">
@@ -117,6 +119,19 @@ export function TopBar({ editor, isActive, saving, onSave, onPreview, onExport, 
       >
         <Play className="size-4" aria-hidden />
         <span className="hidden sm:inline">Preview</span>
+      </button>
+      <button
+        type="button"
+        aria-label="Night preview"
+        aria-pressed={nightPreview}
+        onClick={onToggleNight}
+        className={cn(
+          'flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors',
+          nightPreview ? 'bg-primary/10 text-primary' : 'bg-secondary text-foreground hover:bg-secondary/70',
+        )}
+      >
+        <MoonStar className="size-4" aria-hidden />
+        <span className="hidden sm:inline">Night</span>
       </button>
       <button
         type="button"

@@ -29,7 +29,6 @@ import { ThemeToggle, TopBar } from './top-bar'
 import { PreviewOverlay } from './preview-overlay'
 import { LiveDataContext } from './widget-preview'
 import { cn } from '@/lib/utils'
-import { WidgetToolbar } from './widget-toolbar'
 import { LibraryPanel } from './library-panel'
 
 const PANELS = [
@@ -450,8 +449,10 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
           editor={editor}
           isActive={store.activeId === state.layoutId}
           saving={saving}
+          nightPreview={nightPreview}
           onSave={save}
           onPreview={() => setPreviewOpen(true)}
+          onToggleNight={() => setNightPreview((value) => !value)}
           onExport={exportLayout}
         />
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
@@ -506,33 +507,19 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
               night={store.schedule.night}
               nightPreview={nightPreview}
               overlay={overlay}
+              onOverlayChange={setOverlay}
               onDrop={addItem}
             />
-            <style>{`
-              @media (max-width: 63.999rem) {
-                .editor-canvas > [role="toolbar"] {
-                  left: 0.5rem;
-                  right: 0.5rem;
-                  max-width: calc(100% - 1rem);
-                  flex-wrap: nowrap;
-                  justify-content: flex-start;
-                  overflow-x: auto;
-                  transform: none;
-                  translate: 0 0;
-                }
-
-                .editor-canvas > [role="toolbar"] > * {
-                  flex: 0 0 auto;
-                }
-              }
-            `}</style>
-            <WidgetToolbar onAdd={addItem} overlay={overlay} onOverlayChange={setOverlay} nightPreview={nightPreview} onToggleNight={() => setNightPreview((v) => !v)} />
             <section
               id="editor-drawer"
               role="dialog"
               aria-modal="false"
               aria-labelledby="editor-drawer-title"
-              className={cn('editor-panel absolute inset-y-0 right-0 z-20 w-80 max-w-[calc(100%-1rem)] flex-col overflow-hidden border-l border-border shadow-xl', activeDrawer ? 'flex' : 'hidden')}
+              className={cn(
+                'editor-panel absolute inset-y-0 right-0 z-20 max-w-[calc(100%-1rem)] flex-col overflow-hidden border-l border-border shadow-xl',
+                activeDrawer === 'widgets' ? 'w-72' : 'w-80',
+                activeDrawer ? 'flex' : 'hidden',
+              )}
             >
               <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
                 <h2 id="editor-drawer-title" className="text-base font-semibold tracking-tight">

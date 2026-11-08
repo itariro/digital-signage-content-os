@@ -88,14 +88,18 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
             </button>
           )}
         </div>
-        <div role="group" aria-label="Filter widgets by category" className="flex flex-wrap gap-1.5">
+        <div
+          role="group"
+          aria-label="Filter widgets by category"
+          className="flex flex-nowrap gap-1.5 overflow-x-auto overscroll-x-contain pb-1"
+        >
           {WIDGET_LIBRARY_CATEGORIES.map((option) => (
             <button
               key={option}
               type="button"
               aria-pressed={category === option}
               onClick={() => setCategory(option)}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                 category === option
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-muted-foreground hover:text-foreground'
@@ -107,37 +111,42 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
         </div>
       </div>
 
-      {widgetCategories.map((widgetCategory) => {
-        const widgets = visibleWidgets.filter((widget) => widget.category === widgetCategory)
-        return (
-          <section key={widgetCategory} className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{widgetCategory}</h3>
-            {widgets.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
-                No {widgetCategory.toLowerCase()} widgets match your search.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {widgets.map((def) => (
-                  <button
-                    key={def.type}
-                    type="button"
-                    {...dragProps({ kind: 'widget', type: def.type }, onClose)}
-                    onClick={() => onAdd({ kind: 'widget', type: def.type })}
-                    className="group flex cursor-grab flex-col overflow-hidden rounded-xl bg-secondary text-left ring-1 ring-border transition hover:ring-primary active:cursor-grabbing"
-                  >
-                    <WidgetPreview widgets={[samples[def.type]]} width={128} height={76} className="w-full" />
-                    <span className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-foreground">
-                      <def.icon className="size-3.5 text-muted-foreground group-hover:text-primary" aria-hidden />
-                      {def.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-        )
-      })}
+      <section aria-label={`${category} widgets`} className="flex flex-col gap-4">
+        {widgetCategories.map((widgetCategory) => {
+          const widgets = visibleWidgets.filter((widget) => widget.category === widgetCategory)
+          return (
+            <section key={widgetCategory} className="flex flex-col gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{widgetCategory}</h3>
+              {widgets.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+                  No {widgetCategory.toLowerCase()} widgets match your search.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {widgets.map((def) => (
+                    <button
+                      key={def.type}
+                      type="button"
+                      {...dragProps({ kind: 'widget', type: def.type }, onClose)}
+                      onClick={() => onAdd({ kind: 'widget', type: def.type })}
+                      className="group flex min-w-0 cursor-grab items-center gap-2 overflow-hidden rounded-lg bg-secondary p-2 text-left ring-1 ring-border transition hover:ring-primary active:cursor-grabbing"
+                    >
+                      <WidgetPreview widgets={[samples[def.type]]} width={72} height={48} className="shrink-0 rounded-md" />
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="flex items-center gap-1.5 truncate text-xs font-medium text-foreground">
+                          <def.icon className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden />
+                          <span className="truncate">{def.label}</span>
+                        </span>
+                        <span className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">{def.description}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )
+        })}
+      </section>
 
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Combinations</h3>
