@@ -14,7 +14,7 @@
 #                          If the picture is upside down, use 'right'.
 #   -o, --output NAME      xrandr output, e.g. DP-1 (default: first connected)
 #   -m, --mode WxH         force a resolution (default: monitor's preferred mode)
-#       --scale FACTOR     Chromium device scale factor, e.g. 1.5
+#       --scale FACTOR     Surf has no scale factor (kept for compatibility; ignored)
 #       --touch            rotate touchscreen input to match the display
 #       --console-url URL  console base URL for frame enrollment
 #       --enroll-code CODE one-time enrollment code (pulls per-frame keys)
@@ -54,13 +54,14 @@ readonly MIN_FREE_KB=1500000
 readonly MIN_RAM_KB=1000000
 
 # Files replaced by --update-runtime. Keep in sync with t_install_cli,
-# t_write_session, t_write_ctl, t_xsession, t_write_app_service,
+# t_write_session, t_write_ctl, t_xinit, t_getty, t_write_app_service,
 # t_write_update_timer and t_write_standby_scripts.
 RUNTIME_FILES=(
     /usr/local/bin/kiosk
     "${LIB_DIR}/session.sh"
     /usr/local/bin/kiosk-ctl
-    /usr/share/xsessions/kiosk.desktop
+    /usr/local/bin/kiosk-xinit
+    /etc/systemd/system/getty@tty1.service.d/override.conf
     /etc/systemd/system/dscos.service
     /etc/systemd/system/kiosk-update.service
     /etc/systemd/system/kiosk-update.timer
@@ -351,7 +352,7 @@ splash() {
     gradient_rule 36
     printf '  %s\n' "$REPLY"
     printf '  %s%sDigital Signage Kiosk Installer%s  %sv%s%s\n' "$BOLD" "$ACCENT" "$RST" "$MUTED" "$INSTALLER_VERSION" "$RST"
-    printf '  %sChromium %s Openbox %s LightDM %s portrait-ready%s\n\n' "$MUTED" "$G_SEP" "$G_SEP" "$G_SEP" "$RST"
+    printf '  %sSurf %s Openbox %s Getty %s portrait-ready%s\n\n' "$MUTED" "$G_SEP" "$G_SEP" "$G_SEP" "$RST"
 }
 
 info()  { printf '    %s%s%s\n' "$MUTED" "$*" "$RST"; }
@@ -513,7 +514,7 @@ apt_run() {
     local mode=$1 sf="$STATE_DIR/apt.status" pid rc=0 line kind pkg pct frac detail
     : >"$sf"
     if (( DRY )); then
-        local i names=(xserver-xorg-core lightdm openbox chromium curl fonts-dejavu-core systemd-timesyncd)
+        local i names=(xserver-xorg-core openbox surf curl fonts-dejavu-core systemd-timesyncd)
         for i in $(seq 0 4 100); do
             printf '%s' "$i" >"$STATE_DIR/frac"
             if [[ $mode == update ]]; then detail=""; elif (( i < 40 )); then detail="downloading"; else detail="${names[i * ${#names[@]} / 101]}"; fi
@@ -595,17 +596,24 @@ t_check_hw() {
 }
 
 t_preseed() {
-    # If another display manager is already present, make sure LightDM wins.
-    echo "lightdm shared/default-x-display-manager select lightdm" | debconf-set-selections
+    # Getty autologin replaces any display manager: do not preseed a default
+    # display-manager selection. No-op kept so existing task lines don't break.
+    true
 }
 
 t_apt_update()  { apt_run update; }
-t_apt_install() { apt_run install -y --no-install-recommends "${PACKAGES[@]}"; }
+t_apt_install() {
+    apt_run install -y --no-install-recommends "${PACKAGES[@]}"
+    # Purge stale kernels; never touch the running one (uname -r).
+    local current
+    current=$(uname -r)
+    dpkg -l 'linux-image-*' | awk '/^ii/{print $2}' | grep -E '^linux-image-[0-9]' | grep -Fvx "linux-image-${current}" | xargs -r apt-get purge -y || true
+}
 t_apt_zram()    { apt_run install -y --no-install-recommends systemd-zram-generator; }
 
 t_verify_cmds() {
     local cmd
-    for cmd in chromium openbox lightdm xrandr xset xprop curl; do
+    for cmd in surf openbox xrandr xset xprop curl; do
         command -v "$cmd" >/dev/null 2>&1 || { echo "'$cmd' is missing after installation" >&2; return 1; }
     done
 }
@@ -635,7 +643,7 @@ t_prep_dirs() {
     chown "$KIOSK_USER:$KIOSK_GROUP" "$KIOSK_HOME"
     chmod 0750 "$KIOSK_HOME"
     install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0755 "$KIOSK_HOME/.config"
-    install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0700 "$KIOSK_HOME/.config/chromium"
+    install -d -o "$KIOSK_USER" -g "$KIOSK_GROUP" -m 0700 "$KIOSK_HOME/.local/share/surf"
     install -d -o root -g root -m 0755 "$CONF_DIR" "$LIB_DIR"
     # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only.
     # Drop 'localhost' from the ::1 line so localhost -> 127.0.0.1 (IPv4) only.
@@ -656,7 +664,7 @@ KIOSK_ROTATE='${ROTATE}'
 KIOSK_OUTPUT='${OUTPUT}'
 # Force a mode such as 1440x2560 (empty = monitor's preferred mode)
 KIOSK_MODE='${MODE}'
-# Chromium device scale factor (empty = 1.0)
+# Device scale factor; kept for CLI compat, ignored by Surf (no scale concept)
 KIOSK_SCALE='${SCALE}'
 # 1 = rotate touchscreen input to match the display
 KIOSK_TOUCH=${TOUCH}
@@ -666,7 +674,7 @@ KIOSK_RESTART_HOURS=${RESTART_HOURS}
 # Seconds to wait for the network / for the monitor to appear at start-up
 KIOSK_NET_WAIT=60
 KIOSK_DISPLAY_WAIT=30
-# Extra Chromium flags, space separated (no quoting inside)
+# Extra browser flags; kept for CLI compat, ignored by Surf
 KIOSK_EXTRA_FLAGS=''
 # Standby schedule (overnight display standby)
 KIOSK_STANDBY_ENABLED=1
@@ -681,15 +689,22 @@ EOF
 t_write_session() {
     write_file "$LIB_DIR/session.sh" 0755 <<'SESSION_EOF'
 #!/bin/bash
-# Kiosk session. Runs as the kiosk user inside the X session started by LightDM.
-# If this script ever exits, the session ends and LightDM logs the user back in.
+# Kiosk session. Runs as the kiosk user inside the X session started from getty.
+# If this script ever exits, the getty login ends and the screen goes dark
+# until the next getty autologin.
 set -u
 
+export WEBKIT_DISABLE_COMPOSITING_MODE=1
+export WEBKIT_FORCE_SANDBOX=0
+export DISPLAY=:0
+export XAUTHORITY=/home/kiosk/.Xauthority
+
 CONFIG_FILE=/etc/kiosk/kiosk.conf
-RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}
-CHROMIUM_LOG="${RUNTIME_DIR}/kiosk-chromium.log"
-CACHE_DIR="${RUNTIME_DIR}/kiosk-chromium-cache"   # tmpfs: spares the eMMC
-PROFILE_DIR="${HOME}/.config/chromium"
+RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u 2>/dev/null || echo 0)}
+mkdir -p "$RUNTIME_DIR" 2>/dev/null || RUNTIME_DIR=/tmp
+SURF_LOG="${RUNTIME_DIR}/kiosk-surf.log"
+CACHE_DIR="${RUNTIME_DIR}/kiosk-surf-cache"   # tmpfs: spares the eMMC
+export XDG_CACHE_HOME="$CACHE_DIR"
 WM_PID=""
 BROWSER_PID=""
 
@@ -705,7 +720,7 @@ load_config() {
     # shellcheck disable=SC1090
     . "$CONFIG_FILE"
     # Debian resolves 'localhost' to ::1 first, but the app binds 127.0.0.1 only,
-    # so Chromium would see "connection refused". Normalize to the IPv4 loopback.
+    # so Surf would see "connection refused". Normalize to the IPv4 loopback.
     # Only normalize a plain-http URL whose host is exactly 'localhost'
     # (avoid breaking https certificate verification or other hostnames).
     case "$KIOSK_URL" in
@@ -828,49 +843,18 @@ wait_for_network() {
 # ---- browser ---------------------------------------------------------------
 
 prepare_profile() {
-    # Only touch the profile if no browser is left running.
-    pgrep -u "$(id -u)" -x chromium >/dev/null 2>&1 && return 0
-    rm -f "${PROFILE_DIR}"/Singleton{Lock,Socket,Cookie} 2>/dev/null
-    # After a power cut Chromium would show a "restore pages?" bubble.
-    if [[ -f ${PROFILE_DIR}/Default/Preferences ]]; then
-        sed -i 's/"exit_type":"[^"]*"/"exit_type":"Normal"/; s/"exited_cleanly":false/"exited_cleanly":true/' \
-            "${PROFILE_DIR}/Default/Preferences"
-    fi
-    if [[ -f "${PROFILE_DIR}/Local State" ]]; then
-        sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' "${PROFILE_DIR}/Local State"
-    fi
+    # Surf keeps everything in tmpfs cache; no profile to repair after a crash.
     mkdir -p "$CACHE_DIR"
 }
 
 launch_browser() {
-    local flags=(
-        --kiosk
-        "--window-position=0,0"
-        --no-first-run
-        --no-default-browser-check
-        --noerrdialogs
-        --disable-infobars
-        --disable-session-crashed-bubble
-        --disable-pinch
-        --overscroll-history-navigation=0
-        --autoplay-policy=no-user-gesture-required
-        --password-store=basic
-        --check-for-update-interval=31536000
-        --disk-cache-dir="$CACHE_DIR"
-        --disk-cache-size=52428800
-        --media-cache-size=10485760
-    )
-    [[ -n $KIOSK_SCALE ]] && flags+=(--force-device-scale-factor="$KIOSK_SCALE")
-    # shellcheck disable=SC2206
-    flags+=($KIOSK_EXTRA_FLAGS)
-
     local limit=()
     if (( KIOSK_RESTART_HOURS > 0 )); then
         limit=(timeout -k 15 "$((KIOSK_RESTART_HOURS * 3600))")
     fi
 
-    : >"$CHROMIUM_LOG"
-    "${limit[@]}" /usr/bin/chromium "${flags[@]}" "$KIOSK_URL" >>"$CHROMIUM_LOG" 2>&1 &
+    : >"$SURF_LOG"
+    "${limit[@]}" /usr/bin/surf -F "$KIOSK_URL" >>"$SURF_LOG" 2>&1 &
     BROWSER_PID=$!
 }
 
@@ -955,15 +939,15 @@ KIOSK_USER=kiosk
 
 case "${1:-status}" in
     restart)
-        pkill -TERM -u "$KIOSK_USER" -x chromium || echo "browser not running; the session will start it"
+        pkill -TERM -u "$KIOSK_USER" -x surf || echo "browser not running; the session will start it"
         echo "Browser restarts within seconds and re-reads /etc/kiosk/kiosk.conf."
         ;;
     restart-session)
-        systemctl restart lightdm
+        systemctl restart getty@tty1
         ;;
     status)
-        printf 'lightdm : '; systemctl is-active lightdm || true
-        printf 'chromium: '; pgrep -u "$KIOSK_USER" -x chromium >/dev/null && echo running || echo "not running"
+        printf 'getty   : '; systemctl is-active getty@tty1 || true
+        printf 'surf    : '; pgrep -u "$KIOSK_USER" -x surf >/dev/null && echo running || echo "not running"
         echo "displays:"
         DISPLAY=:0 XAUTHORITY="/home/$KIOSK_USER/.Xauthority" xrandr --query 2>/dev/null \
             | grep ' connected' | sed 's/^/  /' || echo "  (X server not reachable)"
@@ -971,8 +955,8 @@ case "${1:-status}" in
     logs)
         journalctl -t kiosk -b --no-pager | tail -n 50
         uid=$(id -u "$KIOSK_USER")
-        echo "--- chromium log ---"
-        tail -n 50 "/run/user/${uid}/kiosk-chromium.log" 2>/dev/null || true
+        echo "--- surf log ---"
+        tail -n 50 "/run/user/${uid}/kiosk-surf.log" 2>/dev/null || true
         ;;
     *)
         echo "usage: kiosk-ctl {status|restart|restart-session|logs}" >&2
@@ -1157,7 +1141,10 @@ t_build_app() {
     local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
     cd "$app_dir"
     # frame.env must exist BEFORE the build so NEXT_PUBLIC_* values inline.
-    [[ -f /etc/dscos/frame.env ]] && set -a && . /etc/dscos/frame.env && set +a
+    if [[ -f /etc/dscos/frame.env ]]; then
+        source lib/kiosk/build-env.sh
+        load_frame_build_env /etc/dscos/frame.env
+    fi
     pnpm run build
 }
 
@@ -1285,65 +1272,46 @@ EOF
     systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer
 }
 
-t_xsession() {
-    write_file /usr/share/xsessions/kiosk.desktop 0644 <<EOF
-[Desktop Entry]
-Name=Kiosk
-Comment=Chromium kiosk session
-Exec=${LIB_DIR}/session.sh
-Type=Application
+t_getty() {
+    install -d -m 0755 /etc/systemd/system/getty@tty1.service.d
+    write_file /etc/systemd/system/getty@tty1.service.d/override.conf 0644 <<'EOF'
+[Service]
+ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
 EOF
+    systemctl disable lightdm.service 2>/dev/null || true
+    systemctl daemon-reload
 }
 
-t_lightdm() {
-    install -d -m 0755 /etc/lightdm/lightdm.conf.d
-    # -nocursor hides the pointer; -s 0 / -dpms stop screen blanking at server level.
-    # Delete '-nocursor' if you need a visible mouse pointer.
-    write_file /etc/lightdm/lightdm.conf.d/50-kiosk.conf 0644 <<'EOF'
-[Seat:*]
-autologin-user=kiosk
-autologin-user-timeout=0
-autologin-session=kiosk
-user-session=kiosk
-allow-guest=false
-xserver-command=X -nocursor -nolisten tcp -s 0
+t_xinit() {
+    write_file /usr/local/bin/kiosk-xinit 0755 <<'EOF'
+#!/bin/sh
+# Start Xorg on tty1 as root (vt access), then run the kiosk session as kiosk.
+export DISPLAY=:0
+export XAUTHORITY=/home/kiosk/.Xauthority
+touch /home/kiosk/.Xauthority
+chown kiosk:kiosk /home/kiosk/.Xauthority
+chmod 600 /home/kiosk/.Xauthority
+while true; do
+    /usr/bin/Xorg :0 -nolisten tcp -s 0 -dpms vt1 &
+    XORG_PID=$!
+    sleep 2
+    su - kiosk -c 'exec /usr/local/lib/kiosk/session.sh'
+    kill "$XORG_PID" 2>/dev/null || true
+    wait "$XORG_PID" 2>/dev/null || true
+    sleep 2
+done
 EOF
-    echo /usr/sbin/lightdm >/etc/X11/default-display-manager
-}
-
-t_policy() {
-    install -d -m 0755 /etc/chromium/policies/managed
-    write_file /etc/chromium/policies/managed/kiosk.json 0644 <<'EOF'
-{
-  "PasswordManagerEnabled": false,
-  "AutofillAddressEnabled": false,
-  "AutofillCreditCardEnabled": false,
-  "TranslateEnabled": false,
-  "SpellcheckEnabled": false,
-  "SyncDisabled": true,
-  "BrowserSignin": 0,
-  "MetricsReportingEnabled": false,
-  "PromotionalTabsEnabled": false,
-  "DefaultBrowserSettingEnabled": false,
-  "BackgroundModeEnabled": false,
-  "BookmarkBarEnabled": false,
-  "BrowserAddPersonEnabled": false,
-  "IncognitoModeAvailability": 1,
-  "PrintingEnabled": false,
-  "DownloadRestrictions": 3,
-  "DeveloperToolsAvailability": 2,
-  "ExtensionInstallBlocklist": ["*"],
-  "URLBlocklist": ["chrome://*", "view-source:*"]
-}
-EOF
-}
-
-t_policy_check() {
-    if command -v python3 >/dev/null 2>&1; then
-        python3 -m json.tool /etc/chromium/policies/managed/kiosk.json >/dev/null
-    else
-        echo "python3 not installed; skipping JSON validation"
+    # Root profile guard: autologin lands on /dev/tty1 and starts X.
+    local prof=/root/.profile
+    [[ -f $prof ]] || prof=/root/.bash_profile
+    if ! grep -q "kiosk-xinit" "$prof" 2>/dev/null; then
+        printf '\n# Kiosk: start X + Surf on tty1\nif [ "$(tty)" = /dev/tty1 ]; then exec /usr/local/bin/kiosk-xinit; fi\n' >>"$prof"
     fi
+}
+
+t_policy_note() {
+    # Surf has no policy surface; this is a no-op checkpoint that documents why.
+    echo "surf: minimal WebKit viewer, no extensions/sign-in; single-URL fullscreen enforced by session.sh"
 }
 
 t_journald() {
@@ -1351,8 +1319,8 @@ t_journald() {
     write_file /etc/systemd/journald.conf.d/20-kiosk-storage.conf 0644 <<'EOF'
 [Journal]
 Storage=volatile
-RuntimeMaxUse=30M
-MaxRetentionSec=14day
+SystemMaxUse=50M
+RuntimeMaxUse=50M
 EOF
     systemctl restart systemd-journald || echo "could not restart journald (a reboot will apply it)"
 }
@@ -1369,24 +1337,37 @@ t_zram_conf() {
     write_file /etc/systemd/zram-generator.conf 0644 <<'EOF'
 [zram0]
 zram-size = ram / 2
-compression-algorithm = zstd
+compression-algorithm = lz4
 swap-priority = 100
 EOF
+    # Hardware longevity: fewer slow swaps onto eMMC.
+    if grep -q '^#\?vm\.swappiness=' /etc/sysctl.conf 2>/dev/null; then
+        sed -i 's/^#\?vm\.swappiness=.*/vm.swappiness=10/' /etc/sysctl.conf
+    else
+        printf '\nvm.swappiness=10\n' >>/etc/sysctl.conf
+    fi
+    sysctl -p >/dev/null 2>&1 || echo "could not apply sysctl now (a reboot will apply vm.swappiness=10)"
+}
+
+t_cron_reboot() {
+    systemctl enable cron 2>/dev/null || true
+    ( crontab -l 2>/dev/null | grep -vF '/sbin/reboot' || true ; echo '0 3 * * * /sbin/reboot' ) | crontab -
 }
 
 t_validate() {
     bash -n "$LIB_DIR/session.sh"
-    [[ -f /usr/share/xsessions/kiosk.desktop ]]
+    [[ -x /usr/local/bin/kiosk-xinit ]]
+    [[ -f /etc/systemd/system/getty@tty1.service.d/override.conf ]]
     # shellcheck disable=SC1090
     ( . "$CONFIG_FILE" && [[ -n ${KIOSK_URL:-} ]] )
 }
 
 t_enable_boot() {
     systemctl set-default graphical.target
-    systemctl enable lightdm.service
+    systemctl enable lightdm.service 2>/dev/null || true
 }
 
-t_apt_clean() { apt-get clean; }
+t_apt_clean() { apt-get clean; apt-get autoremove --purge -y; }
 
 # ==========================================================================
 # Screens
@@ -1434,7 +1415,7 @@ finish_screen() {
 
     kv "Dashboard" "$URL"
     kv "Display" "${orient} (rotate ${ROTATE})"
-    kv "Browser" "$( ((DRY)) && echo "(dry run)" || chromium --version 2>/dev/null || echo unknown )"
+    kv "Browser" "$( ((DRY)) && echo "(dry run)" || surf --version 2>/dev/null || surf -v 2>&1 | head -n 1 || echo unknown )"
     kv "Free disk" "$( df -h / 2>/dev/null | awk 'NR==2 {print $4 " free of " $2}' )"
     printf '\n  %sWhat happens next%s\n' "$BOLD" "$RST"
     next_step 1 "Reboot. The machine logs in automatically and starts the dashboard."
@@ -1488,7 +1469,8 @@ if (( UPDATE_RUNTIME )); then
     t_install_cli
     t_write_session
     t_write_ctl
-    t_xsession
+    t_getty
+    t_xinit
     t_write_app_service
     t_write_update_timer
     t_write_standby_scripts
@@ -1535,9 +1517,9 @@ step_end
 PACKAGES=(
     xserver-xorg-core xserver-xorg-input-libinput xauth
     x11-xserver-utils x11-utils
-    lightdm lightdm-gtk-greeter
     openbox
-    chromium
+    surf
+    cron
     dbus-x11 dbus-user-session
     curl ca-certificates
     fonts-dejavu-core fonts-noto-color-emoji
@@ -1555,9 +1537,9 @@ if (( ZRAM )); then n_tasks=3; fi
 step "$n_tasks" \
     "Installing only what a kiosk needs, with no recommended extras, to keep the 8 GB eMMC roomy:" \
     "$G_DOT Xorg core + libinput - the display server and keyboard/touch drivers" \
-    "$G_DOT LightDM - logs the kiosk user in automatically at boot" \
+    "$G_DOT Getty - logs in automatically on tty1 and starts the X session" \
     "$G_DOT Openbox - a tiny window manager so the browser can go fullscreen" \
-    "$G_DOT Chromium - the browser that shows your dashboard" \
+    "$G_DOT Surf - the WebKit browser that shows your dashboard" \
     "$G_DOT Fonts, curl, certificates, dbus - fonts, HTTPS and desktop plumbing" \
     "$G_DOT systemd-timesyncd - keeps the clock right so HTTPS pages load"
 task "Installing display stack and browser" t_apt_install
@@ -1574,7 +1556,7 @@ step_end
 
 # ---- 5/9 --------------------------------------------------------------------
 step 3 \
-    "Writes /etc/kiosk/kiosk.conf (your settings), the session script that starts Chromium and keeps it running, and the kiosk-ctl helper. They are owned by root, so the kiosk user cannot modify them."
+    "Writes /etc/kiosk/kiosk.conf (your settings), the session script that starts Surf and keeps it running, and the kiosk-ctl helper. They are owned by root, so the kiosk user cannot modify them."
 task "Writing kiosk settings" t_write_conf
 task "Installing the kiosk session script" t_write_session
 task "Installing the kiosk-ctl helper" t_write_ctl
@@ -1587,28 +1569,28 @@ else
     disp_txt="The screen is kept in '${ROTATE}' orientation. At every start the session waits for the monitor to report in and keeps re-checking it."
 fi
 step 2 \
-    "Registers a 'Kiosk' login session and tells LightDM to sign in automatically, with the mouse pointer hidden and screen blanking disabled." \
+    "Configures getty to sign in automatically on tty1, starting Xorg and the Surf browser fullscreen, with the mouse pointer hidden and screen blanking disabled." \
     "$disp_txt"
-task "Registering the Kiosk session" t_xsession
-task "Enabling auto-login in LightDM" t_lightdm
+task "Configuring getty autologin" t_getty
+task "Installing the X launcher" t_xinit
 step_end
 
 # ---- 7/9 --------------------------------------------------------------------
-step 2 \
-    "A managed Chromium policy turns off sign-in, password prompts, translate, printing, downloads, extensions, developer tools and the internal chrome:// pages, so the screen can only show your dashboard."
-task "Writing the Chromium lock-down policy" t_policy
-task "Validating the policy file" t_policy_check
+step 1 \
+    "Surf is a minimal WebKit viewer with no extension, sign-in, or policy surface. Lockdown is hardware-level: it can only open one URL fullscreen, and the supervisor respawns it if it crashes."
+task "Confirming Surf lockdown (no policy needed)" t_policy_note
 step_end
 
 # ---- 8/9 --------------------------------------------------------------------
-n_tasks=2
+n_tasks=3
 if [[ -n $TZ_NAME ]]; then n_tasks=$((n_tasks + 1)); fi
 if (( ZRAM )); then n_tasks=$((n_tasks + 1)); fi
 step "$n_tasks" \
-    "Logs are kept in RAM and Chromium's cache lives on tmpfs, so the flash storage is not worn out by constant writes. Time sync keeps HTTPS working even if the clock battery is flat." \
+    "Logs are kept in RAM and Surf's cache lives on tmpfs (XDG_CACHE_HOME), so the flash storage is not worn out by constant writes. Time sync keeps HTTPS working even if the clock battery is flat." \
     "Compressed swap (zram) gives the 2 GB of RAM some breathing room without touching the disk."
 task "Keeping system logs in RAM" t_journald
 task "Enabling network time sync" t_timesync
+task "Scheduling daily 03:00 reboot" t_cron_reboot
 if [[ -n $TZ_NAME ]]; then task "Setting timezone to ${TZ_NAME}" t_timezone; fi
 if (( ZRAM )); then task "Configuring zram swap" t_zram_conf; fi
 step_end
