@@ -9,15 +9,26 @@ async function gateResponse(req: NextRequest, decision: GateDecision): Promise<N
   if (decision.kind === "not_found") return NextResponse.json({ error: "not_found" }, { status: 404 });
   // admin_required
   if (!adminAuthEnabled()) {
-    // Local dev bypass: decideRequest already allows loopback/dev writes when
-    // no admin is configured; keep the same guard here so the 401 hint never
-    // fires for a bypassed request (e.g. if the gate is ever bypassed).
     const adminConfigured = Boolean(process.env.FRAME_ADMIN_HASH) || Boolean(process.env.FRAME_ADMIN_SECRET);
     if (!adminConfigured && isLocalDevBypass({ host: req.headers.get("host") ?? "", method: req.method, path: req.nextUrl.pathname })) return null;
     return NextResponse.json({ error: "admin_password_not_configured", hint: "run: sudo kiosk-ctl password <secret>" }, { status: 401 });
   }
-  if (await requestHasAdmin(req.headers)) return null;
-  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // Delegate the admin check to the node-runtime verify endpoint. The
+  // middleware runs in the edge runtime, where FRAME_ADMIN_SECRET loaded from
+  // frame.env by the kiosk service may not be visible; the verify route runs
+  // in the node runtime and reads process.env directly.
+  try {
+    const verifyUrl = new URL('/api/admin/verify', req.url)
+    const verifyRes = await fetch(verifyUrl, {
+      headers: { cookie: req.headers.get('cookie') ?? '' },
+      cache: 'no-store',
+    })
+    if (verifyRes.ok) return null
+    const body = await verifyRes.json().catch(() => ({ error: 'unauthorized' }))
+    return NextResponse.json(body, { status: verifyRes.status })
+  } catch {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
 }
 
 async function handleRequest(req: NextRequest, auth?: any) {
