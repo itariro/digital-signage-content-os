@@ -30,6 +30,7 @@ import { PreviewOverlay } from './preview-overlay'
 import { LiveDataContext } from './widget-preview'
 import { cn } from '@/lib/utils'
 import { LibraryPanel } from './library-panel'
+import { FrameAdminPanel } from './frame-admin-panel'
 
 const PANELS = [
   { id: 'layers', label: 'Layers', icon: Layers },
@@ -563,6 +564,7 @@ export function Editor({
                 </button>
               </header>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                {canManageFrames && activeDrawer === 'frames' && <FrameAdminPanel />}
                 {activeDrawer === 'widgets' && (
                   <LibraryPanel
                     presets={store.presets}

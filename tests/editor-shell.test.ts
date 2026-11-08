@@ -48,8 +48,10 @@ describe('editor navigation shell', () => {
     expect(editorSource).toContain("{activeDrawer === 'notifications' && <NotificationsPanel")
   })
 
-  it('leaves the administration panel unmounted in this navigation-only task', () => {
-    expect(editorSource).not.toContain('FrameAdminPanel')
+  it('mounts administration only for an authorized user with its drawer active', () => {
+    expect(editorSource).toContain(
+      "{canManageFrames && activeDrawer === 'frames' && <FrameAdminPanel />}",
+    )
   })
 
   it('provides a narrow-screen Properties control', () => {
