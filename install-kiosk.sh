@@ -1276,6 +1276,7 @@ t_getty() {
     install -d -m 0755 /etc/systemd/system/getty@tty1.service.d
     write_file /etc/systemd/system/getty@tty1.service.d/override.conf 0644 <<'EOF'
 [Service]
+ExecStart=
 ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
 EOF
     systemctl disable lightdm.service 2>/dev/null || true
