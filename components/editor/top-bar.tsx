@@ -3,7 +3,7 @@
 import { Download, Frame, Loader2, Moon, MoonStar, Play, Redo2, Sun, Undo2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { EditorApi } from '@/hooks/use-editor'
-import { IconButton } from './controls'
+import { EditorButton, IconButton } from './controls'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
 import { resolveEditorTheme, saveEditorThemePreference } from '@/lib/editor-theme'
@@ -112,39 +112,40 @@ export function TopBar({ editor, isActive, saving, nightPreview, onSave, onPrevi
         </IconButton>
       </div>
 
-      <button
+      <EditorButton
         type="button"
+        variant="secondary"
         onClick={onPreview}
-        className="flex h-8 items-center gap-1.5 rounded-lg bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
+        className="h-9 rounded-lg bg-secondary px-3 text-sm font-medium hover:bg-secondary/70"
       >
         <Play className="size-4" aria-hidden />
         <span className="hidden sm:inline">Preview</span>
-      </button>
-      <button
+      </EditorButton>
+      <EditorButton
         type="button"
         aria-label="Night preview"
         aria-pressed={nightPreview}
+        variant="quiet"
         onClick={onToggleNight}
         className={cn(
-          'flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors',
+          'h-9 rounded-lg px-2.5 text-sm transition-colors',
           nightPreview ? 'bg-primary/10 text-primary' : 'bg-secondary text-foreground hover:bg-secondary/70',
         )}
       >
         <MoonStar className="size-4" aria-hidden />
         <span className="hidden sm:inline">Night</span>
-      </button>
-      <button
+      </EditorButton>
+      <EditorButton
         type="button"
+        variant="primary"
         onClick={onSave}
         disabled={saving || !dirty}
-        className={cn(
-          'relative flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity disabled:opacity-50',
-        )}
+        className="relative h-9 rounded-lg px-4 text-sm font-semibold transition-opacity"
       >
         {saving && <Loader2 className="size-4 animate-spin" aria-hidden />}
         {dirty ? 'Save' : 'Saved'}
         {dirty && !saving && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-card" aria-label="Unsaved changes" />}
-      </button>
+      </EditorButton>
       <div className="ml-2 flex items-center gap-2">
         <Show when="signed-in">
           <UserButton />

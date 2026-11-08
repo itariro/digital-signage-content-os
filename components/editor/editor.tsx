@@ -31,6 +31,7 @@ import { LiveDataContext } from './widget-preview'
 import { cn } from '@/lib/utils'
 import { LibraryPanel } from './library-panel'
 import { FrameAdminPanel } from './frame-admin-panel'
+import { IconButton } from './controls'
 
 const PANELS = [
   { id: 'layers', label: 'Layers', icon: Layers },
@@ -480,7 +481,7 @@ export function Editor({
               aria-expanded={activeDrawer === 'widgets'}
               aria-controls="editor-drawer"
               onClick={(event) => toggleDrawer('widgets', event.currentTarget)}
-              className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', activeDrawer === 'widgets' && 'bg-primary/10 text-primary')}
+              className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'widgets' && 'bg-primary/10 text-primary')}
             >
               <Grid2X2 className="size-[18px]" aria-hidden />
             </button>
@@ -491,7 +492,7 @@ export function Editor({
                 aria-expanded={activeDrawer === 'frames'}
                 aria-controls="editor-drawer"
                 onClick={(event) => toggleDrawer('frames', event.currentTarget)}
-                className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', activeDrawer === 'frames' && 'bg-primary/10 text-primary')}
+                className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'frames' && 'bg-primary/10 text-primary')}
               >
                 <Frame className="size-[18px]" aria-hidden />
               </button>
@@ -507,7 +508,7 @@ export function Editor({
                   aria-expanded={activeDrawer === panel.id}
                   aria-controls="editor-drawer"
                   onClick={(event) => toggleDrawer(panel.id, event.currentTarget)}
-                  className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', activeDrawer === panel.id && 'bg-primary/10 text-primary')}
+                  className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === panel.id && 'bg-primary/10 text-primary')}
                 >
                   <Icon className="size-[18px]" aria-hidden />
                 </button>
@@ -519,7 +520,7 @@ export function Editor({
               aria-expanded={activeDrawer === 'properties'}
               aria-controls="editor-drawer"
               onClick={(event) => toggleDrawer('properties', event.currentTarget)}
-              className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:hidden', activeDrawer === 'properties' && 'bg-primary/10 text-primary')}
+              className={cn('editor-icon-button size-8 rounded-lg lg:hidden', activeDrawer === 'properties' && 'bg-primary/10 text-primary')}
             >
               <SlidersHorizontal className="size-[18px]" aria-hidden />
             </button>
@@ -554,14 +555,9 @@ export function Editor({
                 <h2 id="editor-drawer-title" className="text-base font-semibold tracking-tight">
                   {drawerTitle}
                 </h2>
-                <button
-                  type="button"
-                  aria-label={`Close ${drawerTitle} panel`}
-                  onClick={closeDrawer}
-                  className="editor-icon-button"
-                >
+                <IconButton label={`Close ${drawerTitle} panel`} onClick={closeDrawer}>
                   <X className="size-4" aria-hidden />
-                </button>
+                </IconButton>
               </header>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {canManageFrames && activeDrawer === 'frames' && <FrameAdminPanel />}
