@@ -8,9 +8,17 @@ const librarySource = readFileSync(path.join(root, 'components/editor/library-pa
 
 describe('editor navigation shell', () => {
   it('retains all editor sections and adds a Widgets rail item', () => {
-    for (const id of ['widgets', 'layers', 'layouts', 'albums', 'fonts', 'schedule', 'notifications', 'experiences']) {
+    for (const id of ['widgets', 'frames', 'layers', 'layouts', 'albums', 'fonts', 'schedule', 'notifications', 'experiences']) {
       expect(editorSource).toContain(`'${id}'`)
     }
+  })
+
+  it('renders the Frames rail entry only for users who can manage frames', () => {
+    expect(editorSource).toMatch(
+      /\{canManageFrames && \(\s*<button[\s\S]*?aria-label="Frames"[\s\S]*?aria-expanded=\{activeDrawer === 'frames'\}[\s\S]*?aria-controls="editor-drawer"[\s\S]*?toggleDrawer\('frames', event\.currentTarget\)/,
+    )
+    expect(editorSource).toContain('<Frame className="size-[18px]" aria-hidden />')
+    expect(editorSource).toMatch(/activeDrawer === 'frames'\s*\?\s*'Frame administration'/)
   })
 
   it('mounts the existing library and connects it to the existing add path', () => {
@@ -26,11 +34,22 @@ describe('editor navigation shell', () => {
     expect(editorSource).toContain('role="dialog"')
   })
 
-  it('keeps the canvas and inspector mounted without a bottom widget toolbar', () => {
+  it('keeps the canvas, inspector, and existing editor panels mounted', () => {
     expect(editorSource).not.toContain('<WidgetToolbar')
     expect(editorSource).toContain('<Inspector')
     expect(editorSource).toContain('<Canvas')
     expect(editorSource).toContain('w-72')
+    expect(editorSource).toContain("{activeDrawer === 'layers' && <LayersPanel")
+    expect(editorSource).toContain("{activeDrawer === 'layouts' && (")
+    expect(editorSource).toContain("{activeDrawer === 'albums' && <AlbumsPanel")
+    expect(editorSource).toContain("{activeDrawer === 'fonts' && <FontsPanel")
+    expect(editorSource).toContain("{activeDrawer === 'schedule' && <SchedulePanel")
+    expect(editorSource).toContain("{activeDrawer === 'experiences' && <ExperiencesPanel")
+    expect(editorSource).toContain("{activeDrawer === 'notifications' && <NotificationsPanel")
+  })
+
+  it('leaves the administration panel unmounted in this navigation-only task', () => {
+    expect(editorSource).not.toContain('FrameAdminPanel')
   })
 
   it('provides a narrow-screen Properties control', () => {

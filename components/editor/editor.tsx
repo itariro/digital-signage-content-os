@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { Bell, CalendarClock, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
+import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -41,7 +41,7 @@ const PANELS = [
   { id: 'experiences', label: 'Bob', icon: Sparkles },
 ] as const
 
-type PanelId = 'widgets' | (typeof PANELS)[number]['id']
+type PanelId = 'widgets' | 'frames' | (typeof PANELS)[number]['id']
 type DrawerId = PanelId | 'properties'
 
 function errorMessage(e: unknown) {
@@ -55,13 +55,27 @@ function isTyping(target: EventTarget | null) {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
 }
 
-export function Editor({ initialStore, frameId, singleFrame = false }: { initialStore: FrameStore; frameId?: string; singleFrame?: boolean }) {
+export function Editor({
+  initialStore,
+  frameId,
+  singleFrame = false,
+  canManageFrames = false,
+  initialPanel = null,
+}: {
+  initialStore: FrameStore
+  frameId?: string
+  singleFrame?: boolean
+  canManageFrames?: boolean
+  initialPanel?: 'frames' | null
+}) {
   const { store, call } = useFrameStore(initialStore, frameId)
   const editor = useEditor(initialStore.layouts.find((l) => l.id === initialStore.activeId) ?? initialStore.layouts[0])
   const { state, dirty } = editor
   const now = useNow()
   const weather = useWeather(state.settings)
-  const [activeDrawer, setActiveDrawer] = useState<DrawerId | null>(null)
+  const [activeDrawer, setActiveDrawer] = useState<DrawerId | null>(() =>
+    canManageFrames && initialPanel === 'frames' ? 'frames' : null,
+  )
   const drawerTriggers = useRef(new Map<DrawerId, HTMLButtonElement>())
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewDecision, setPreviewDecision] = useState<DisplayDecision | null>(null)
@@ -433,9 +447,11 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
   const drawerTitle =
     activeDrawer === 'widgets'
       ? 'Widgets'
-      : activeDrawer === 'properties'
-        ? 'Properties'
-        : PANELS.find((panel) => panel.id === activeDrawer)?.label ?? 'Editor panel'
+      : activeDrawer === 'frames'
+        ? 'Frame administration'
+        : activeDrawer === 'properties'
+          ? 'Properties'
+          : PANELS.find((panel) => panel.id === activeDrawer)?.label ?? 'Editor panel'
 
   return (
     <LiveDataContext value={liveData}>
@@ -467,6 +483,18 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
             >
               <Grid2X2 className="size-[18px]" aria-hidden />
             </button>
+            {canManageFrames && (
+              <button
+                type="button"
+                aria-label="Frames"
+                aria-expanded={activeDrawer === 'frames'}
+                aria-controls="editor-drawer"
+                onClick={(event) => toggleDrawer('frames', event.currentTarget)}
+                className={cn('flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', activeDrawer === 'frames' && 'bg-primary/10 text-primary')}
+              >
+                <Frame className="size-[18px]" aria-hidden />
+              </button>
+            )}
             {PANELS.map((panel) => {
               const Icon = panel.icon
               const label = panel.id === 'experiences' ? 'Experiences' : panel.label

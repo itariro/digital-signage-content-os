@@ -5,6 +5,7 @@ import { canManageFrames } from '@/lib/console/access'
 
 const root = path.resolve(__dirname, '..')
 const pageSource = readFileSync(path.join(root, 'app/page.tsx'), 'utf8')
+const editorSource = readFileSync(path.join(root, 'components/editor/editor.tsx'), 'utf8')
 
 describe('frame administration visibility', () => {
   it('requires a signed-in user', () => {
@@ -24,6 +25,14 @@ describe('frame administration visibility', () => {
     expect(pageSource).toContain('canManageFrames={canManageFrames}')
     expect(pageSource).toContain('initialPanel={initialPanel}')
     expect(pageSource).toContain("panel === 'frames' && canManageFrames ? 'frames' : null")
+  })
+
+  it('fails closed when the editor has no authorized Frames deep-link', () => {
+    expect(editorSource).toContain('canManageFrames = false')
+    expect(editorSource).toContain('initialPanel = null')
+    expect(editorSource).toMatch(
+      /useState<DrawerId \| null>\(\(\) =>\s*canManageFrames && initialPanel === 'frames' \? 'frames' : null/,
+    )
   })
 
   it('keeps the existing frame query behavior', () => {
