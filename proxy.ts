@@ -18,7 +18,13 @@ async function gateResponse(req: NextRequest, decision: GateDecision): Promise<N
   // frame.env by the kiosk service may not be visible; the verify route runs
   // in the node runtime and reads process.env directly.
   try {
-    const verifyUrl = new URL('/api/admin/verify', req.url)
+    // req.url is normalized to the local bind address when the request
+    // arrives via the TCP forwarder, so dialing it directly lands on the
+    // display port and the gate 404s the verify call. Dial the management
+    // port on loopback instead; the forwarder preserves its Host on the way
+    // to the app port, so the inner request is seen on the management port.
+    const mgmtPort = process.env.KIOSK_MGMT_PORT ?? "8808"
+    const verifyUrl = new URL('/api/admin/verify', `http://127.0.0.1:${mgmtPort}`)
     const verifyRes = await fetch(verifyUrl, {
       headers: { cookie: req.headers.get('cookie') ?? '' },
       cache: 'no-store',
