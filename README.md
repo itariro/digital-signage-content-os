@@ -27,6 +27,8 @@ Frames support:
 - A manager route at `/frame` for browsing and opening frames.
 - Explicit frame creation through the frame manager rather than implicit creation from arbitrary display URLs.
 
+Frame administration (available to authorized operators) includes a protected frame directory, frame enrollment and rotation, audit logging, and conflict resolution for sync operations. Access is gated behind a Clerk session or admin token.
+
 ### Visual layout editor
 
 The editor provides a canvas-oriented authoring workflow for arranging content on a frame. Layouts contain positioned widgets, layout-level display settings, and optional album associations.
@@ -46,6 +48,9 @@ Editor functionality includes:
 - Preset-based widget starting points.
 - Custom font loading and font selection.
 - Editor preview overlays and frame switching.
+- Searchable widget library with grouped categories.
+- Rail-based overlay panels and a compact editor shell.
+- Persisted editor theme preference (light/dark/system).
 
 Layouts are stored as data documents, which makes them portable between the editor and the display renderer. A layout is not treated as a separate page; it is a structured composition of widgets and settings.
 
