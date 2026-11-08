@@ -186,7 +186,7 @@ export function RevealSlideshow({ album, time, offset = 0 }: { album: Album; tim
                   draggable={false}
                   className={cn('absolute inset-0 h-full w-full object-cover')}
                   style={{
-                    opacity: opened ? 0 : 1,
+                    opacity: opened ? 1 : 0,
                     transition: animate ? `opacity ${state.transitionMs}ms linear` : undefined,
                     transitionDelay: inMotion && animate ? `${-Math.round(cs.progress * state.transitionMs)}ms` : undefined,
                   }}

@@ -200,14 +200,18 @@ export function normalize(store: FrameStore): FrameStore {
   const albums = (store.albums ?? [seedPhotoAlbum()]).map((album) => {
     const show = album?.slideshow
     if (!show) return album
+    const next: Album = { ...album }
+    if (next.subject && (!next.subjects || next.subjects.length === 0)) {
+      next.subjects = [next.subject]
+    }
     const isMosaic = show.presentation === 'mosaic'
     const isReveal = show.presentation === 'reveal'
-    if (!isMosaic && !isReveal) return album
+    if (!isMosaic && !isReveal) return next
     if (isReveal) {
       const cfg = clampReveal(show.reveal as { tilesAcross?: unknown; tilesDown?: unknown; gap?: unknown; group?: unknown } | undefined)
       const interval = clampLegacyNumber(show.interval, 3, 3600, 25)
       return {
-        ...album,
+        ...next,
         slideshow: {
           ...show,
           interval,
@@ -221,7 +225,7 @@ export function normalize(store: FrameStore): FrameStore {
     const effect = ['flip', 'fade', 'zoom', 'none'].includes(m.effect as string) ? (m.effect as 'flip' | 'fade' | 'zoom' | 'none') : 'flip'
     const interval = clampLegacyNumber(show.interval, 3, 3600, 25)
     return {
-      ...album,
+      ...next,
       slideshow: {
         ...show,
         presentation: 'mosaic' as Slideshow['presentation'],

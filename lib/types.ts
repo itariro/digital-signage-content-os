@@ -113,6 +113,7 @@ export type AlbumItem = {
   description?: string
   director?: string
   rating?: string
+  artist?: string
 }
 
 export type Mosaic = {
@@ -138,6 +139,7 @@ export type SubjectPortrait = {
   image: string
   sourceUrl: string
   imagePosition: 'top' | 'center' | 'bottom'
+  artist?: string
 }
 
 export type Slideshow = {
@@ -161,6 +163,7 @@ export type Album = {
   items: AlbumItem[]
   slideshow: Slideshow
   subject?: SubjectPortrait | null
+  subjects?: SubjectPortrait[]
   createdAt: string
   updatedAt: string
 }

@@ -131,6 +131,7 @@ export const albumItemSchema = z.object({
   title: z.string().max(200),
   subtitle: z.string().max(200),
   year: z.string().max(12),
+  artist: z.string().max(120).optional(),
 })
 
 export const mosaicSchema = z.object({
@@ -153,6 +154,7 @@ export const subjectSchema = z.object({
   image: imageRef,
   sourceUrl: z.string().max(600),
   imagePosition: z.enum(['top', 'center', 'bottom']),
+  artist: z.string().max(120).optional(),
 })
 
 export const slideshowSchema = z.object({

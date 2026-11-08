@@ -1,5 +1,5 @@
 import { BookOpen, Clapperboard, Disc3, Images, Tv, type LucideIcon } from 'lucide-react'
-import type { Album, AlbumItem, AlbumTheme, Presentation, Slideshow } from './types'
+import type { Album, AlbumItem, AlbumTheme, Presentation, Slideshow, SubjectPortrait } from './types'
 
 export type ThemeMeta = {
   label: string
@@ -124,8 +124,26 @@ export function defaultMosaicSlideshow(): Slideshow {
   }
 }
 
+export function artistsInAlbum(album: Album): { artist: string; items: AlbumItem[]; subject: SubjectPortrait | null }[] {
+  const groups = new Map<string, AlbumItem[]>()
+  for (const item of album.items) {
+    const artist = (item.artist || item.subtitle || '').trim() || 'Unknown artist'
+    if (!groups.has(artist)) groups.set(artist, [])
+    groups.get(artist)!.push(item)
+  }
+  if (groups.size === 0) {
+    const subs = album.subjects && album.subjects.length > 0 ? album.subjects : (album.subject ? [album.subject] : [])
+    return subs.length > 0 ? subs.map((s) => ({ artist: s.artist || s.name || 'Unknown artist', items: album.items, subject: s })) : [{ artist: album.name, items: album.items, subject: null }]
+  }
+  const subjects = album.subjects && album.subjects.length > 0 ? album.subjects : (album.subject ? [album.subject] : [])
+  return [...groups.entries()].map(([artist, items]) => {
+    const subject = subjects.find((s) => (s.artist || s.name) === artist) ?? (subjects.length === 1 ? subjects[0] : null)
+    return { artist, items, subject }
+  })
+}
+
 export function defaultReveal() {
-  return { tilesAcross: 6, tilesDown: 5, gap: 2, group: 'single' as const, effect: 'fade' as const }
+  return { tilesAcross: 6, tilesDown: 6, gap: 2, group: 'single' as const, effect: 'fade' as const }
 }
 
 export function defaultRevealSlideshow(): Slideshow {

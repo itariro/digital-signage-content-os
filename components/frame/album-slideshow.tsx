@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react'
 import type { Album, AlbumItem, Slideshow } from '@/lib/types'
 import { FRAME_WIDTH } from '@/lib/types'
-import { themeMeta, slideAt } from '@/lib/albums'
+import { themeMeta, slideAt, artistsInAlbum } from '@/lib/albums'
 import { MosaicSlideshow } from './mosaic-slideshow'
 import { RevealSlideshow } from './reveal-slideshow'
 import { mosaicGrid } from '@/lib/mosaic'
@@ -200,9 +200,25 @@ function SlideLayer({
 }
 
 export function AlbumSlideshow({ album, time, offset = 0 }: { album: Album; time: number; offset?: number }) {
-  const isReveal = album.slideshow.presentation === 'reveal'
-  if (isReveal) {
-    return <RevealSlideshow album={album} time={time} offset={offset} />
+  if (album.slideshow.presentation === 'reveal') {
+    const segments = artistsInAlbum(album).filter((s) => s.items.length > 0)
+    if (segments.length > 0) {
+      const cols = 6
+      const rows = 6
+      const intervalSec = Math.max(3, album.slideshow.interval)
+      const S = intervalSec * 1000
+      const segmentLen = (cols * rows + 1) * S
+      const now = time || Date.now()
+      const segIndex = Math.floor(now / segmentLen) % segments.length
+      const seg = segments[segIndex]
+      const segmentAlbum: Album = {
+        ...album,
+        id: `${album.id}::${seg.artist}`,
+        items: seg.items,
+        subject: seg.subject,
+      }
+      return <RevealSlideshow album={segmentAlbum} time={time} offset={offset} />
+    }
   }
   const grid = album.slideshow.presentation === 'mosaic' && album.items.length >= 5
     ? mosaicGrid({ width: 1080, height: 1920, tileAspect: (album.theme === 'music' ? 1 : album.theme === 'photos' ? 9 / 16 : 2 / 3), tilesAcross: album.slideshow.mosaic?.tilesAcross ?? 4, itemCount: album.items.length })
