@@ -4,7 +4,7 @@ import useSWR from 'swr'
 import type { FrameStore, LayoutSettings, WeatherData } from '@/lib/types'
 
 const fetcher = async (url: string, { signal }: { signal?: AbortSignal } = {}) => {
-  const res = await fetch(url, { signal })
+  const res = await fetch(url, { signal, credentials: 'include' })
   if (!res.ok) throw new Error('Request failed')
   return res.json()
 }
@@ -22,6 +22,7 @@ export function useFrameStore(fallbackData: FrameStore, frameId?: string) {
     const framedUrl = frameId ? `${url}${url.includes('?') ? '&' : '?'}frame=${encodeURIComponent(frameId)}` : url
     const res = await fetch(framedUrl, {
       method,
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
