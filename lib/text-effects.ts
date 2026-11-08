@@ -15,7 +15,7 @@ export function fillCss(fill: TextFill): React.CSSProperties {
     const g = fill.gradient
     const stops = [...g.stops].sort((a, b) => a.position - b.position).map(s => `${s.color} ${s.position}%`).join(', ')
     const bg = g.type === 'linear' ? `linear-gradient(${g.angle}deg, ${stops})` : `radial-gradient(closest-side, ${stops})`
-    return { backgroundImage: bg, backgroundClip: 'text', WebkitBackgroundClip: 'text', webkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
+    return { backgroundImage: bg, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
   }
   // Scale (50-200%, 100 = fit default): 'repeat' always sizes the tile to
   // `${scale}% auto`. 'cover'/'contain' keep their keyword only at 100;
@@ -27,7 +27,7 @@ export function fillCss(fill: TextFill): React.CSSProperties {
       : scale === 100
         ? fill.image.fit
         : `${scale}% auto`
-  return { backgroundImage: `url("${fill.image.url}")`, backgroundSize: `${bgsize}`, backgroundPosition: `${fill.image.position}% center`, backgroundClip: 'text', WebkitBackgroundClip: 'text', webkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
+  return { backgroundImage: `url("${fill.image.url}")`, backgroundSize: `${bgsize}`, backgroundPosition: `${fill.image.position}% center`, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
 }
 export function textEffectCss(style: WidgetStyle): React.CSSProperties {
   const s = normalizeWidgetStyle({ ...style })

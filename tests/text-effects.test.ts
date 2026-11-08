@@ -78,7 +78,7 @@ describe('fillCss gradient', () => {
   it('builds linear-gradient string', () => {
     const css = fillCss({ kind: 'gradient', gradient: { type: 'linear', angle: 135, stops: [{ color: '#ff8fa3', position: 0 }, { color: '#7cc4ff', position: 100 }] } })
     expect(css.backgroundImage).toContain('linear-gradient(135deg')
-    expect((css as any).webkitBackgroundClip).toBe('text')
+    expect((css as any).WebkitBackgroundClip).toBe('text')
   })
 })
 
@@ -103,7 +103,7 @@ describe('fillCss image', () => {
   })
   it('clips to text and positions the image', () => {
     const css = fillCss(image({ position: 25 }))
-    expect((css as any).webkitBackgroundClip).toBe('text')
+    expect((css as any).WebkitBackgroundClip).toBe('text')
     expect(css.backgroundPosition).toBe('25% center')
     expect(css.backgroundImage).toContain('/fills/marble.jpg')
   })
