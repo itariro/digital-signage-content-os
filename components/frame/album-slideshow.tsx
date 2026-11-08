@@ -5,6 +5,7 @@ import type { Album, AlbumItem, Slideshow } from '@/lib/types'
 import { FRAME_WIDTH } from '@/lib/types'
 import { themeMeta, slideAt } from '@/lib/albums'
 import { MosaicSlideshow } from './mosaic-slideshow'
+import { RevealSlideshow } from './reveal-slideshow'
 import { mosaicGrid } from '@/lib/mosaic'
 import { cn } from '@/lib/utils'
 
@@ -199,6 +200,10 @@ function SlideLayer({
 }
 
 export function AlbumSlideshow({ album, time, offset = 0 }: { album: Album; time: number; offset?: number }) {
+  const isReveal = album.slideshow.presentation === 'reveal'
+  if (isReveal) {
+    return <RevealSlideshow album={album} time={time} offset={offset} />
+  }
   const grid = album.slideshow.presentation === 'mosaic' && album.items.length >= 5
     ? mosaicGrid({ width: 1080, height: 1920, tileAspect: (album.theme === 'music' ? 1 : album.theme === 'photos' ? 9 / 16 : 2 / 3), tilesAcross: album.slideshow.mosaic?.tilesAcross ?? 4, itemCount: album.items.length })
     : null

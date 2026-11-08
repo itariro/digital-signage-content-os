@@ -83,6 +83,7 @@ export const PRESENTATION_META: Record<Presentation, { label: string; descriptio
   vinyl: { label: 'Vinyl', description: 'Sleeve with a spinning record' },
   gallery: { label: 'Gallery mat', description: 'Matted print on a solid wall' },
   mosaic: { label: 'Mosaic', description: 'Full-screen grid of covers; one changes at a time' },
+  reveal: { label: 'Portrait Reveal', description: 'Grayscale portrait behind a wall of covers; cells open over time' },
 }
 
 const THEME_PRESENTATION: Record<AlbumTheme, Presentation> = {
@@ -120,6 +121,25 @@ export function defaultMosaicSlideshow(): Slideshow {
     backdrop: 'solid',
     backdropColor: '#14161b',
     mosaic: { tilesAcross: 4, gap: 2, effect: 'flip' },
+  }
+}
+
+export function defaultReveal() {
+  return { tilesAcross: 6, tilesDown: 5, gap: 2, group: 'single' as const, effect: 'fade' as const }
+}
+
+export function defaultRevealSlideshow(): Slideshow {
+  return {
+    presentation: 'reveal',
+    transition: 'none',
+    kenBurns: false,
+    interval: 25,
+    order: 'sequence',
+    artSize: 74,
+    artPosition: 'center',
+    backdrop: 'solid',
+    backdropColor: '#14161b',
+    reveal: defaultReveal(),
   }
 }
 

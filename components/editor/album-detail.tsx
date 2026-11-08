@@ -2,13 +2,14 @@
 
 import { useRef, useState } from 'react'
 import { nanoid } from 'nanoid'
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, ImagePlus, Loader2, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ImagePlus, Loader2, Search, Trash2, UserRound, X } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Album, AlbumItem, Slideshow } from '@/lib/types'
+import type { Album, AlbumItem, RevealGroup, Slideshow, SubjectPortrait } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH, PRESENTATIONS } from '@/lib/types'
-import { PRESENTATION_META, THEME_META, slideAt, defaultMosaicSlideshow } from '@/lib/albums'
+import { PRESENTATION_META, THEME_META, slideAt, defaultMosaicSlideshow, defaultReveal, defaultRevealSlideshow } from '@/lib/albums'
+import { seedFromString, revealAt } from '@/lib/reveal'
 import { downscaleImage } from '@/lib/frame-utils'
-import { useArtworkSearch, type ArtworkResult } from '@/hooks/use-frame-store'
+import { useArtworkSearch, usePortraitSearch, type ArtworkResult, type PortraitResult } from '@/hooks/use-frame-store'
 import { useNow } from '@/hooks/use-now'
 import { AlbumSlideshow } from '@/components/frame/album-slideshow'
 import { ColorField, Section, Segmented, SelectField, SliderField, ToggleField } from './controls'
@@ -95,6 +96,14 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
                 backdropColor: show.backdropColor || '#14161b',
                 mosaic: album.slideshow.mosaic ?? defaultMosaicSlideshow().mosaic,
               })
+            } else if (pres === 'reveal') {
+              setShow({
+                presentation: pres,
+                interval: 25,
+                backdrop: 'solid',
+                backdropColor: show.backdropColor || '#14161b',
+                reveal: show.reveal ?? defaultReveal(),
+              })
             } else {
               setShow({ presentation: pres })
             }
@@ -103,7 +112,7 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
         />
         <p className="-mt-1 text-xs text-muted-foreground">{PRESENTATION_META[show.presentation].description}</p>
         <SliderField
-          label={show.presentation === 'mosaic' ? 'New cover every (mean)' : 'Each slide'}
+          label={show.presentation === 'mosaic' ? 'New cover every (mean)' : show.presentation === 'reveal' ? 'Next reveal every' : 'Each slide'}
           value={show.interval}
           min={5}
           max={300}
@@ -155,8 +164,7 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
       {show.presentation !== 'fill' && (
         <Section title="Staging">
           {show.presentation === 'mosaic' ? (
-            <>
-              <SliderField
+            <>              <SliderField
                 label="Tiles across (short edge)"
                 value={show.mosaic?.tilesAcross ?? 4}
                 min={2}
@@ -197,6 +205,71 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
               )}
               {album.items.length >= 5 && album.items.length < (show.mosaic?.tilesAcross ?? 4) * (show.mosaic?.tilesAcross ?? 4) && (
                 <p className="text-xs text-muted-foreground">Add more covers for a fuller mosaic.</p>
+              )}
+            </>
+          ) : show.presentation === 'reveal' ? (
+            <>
+              <SliderField
+                label="Tiles across"
+                value={show.reveal?.tilesAcross ?? 6}
+                min={2}
+                max={10}
+                step={1}
+                suffix=""
+                onCommit={commit}
+                onChange={(tilesAcross) => setShow({ reveal: { ...(show.reveal ?? defaultReveal()), tilesAcross } }, false)}
+              />
+              <SliderField
+                label="Tiles down"
+                value={show.reveal?.tilesDown ?? 5}
+                min={2}
+                max={10}
+                step={1}
+                suffix=""
+                onCommit={commit}
+                onChange={(tilesDown) => setShow({ reveal: { ...(show.reveal ?? defaultReveal()), tilesDown } }, false)}
+              />
+              <SliderField
+                label="Gap"
+                value={show.reveal?.gap ?? 2}
+                min={0}
+                max={12}
+                step={1}
+                suffix="px"
+                onCommit={commit}
+                onChange={(gap) => setShow({ reveal: { ...(show.reveal ?? defaultReveal()), gap } }, false)}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-foreground">Grouping</span>
+                <Segmented<RevealGroup>
+                  label="Reveal grouping"
+                  value={show.reveal?.group ?? 'single'}
+                  onChange={(group) => setShow({ reveal: { ...(show.reveal ?? defaultReveal()), group } })}
+                  className="w-48"
+                  options={[
+                    { value: 'single', label: 'Single' },
+                    { value: 'pair', label: 'Pair' },
+                    { value: 'quad', label: 'Quad' },
+                    { value: 'row', label: 'Row' },
+                  ]}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-foreground">Effect</span>
+                <Segmented
+                  label="Reveal effect"
+                  value={show.reveal?.effect ?? 'fade'}
+                  onChange={(effect) => setShow({ reveal: { ...(show.reveal ?? defaultReveal()), effect: effect as 'fade' | 'none' } })}
+                  className="w-40"
+                  options={[
+                    { value: 'fade', label: 'Fade' },
+                    { value: 'none', label: 'Cut' },
+                  ]}
+                />
+              </div>
+              <ColorField label="Gap colour" value={show.backdropColor} onChange={(backdropColor) => setShow({ backdropColor })} />
+              {album.items.length >= 1 && album.items.length < (show.reveal?.tilesAcross ?? 6) * (show.reveal?.tilesDown ?? 5) && (
+                <p className="text-xs text-muted-foreground">Covers repeat across the grid with fewer items than cells.</p>
               )}
             </>
           ) : (
@@ -245,6 +318,10 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
         </Section>
       )}
 
+      {show.presentation === 'reveal' || album.subject ? (
+        <PortraitSection album={album} onUpdate={update} onCommit={commit} />
+      ) : null}
+
       <div className="p-4">
         <button
           type="button"
@@ -285,7 +362,20 @@ function PreviewStage({ album }: { album: Album }) {
   const [offset, setOffset] = useState(0)
   const scale = PREVIEW_W / FRAME_WIDTH
   const time = now?.getTime() ?? 0
-  const slide = slideAt(album, time, offset)
+  const isReveal = album.slideshow.presentation === 'reveal'
+  const slide = isReveal ? null : slideAt(album, time, offset)
+  const revealStatus = isReveal
+    ? `Cycle ${revealAt({
+        nowMs: time || 0,
+        offset,
+        seed: seedFromString(album.id + '|' + album.items.map((i) => i.id).join(',')),
+        itemCount: album.items.length,
+        intervalSec: album.slideshow.interval,
+        cols: album.slideshow.reveal?.tilesAcross ?? 6,
+        rows: album.slideshow.reveal?.tilesDown ?? 5,
+        group: album.slideshow.reveal?.group ?? 'single',
+      }).cycle}`
+    : null
   const index = slide ? album.items.indexOf(slide.current) + 1 : 0
   return (
     <div className="flex shrink-0 flex-col items-center gap-1.5">
@@ -310,7 +400,7 @@ function PreviewStage({ album }: { album: Album }) {
           <ChevronLeft className="size-3.5" aria-hidden />
         </button>
         <span className="min-w-12 text-center font-mono text-[11px] tabular-nums text-muted-foreground" aria-live="polite">
-          {slide ? `${index}/${album.items.length}` : '0/0'}
+          {slide ? `${index}/${album.items.length}` : revealStatus ?? '0/0'}
         </span>
         <button
           type="button"
@@ -520,6 +610,147 @@ function PhotoUpload({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: Alb
         {busy > 0 ? `Uploading ${busy}…` : 'Choose photos'}
       </button>
       <input ref={fileRef} type="file" accept="image/*" multiple className="sr-only" onChange={(e) => onFiles(e.target.files)} />
+    </Section>
+  )
+}
+
+function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate: (fn: (a: Album) => Album, persist?: boolean) => void; onCommit: () => void }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const { results, error, isLoading } = usePortraitSearch(query)
+  const subject = album.subject ?? null
+  const putSubject = (next: SubjectPortrait | null) => onUpdate((a) => ({ ...a, subject: next }))
+
+  async function pickSearch(result: PortraitResult) {
+    if (busy) return
+    setBusy(result.id)
+    try {
+      const image = await cacheImage({ url: result.image }).catch(() => result.image)
+      putSubject({ name: result.name.slice(0, 80), type: 'search', image, sourceUrl: result.image, imagePosition: subject?.imagePosition ?? 'center' })
+      onCommit()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function onFile(files: FileList | null) {
+    const file = Array.from(files ?? []).find((f) => f.type.startsWith('image/'))
+    if (fileRef.current) fileRef.current.value = ''
+    if (!file || busy) return
+    setBusy('upload')
+    try {
+      const image = await cacheImage({ dataUrl: await downscaleImage(file) })
+      putSubject({ name: file.name.replace(/\.[^.]+$/, '').slice(0, 80), type: 'upload', image, sourceUrl: '', imagePosition: subject?.imagePosition ?? 'center' })
+      onCommit()
+    } catch {
+      toast.error(`Could not use ${file.name}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Section title="Subject portrait">
+      <div className="flex items-center gap-3">
+        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary ring-1 ring-border">
+          {subject?.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={subject.image} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <UserRound className="size-5 text-muted-foreground" aria-hidden />
+          )}
+        </div>
+        <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
+          {subject
+            ? `${subject.name || 'Portrait'} · ${subject.type === 'upload' ? 'uploaded photo' : 'from search'}`
+            : 'The portrait revealed behind the covers. Search for a person or upload a photo.'}
+        </p>
+        {subject && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery('')
+              putSubject(null)
+              onCommit()
+            }}
+            aria-label="Remove portrait"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive"
+          >
+            <Trash2 className="size-4" aria-hidden />
+          </button>
+        )}
+      </div>
+      <Segmented
+        label="Portrait position"
+        value={subject?.imagePosition ?? 'center'}
+        onChange={(imagePosition) => {
+          if (subject) putSubject({ ...subject, imagePosition })
+        }}
+        className="w-44"
+        options={[
+          { value: 'top', label: 'Top' },
+          { value: 'center', label: 'Middle' },
+          { value: 'bottom', label: 'Bottom' },
+        ]}
+      />
+      {!subject && (
+        <>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search portraits"
+              aria-label="Search portraits"
+              className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-9 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary"
+            />
+            {(isLoading || busy) && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
+          </div>
+          {error && <p className="text-xs text-destructive">Search is unavailable right now. Try again in a moment.</p>}
+          {query.trim().length >= 2 && !isLoading && !error && results.length === 0 && (
+            <p className="text-xs text-muted-foreground">No portraits found for that search.</p>
+          )}
+          {results.length > 0 && (
+            <ul className="grid grid-cols-4 gap-1.5" aria-label="Portrait results">
+              {results.slice(0, 12).map((r) => (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    onClick={() => pickSearch(r)}
+                    disabled={Boolean(busy)}
+                    title={r.name}
+                    aria-label={`Use portrait of ${r.name}`}
+                    className="group relative block aspect-square w-full overflow-hidden rounded bg-secondary ring-1 ring-border transition hover:ring-muted-foreground"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={r.thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    {busy === r.id && (
+                      <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Loader2 className="size-3 animate-spin" aria-hidden />
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[11px] text-muted-foreground">Portraits via Wikipedia.</p>
+        </>
+      )}
+      {!subject && (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={Boolean(busy)}
+          className="flex h-12 items-center justify-center gap-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-primary hover:text-foreground disabled:opacity-60"
+        >
+          {busy === 'upload' ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
+          {busy === 'upload' ? 'Uploading…' : 'Choose a photo'}
+        </button>
+      )}
+      <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files)} />
     </Section>
   )
 }

@@ -5,6 +5,7 @@ import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Slidesh
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
+import { clampReveal } from './reveal'
 import { normalizeFrameNotifications } from './notifications'
 import { MAX_DURATION_MS, MAX_RULE_SCORE, MIN_RULE_SCORE } from './schema'
 import { getDb } from './db'
@@ -200,7 +201,20 @@ export function normalize(store: FrameStore): FrameStore {
     const show = album?.slideshow
     if (!show) return album
     const isMosaic = show.presentation === 'mosaic'
-    if (!isMosaic) return album
+    const isReveal = show.presentation === 'reveal'
+    if (!isMosaic && !isReveal) return album
+    if (isReveal) {
+      const cfg = clampReveal(show.reveal as { tilesAcross?: unknown; tilesDown?: unknown; gap?: unknown; group?: unknown } | undefined)
+      const interval = clampLegacyNumber(show.interval, 3, 3600, 25)
+      return {
+        ...album,
+        slideshow: {
+          ...show,
+          interval,
+          reveal: cfg,
+        } as Slideshow,
+      }
+    }
     const m = (show.mosaic ?? {}) as { tilesAcross?: unknown; gap?: unknown; effect?: unknown }
     const tilesAcross = clampLegacyNumber(m.tilesAcross, 2, 10, 4)
     const gap = clampLegacyNumber(m.gap, 0, 12, 2)

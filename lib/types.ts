@@ -99,7 +99,7 @@ export type LayoutSettings = {
 export const ALBUM_THEMES = ['movies', 'tv', 'books', 'music', 'photos'] as const
 export type AlbumTheme = (typeof ALBUM_THEMES)[number]
 
-export const PRESENTATIONS = ['fill', 'poster', 'book', 'vinyl', 'gallery', 'mosaic'] as const
+export const PRESENTATIONS = ['fill', 'poster', 'book', 'vinyl', 'gallery', 'mosaic', 'reveal'] as const
 export type Presentation = (typeof PRESENTATIONS)[number]
 
 export type AlbumItem = {
@@ -121,6 +121,25 @@ export type Mosaic = {
   effect: 'flip' | 'fade' | 'zoom' | 'none'
 }
 
+export type RevealGroup = 'single' | 'pair' | 'quad' | 'row'
+export type RevealEffect = 'fade' | 'none'
+
+export type Reveal = {
+  tilesAcross: number
+  tilesDown: number
+  gap: number
+  group: RevealGroup
+  effect: RevealEffect
+}
+
+export type SubjectPortrait = {
+  name: string
+  type: 'search' | 'upload'
+  image: string
+  sourceUrl: string
+  imagePosition: 'top' | 'center' | 'bottom'
+}
+
 export type Slideshow = {
   presentation: Presentation
   transition: 'fade' | 'slide' | 'zoom' | 'none'
@@ -132,6 +151,7 @@ export type Slideshow = {
   backdrop: 'blur' | 'solid'
   backdropColor: string
   mosaic?: Mosaic
+  reveal?: Reveal
 }
 
 export type Album = {
@@ -140,6 +160,7 @@ export type Album = {
   theme: AlbumTheme
   items: AlbumItem[]
   slideshow: Slideshow
+  subject?: SubjectPortrait | null
   createdAt: string
   updatedAt: string
 }
