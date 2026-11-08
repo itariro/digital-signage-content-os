@@ -14,12 +14,15 @@ import {
 import { DRAG_MIME, type DropPayload } from './canvas'
 import { WidgetPreview } from './widget-preview'
 
-function dragProps(payload: DropPayload) {
+function dragProps(payload: DropPayload, onClose: () => void) {
   return {
     draggable: true,
     onDragStart: (e: React.DragEvent) => {
       e.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload))
       e.dataTransfer.effectAllowed = 'copy'
+    },
+    onDragEnd: (e: React.DragEvent) => {
+      if (e.dataTransfer.dropEffect === 'copy') onClose()
     },
   }
 }
@@ -28,9 +31,10 @@ type LibraryPanelProps = {
   presets: Preset[]
   onAdd: (payload: DropPayload) => void
   onDeletePreset: (id: string) => void
+  onClose: () => void
 }
 
-export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelProps) {
+export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: LibraryPanelProps) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<WidgetLibraryCategory>('All')
   const samples = useMemo(() => Object.fromEntries(WIDGETS.map((d) => [d.type, createWidget(d.type)])), [])
@@ -118,7 +122,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelPro
                   <button
                     key={def.type}
                     type="button"
-                    {...dragProps({ kind: 'widget', type: def.type })}
+                    {...dragProps({ kind: 'widget', type: def.type }, onClose)}
                     onClick={() => onAdd({ kind: 'widget', type: def.type })}
                     className="group flex cursor-grab flex-col overflow-hidden rounded-xl bg-secondary text-left ring-1 ring-border transition hover:ring-primary active:cursor-grabbing"
                   >
@@ -147,7 +151,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelPro
               <button
                 key={combo.id}
                 type="button"
-                {...dragProps({ kind: 'combo', id: combo.id })}
+                {...dragProps({ kind: 'combo', id: combo.id }, onClose)}
                 onClick={() => onAdd({ kind: 'combo', id: combo.id })}
                 className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
               >
@@ -176,7 +180,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelPro
                 <button
                   key={sticker.id}
                   type="button"
-                  {...dragProps({ kind: 'sticker', id: sticker.id })}
+                  {...dragProps({ kind: 'sticker', id: sticker.id }, onClose)}
                   onClick={() => onAdd({ kind: 'sticker', id: sticker.id })}
                   className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
                 >
@@ -208,7 +212,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset }: LibraryPanelPro
               <div key={preset.id} className="flex items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-1 ring-1 ring-border transition hover:ring-primary">
                 <button
                   type="button"
-                  {...dragProps({ kind: 'preset', id: preset.id })}
+                  {...dragProps({ kind: 'preset', id: preset.id }, onClose)}
                   onClick={() => onAdd({ kind: 'preset', id: preset.id })}
                   className="flex min-w-0 flex-1 cursor-grab items-center gap-3 text-left"
                 >
