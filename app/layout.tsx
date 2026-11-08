@@ -6,7 +6,6 @@ import { Bebas_Neue, Instrument_Serif, Inter, JetBrains_Mono, Outfit, Playfair_D
 import Script from 'next/script'
 import './globals.css'
 import { SwRegister } from '@/components/sw-register'
-import { EDITOR_THEME_STORAGE_KEY } from '@/lib/editor-theme'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
@@ -40,16 +39,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`bg-background ${fontVars}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <Script id="editor-theme-init" strategy="beforeInteractive">
-          {`try {
-            const theme = window.localStorage.getItem('${EDITOR_THEME_STORAGE_KEY}')
-            if (theme === 'light' || theme === 'dark') {
-              document.documentElement.classList.add(theme)
-            }
-          } catch (error) {
-            console.warn('Could not read editor theme preference; using system theme:', error)
-          }}`}
-        </Script>
+        <Script src="/editor-theme-init.js" strategy="beforeInteractive" />
         <ClerkProvider appearance={{ theme: shadcn }}>
           {children}
           <SwRegister />
