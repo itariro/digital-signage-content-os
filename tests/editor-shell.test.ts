@@ -37,6 +37,12 @@ describe('editor navigation shell', () => {
     expect(editorSource).toMatch(/lg:hidden/)
   })
 
+  it('remembers the trigger when a panel opens from within the inspector', () => {
+    expect(editorSource).toContain('if (activeDrawer === null) {')
+    expect(editorSource).toContain('const trigger = document.activeElement')
+    expect(editorSource).toContain('drawerTriggers.current.set(id, trigger)')
+  })
+
   it('keeps widget-library click and drag completion connected to close behavior', () => {
     expect(librarySource).toContain('onAdd')
     expect(librarySource).toContain('onClose')

@@ -83,6 +83,10 @@ export function Editor({ initialStore, frameId, singleFrame = false }: { initial
   }
 
   function showDrawer(id: DrawerId) {
+    if (activeDrawer === null) {
+      const trigger = document.activeElement
+      if (trigger instanceof HTMLButtonElement) drawerTriggers.current.set(id, trigger)
+    }
     setActiveDrawer(id)
   }
 
