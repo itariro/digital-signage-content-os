@@ -1,5 +1,5 @@
 import { BookOpen, Clapperboard, Disc3, Images, Tv, type LucideIcon } from 'lucide-react'
-import type { Album, AlbumItem, AlbumTheme, Presentation, Slideshow } from './types'
+import type { Album, AlbumItem, AlbumTheme, Presentation, Slideshow, SubjectPortrait } from './types'
 
 export type ThemeMeta = {
   label: string
@@ -83,6 +83,7 @@ export const PRESENTATION_META: Record<Presentation, { label: string; descriptio
   vinyl: { label: 'Vinyl', description: 'Sleeve with a spinning record' },
   gallery: { label: 'Gallery mat', description: 'Matted print on a solid wall' },
   mosaic: { label: 'Mosaic', description: 'Full-screen grid of covers; one changes at a time' },
+  reveal: { label: 'Portrait Reveal', description: 'Grayscale portrait behind a wall of covers; cells open over time' },
 }
 
 const THEME_PRESENTATION: Record<AlbumTheme, Presentation> = {
@@ -120,6 +121,43 @@ export function defaultMosaicSlideshow(): Slideshow {
     backdrop: 'solid',
     backdropColor: '#14161b',
     mosaic: { tilesAcross: 4, gap: 2, effect: 'flip' },
+  }
+}
+
+export function artistsInAlbum(album: Album): { artist: string; items: AlbumItem[]; subject: SubjectPortrait | null }[] {
+  const groups = new Map<string, AlbumItem[]>()
+  for (const item of album.items) {
+    const artist = (item.artist || item.subtitle || '').trim() || 'Unknown artist'
+    if (!groups.has(artist)) groups.set(artist, [])
+    groups.get(artist)!.push(item)
+  }
+  if (groups.size === 0) {
+    const subs = album.subjects && album.subjects.length > 0 ? album.subjects : (album.subject ? [album.subject] : [])
+    return subs.length > 0 ? subs.map((s) => ({ artist: s.artist || s.name || 'Unknown artist', items: album.items, subject: s })) : [{ artist: album.name, items: album.items, subject: null }]
+  }
+  const subjects = album.subjects && album.subjects.length > 0 ? album.subjects : (album.subject ? [album.subject] : [])
+  return [...groups.entries()].map(([artist, items]) => {
+    const subject = subjects.find((s) => (s.artist || s.name) === artist) ?? (subjects.length === 1 ? subjects[0] : null)
+    return { artist, items, subject }
+  })
+}
+
+export function defaultReveal() {
+  return { tilesAcross: 6, tilesDown: 6, gap: 2, group: 'single' as const, effect: 'fade' as const }
+}
+
+export function defaultRevealSlideshow(): Slideshow {
+  return {
+    presentation: 'reveal',
+    transition: 'none',
+    kenBurns: false,
+    interval: 25,
+    order: 'sequence',
+    artSize: 74,
+    artPosition: 'center',
+    backdrop: 'solid',
+    backdropColor: '#14161b',
+    reveal: defaultReveal(),
   }
 }
 

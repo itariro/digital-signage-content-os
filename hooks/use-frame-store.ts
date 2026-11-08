@@ -46,6 +46,8 @@ export function useWeather(settings: Pick<LayoutSettings, 'lat' | 'lon' | 'units
 
 export type ArtworkResult = { id: string; title: string; subtitle: string; year: string; thumb: string; image: string; genre?: string; description?: string; director?: string; rating?: string }
 
+export type PortraitResult = { id: string; name: string; subtitle: string; thumb: string; image: string }
+
 function canonicalQuery(query: string) {
   const trimmed = query.trim()
   if (!trimmed.startsWith('[')) return trimmed
@@ -65,6 +67,16 @@ export function useArtworkSearch(theme: string, query: string, page: number) {
     { revalidateOnFocus: false, dedupingInterval: 60_000, keepPreviousData: false },
   )
   return { results: data?.results ?? [], hasMore: data?.hasMore ?? false, partialFailures: data?.partialFailures ?? [], error: Boolean(error), isLoading: isLoading || isValidating }
+}
+
+export function usePortraitSearch(query: string) {
+  const trimmed = query.trim()
+  const { data, error, isLoading, isValidating } = useSWR<{ results: PortraitResult[]; queryId: string }>(
+    trimmed.length >= 2 ? `/api/portrait?q=${encodeURIComponent(trimmed)}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60_000, keepPreviousData: false },
+  )
+  return { results: data?.results ?? [], error: Boolean(error), isLoading: isLoading || isValidating }
 }
 
 export function useGeocode(query: string) {

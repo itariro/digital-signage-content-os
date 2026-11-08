@@ -103,6 +103,7 @@ Supported presentation modes include:
 - Vinyl
 - Gallery
 - Mosaic
+- Portrait Reveal
 
 Slideshow configuration includes:
 
@@ -113,6 +114,38 @@ Slideshow configuration includes:
 - Artwork size and position
 - Blurred or solid backdrop
 - Backdrop color
+
+### Portrait Reveal
+
+Portrait Reveal shows a grayscale subject portrait behind a wall of album
+covers arranged on a grid. At fixed wall-clock offsets the engine opens single
+cells or rectangular groups of adjacent cells until the portrait is fully
+visible, holds it for one interval, and then re-covers the grid for the next
+cycle. Timing depends only on the album's identifiers and configuration, so
+the frame, editor preview, and Now Showing widget agree without coordination.
+
+Reveal settings include:
+
+- Grid size in tiles across and down (2 to 10 each, default 6 by 5)
+- Gap between cells
+- Grouping of cells revealed together: single cells, vertical pairs, 2x2
+  quads, or full rows
+- Fade or instant reveal effect
+
+Each album can carry an optional subject portrait. A portrait can be found
+through person search on Wikipedia or uploaded, is cached through the media
+infrastructure and its host allowlist, and can be positioned toward the top,
+middle, or bottom. Albums without a portrait (or older albums with no subject
+data) show the backdrop color behind the covers instead. Legacy albums keep
+working unchanged.
+
+### Subject portrait search
+
+Portraits come from a dedicated `/api/portrait` route that searches Wikipedia
+for biography pages and returns each article's lead image. Results include a
+thumbnail for browsing and a high-resolution image for caching. The editor
+previews portraits as square thumbnails, caches the chosen image through
+`/api/media`, and records its source so the same portrait can be restored.
 
 ### Artwork search
 

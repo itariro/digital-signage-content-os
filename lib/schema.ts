@@ -131,12 +131,30 @@ export const albumItemSchema = z.object({
   title: z.string().max(200),
   subtitle: z.string().max(200),
   year: z.string().max(12),
+  artist: z.string().max(120).optional(),
 })
 
 export const mosaicSchema = z.object({
   tilesAcross: z.number().int().min(2).max(10),
   gap: z.number().int().min(0).max(12),
   effect: z.enum(['flip', 'fade', 'zoom', 'none']),
+})
+
+export const revealSchema = z.object({
+  tilesAcross: z.number().int().min(2).max(10),
+  tilesDown: z.number().int().min(2).max(10),
+  gap: z.number().int().min(0).max(12),
+  group: z.enum(['single', 'pair', 'quad', 'row']),
+  effect: z.enum(['fade', 'none']),
+})
+
+export const subjectSchema = z.object({
+  name: z.string().max(80),
+  type: z.enum(['search', 'upload']),
+  image: imageRef,
+  sourceUrl: z.string().max(600),
+  imagePosition: z.enum(['top', 'center', 'bottom']),
+  artist: z.string().max(120).optional(),
 })
 
 export const slideshowSchema = z.object({
@@ -150,6 +168,7 @@ export const slideshowSchema = z.object({
   backdrop: z.enum(['blur', 'solid']),
   backdropColor: hex,
   mosaic: mosaicSchema.optional(),
+  reveal: revealSchema.optional(),
 })
 
 export const albumCreateSchema = z.object({
@@ -162,6 +181,7 @@ export const albumUpdateSchema = z.object({
   theme: z.enum(ALBUM_THEMES),
   items: z.array(albumItemSchema).max(200),
   slideshow: slideshowSchema,
+  subject: subjectSchema.nullable().optional(),
 })
 
 export const layoutInputSchema = z.object({

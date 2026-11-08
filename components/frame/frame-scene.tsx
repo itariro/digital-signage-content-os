@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import type { ActiveSlide, Album, DisplayDecision, LayoutSettings, NightMode, WeatherData, Widget } from '@/lib/types'
+import { clampReveal, revealAt, seedFromString as revealSeedFromString } from '@/lib/reveal'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { fontStack } from '@/lib/fonts'
 import { hexToRgba } from '@/lib/frame-utils'
@@ -114,6 +115,22 @@ export function SceneBackground({ settings, album, now }: { settings: LayoutSett
 
 export function activeSlide(album: Album | null | undefined, now: Date | null): ActiveSlide | null {
   if (!album || !now) return null
+  if (album.slideshow.presentation === 'reveal' && album.items.length >= 1) {
+    const cfg = clampReveal(album.slideshow.reveal)
+    const seed = revealSeedFromString(album.id + '|' + album.items.map((i) => i.id).join(','))
+    const st = revealAt({
+      nowMs: now.getTime(),
+      offset: 0,
+      seed,
+      itemCount: album.items.length,
+      intervalSec: album.slideshow.interval,
+      cols: cfg.tilesAcross,
+      rows: cfg.tilesDown,
+      group: cfg.group,
+    })
+    const item = st.lastChanged ? (st.lastChanged.item >= 0 ? album.items[st.lastChanged.item] : null) : album.items[0]
+    return item ? { item, theme: album.theme, albumName: album.name } : null
+  }
   if (album.slideshow.presentation === 'mosaic' && album.items.length >= 5) {
     const aspect = (album.theme === 'music' ? 1 : album.theme === 'photos' ? 9 / 16 : 2 / 3)
     const tilesAcross = album.slideshow.mosaic?.tilesAcross ?? 4
