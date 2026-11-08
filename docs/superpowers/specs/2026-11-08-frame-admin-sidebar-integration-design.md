@@ -23,7 +23,7 @@ The freestanding display, sign-in/up, and landing surfaces remain outside these 
 The drawer defaults to **Frames** and provides three keyboard-accessible internal tabs:
 
 1. **Frames** lists the instance identifier, associated frame name, revision, created/updated timestamps, and last-seen timestamp where present. It provides the existing enrollment-code issuance and rotation workflows.
-2. **Conflicts** lists open and rejected sync conflicts. Open conflicts retain the existing actions to accept the console version or apply the instance version. Rejected writes retain the existing discard action.
+2. **Conflicts** lists open and rejected sync conflicts. Open conflicts retain the existing actions to accept the console version or apply the instance version. Rejected writes retain the existing discard action; the route validation must admit `discard` and continue to let the conflict service enforce that only rejected writes can be discarded.
 3. **Audit** lists recent operator activity.
 
 Use the existing editor shell and surface treatments. Keep the drawer usable at compact widths and on narrow screens. Tab changes remain within the drawer; the rail's active state continues to indicate the administration surface.
@@ -37,7 +37,7 @@ Issuing or rotating an enrollment code displays the existing one-time code, expi
 - Protect every administration API with the existing `resolveActor` policy, including optional `CONSOLE_ADMIN_ROLE` enforcement. Do not rely on client-provided role or visibility state.
 - Load a tab's data when needed. Limit audit data to the existing recent-history scale (20 records). Refresh or remove successfully completed conflict actions from the active list.
 - Keep API failure visible. Loading, empty, expired-session/unauthorized, and request-error states must be distinct. A failed read must never be rendered as an empty successful list.
-- Preserve existing conflict-resolution validation and audit writes. Do not weaken existing server authorization or introduce a new credential path.
+- Preserve the local/remote conflict-resolution validation and audit writes. Permit the existing rejected-write `discard` action through route validation and retain the conflict service's status check, which rejects discard attempts for open conflicts. Do not weaken existing server authorization or introduce a new credential path.
 
 The editor route receives an explicit server-derived `canManageFrames` capability. It must not infer the capability from a query parameter or client state. The `/console` route remains protected before redirecting.
 
