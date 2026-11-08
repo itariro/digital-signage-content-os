@@ -1,11 +1,12 @@
 'use client'
 
 import { Download, Frame, Loader2, Moon, Play, Redo2, Sun, Undo2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { EditorApi } from '@/hooks/use-editor'
 import { IconButton } from './controls'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
+import { EDITOR_THEME_STORAGE_KEY, resolveEditorTheme, storedEditorTheme } from '@/lib/editor-theme'
 import { FrameSwitcher } from './frame-switcher'
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
 
@@ -20,16 +21,41 @@ type TopBarProps = {
 }
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true)
+  const [isDark, setIsDark] = useState(false)
+  const hasExplicitPreference = useRef(false)
 
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
+    const root = document.documentElement
+    const systemPreference = window.matchMedia('(prefers-color-scheme: dark)')
+    let savedPreference = null
+
+    try {
+      savedPreference = storedEditorTheme(window.localStorage.getItem(EDITOR_THEME_STORAGE_KEY))
+    } catch {}
+
+    hasExplicitPreference.current = savedPreference !== null
+    setIsDark(resolveEditorTheme(savedPreference, systemPreference.matches) === 'dark')
+    root.classList.toggle('dark', savedPreference === 'dark')
+    root.classList.toggle('light', savedPreference === 'light')
+
+    function handleSystemPreferenceChange(event: MediaQueryListEvent) {
+      if (!hasExplicitPreference.current) setIsDark(event.matches)
+    }
+
+    systemPreference.addEventListener('change', handleSystemPreferenceChange)
+    return () => systemPreference.removeEventListener('change', handleSystemPreferenceChange)
   }, [])
 
   function toggleTheme() {
     const nextIsDark = !isDark
+    hasExplicitPreference.current = true
     document.documentElement.classList.toggle('dark', nextIsDark)
+    document.documentElement.classList.toggle('light', !nextIsDark)
     setIsDark(nextIsDark)
+
+    try {
+      window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, nextIsDark ? 'dark' : 'light')
+    } catch {}
   }
 
   return (

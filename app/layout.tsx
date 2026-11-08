@@ -3,6 +3,7 @@ import { shadcn } from '@clerk/ui/themes'
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Bebas_Neue, Instrument_Serif, Inter, JetBrains_Mono, Outfit, Playfair_Display, Space_Grotesk } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import { SwRegister } from '@/components/sw-register'
 
@@ -36,8 +37,16 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const fontVars = [inter, outfit, grotesk, playfair, instrument, bebas, jetbrains].map((f) => f.variable).join(' ')
   return (
-    <html lang="en" className={`dark bg-background ${fontVars}`}>
+    <html lang="en" className={`bg-background ${fontVars}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
+        <Script id="editor-theme-init" strategy="beforeInteractive">
+          {`try {
+            const theme = window.localStorage.getItem('mural-editor-theme')
+            if (theme === 'light' || theme === 'dark') {
+              document.documentElement.classList.add(theme)
+            }
+          } catch {}`}
+        </Script>
         <ClerkProvider appearance={{ theme: shadcn }}>
           {children}
           <SwRegister />
