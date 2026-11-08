@@ -6,9 +6,10 @@ import type { EditorApi } from '@/hooks/use-editor'
 import { IconButton } from './controls'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
-import { EDITOR_THEME_STORAGE_KEY, resolveEditorTheme, storedEditorTheme } from '@/lib/editor-theme'
+import { resolveEditorTheme, saveEditorThemePreference } from '@/lib/editor-theme'
 import { FrameSwitcher } from './frame-switcher'
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
+import { toast } from 'sonner'
 
 type TopBarProps = {
   singleFrame?: boolean
@@ -27,16 +28,14 @@ export function ThemeToggle() {
   useEffect(() => {
     const root = document.documentElement
     const systemPreference = window.matchMedia('(prefers-color-scheme: dark)')
-    let savedPreference = null
-
-    try {
-      savedPreference = storedEditorTheme(window.localStorage.getItem(EDITOR_THEME_STORAGE_KEY))
-    } catch {}
+    const savedPreference = root.classList.contains('light')
+      ? 'light'
+      : root.classList.contains('dark')
+        ? 'dark'
+        : null
 
     hasExplicitPreference.current = savedPreference !== null
     setIsDark(resolveEditorTheme(savedPreference, systemPreference.matches) === 'dark')
-    root.classList.toggle('dark', savedPreference === 'dark')
-    root.classList.toggle('light', savedPreference === 'light')
 
     function handleSystemPreferenceChange(event: MediaQueryListEvent) {
       if (!hasExplicitPreference.current) setIsDark(event.matches)
@@ -53,9 +52,8 @@ export function ThemeToggle() {
     document.documentElement.classList.toggle('light', !nextIsDark)
     setIsDark(nextIsDark)
 
-    try {
-      window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, nextIsDark ? 'dark' : 'light')
-    } catch {}
+    const result = saveEditorThemePreference(window.localStorage, nextIsDark ? 'dark' : 'light')
+    if (!result.ok) toast.error('Could not save theme preference')
   }
 
   return (
