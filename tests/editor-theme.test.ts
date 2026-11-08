@@ -24,17 +24,23 @@ describe('editor theme preference', () => {
   it('reports preference persistence failures', () => {
     const error = new Error('Storage unavailable')
     const result = saveEditorThemePreference(
-      { setItem: () => { throw error } },
+      () => ({ setItem: () => { throw error } }),
       'dark',
     )
 
     expect(result).toEqual({ ok: false, error })
   })
 
+  it('reports storage acquisition failures', () => {
+    const error = new Error('Storage unavailable')
+
+    expect(saveEditorThemePreference(() => { throw error }, 'dark')).toEqual({ ok: false, error })
+  })
+
   it('saves an explicit theme preference', () => {
     const setItem = vi.fn()
 
-    expect(saveEditorThemePreference({ setItem }, 'light')).toEqual({ ok: true })
+    expect(saveEditorThemePreference(() => ({ setItem }), 'light')).toEqual({ ok: true })
     expect(setItem).toHaveBeenCalledWith('mural-editor-theme', 'light')
   })
 })

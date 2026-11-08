@@ -11,10 +11,11 @@ export function resolveEditorTheme(value: string | null, systemPrefersDark: bool
 }
 
 export function saveEditorThemePreference(
-  storage: Pick<Storage, 'setItem'>,
+  getStorage: () => Pick<Storage, 'setItem'>,
   theme: EditorTheme,
 ): { ok: true } | { ok: false; error: unknown } {
   try {
+    const storage = getStorage()
     storage.setItem(EDITOR_THEME_STORAGE_KEY, theme)
     return { ok: true }
   } catch (error) {

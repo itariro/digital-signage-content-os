@@ -52,7 +52,7 @@ export function ThemeToggle() {
     document.documentElement.classList.toggle('light', !nextIsDark)
     setIsDark(nextIsDark)
 
-    const result = saveEditorThemePreference(window.localStorage, nextIsDark ? 'dark' : 'light')
+    const result = saveEditorThemePreference(() => window.localStorage, nextIsDark ? 'dark' : 'light')
     if (!result.ok) toast.error('Could not save theme preference')
   }
 
