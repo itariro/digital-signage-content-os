@@ -58,7 +58,7 @@ export function LayoutSettingsPanel({
 
       <Section title="Frame">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Panel</span>
+          <span className="text-sm font-medium text-foreground">Panel</span>
           <Segmented
             label="Frame resolution"
             value={settings.resolution}
@@ -229,7 +229,7 @@ export function LayoutSettingsPanel({
           </ul>
         )}
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Units</span>
+          <span className="text-sm font-medium text-foreground">Units</span>
           <Segmented
             label="Temperature units"
             value={settings.units}

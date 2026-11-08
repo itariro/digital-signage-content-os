@@ -170,7 +170,7 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
         if (field.showWhen && String(widget.props[field.showWhen.key]) !== field.showWhen.value) return null
         if (field.kind === 'date') {
           return (
-            <label key={field.key} className="flex items-center justify-between gap-3 text-sm text-foreground">
+            <label key={field.key} className="flex items-center justify-between gap-3 text-sm font-medium text-foreground">
               {field.label}
               <input
                 type="date"
@@ -196,7 +196,7 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
           )
         }
         return (
-          <label key={field.key} className="flex flex-col gap-1.5 text-sm text-foreground">
+          <label key={field.key} className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
             {field.label}
             <input
               type="text"
@@ -549,7 +549,7 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
         <SliderField label="Weight" value={s.fontWeight} min={100} max={900} step={100} onCommit={commit} onChange={slide('fontWeight')} />
         <SliderField label="Letter spacing" value={s.letterSpacing} min={-15} max={40} onCommit={commit} onChange={slide('letterSpacing')} />
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-foreground">Alignment</span>
+          <span className="text-sm font-medium text-foreground">Alignment</span>
           <Segmented
             label="Text alignment"
             value={s.align}
@@ -621,7 +621,7 @@ function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: W
       {layers.length === 0 && <p className="text-xs text-muted-foreground">No layers.</p>}
       {layers.map((layer, index) => (
         <div key={layer.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
-          <label className="flex flex-col gap-1.5 text-sm text-foreground">
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
             Layer {index + 1} text
             <input
               type="text"
@@ -634,7 +634,7 @@ function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: W
           </label>
           {!layer.style.fill && (
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-foreground">Text color</span>
+              <span className="text-sm font-medium text-foreground">Text color</span>
               <input
                 type="color"
                 value={layer.style.color}
@@ -645,7 +645,7 @@ function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: W
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground">Accent</span>
+            <span className="text-sm font-medium text-foreground">Accent</span>
             <input
               type="color"
               value={layer.style.accent}

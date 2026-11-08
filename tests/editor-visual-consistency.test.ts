@@ -5,6 +5,12 @@ import { describe, expect, it } from 'vitest'
 const root = path.resolve(__dirname, '..')
 const styles = readFileSync(path.join(root, 'app/globals.css'), 'utf8')
 const controls = readFileSync(path.join(root, 'components/editor/controls.tsx'), 'utf8')
+const panelSources = Object.fromEntries(
+  ['inspector', 'layout-settings', 'layers-panel', 'layouts-panel', 'library-panel'].map((name) => [
+    name,
+    readFileSync(path.join(root, `components/editor/${name}.tsx`), 'utf8'),
+  ]),
+)
 const shellSources = Object.fromEntries(
   ['editor', 'top-bar', 'canvas', 'frame-switcher', 'preview-overlay'].map((name) => [
     name,
@@ -31,6 +37,30 @@ describe('editor visual system', () => {
     expect(controls).toContain("export type EditorButtonVariant = 'primary' | 'secondary' | 'quiet' | 'destructive'")
     expect(controls).toContain('export function EditorButton')
     expect(controls).toContain('editor-button-${variant}')
+  })
+
+  it('uses shared sections and editor controls throughout the inspector and layout settings', () => {
+    const { inspector, 'layout-settings': layoutSettings, 'library-panel': library } = panelSources
+
+    for (const source of [inspector, layoutSettings]) {
+      expect(source).toContain('<Section title=')
+      expect(source).toContain('className="editor-control')
+    }
+
+    expect(controls).toContain('editor-panel-section')
+    expect(controls).toContain('className="editor-control')
+    expect(library).toContain('className="editor-control')
+  })
+
+  it('uses shared action treatments for layer, layout, and library actions', () => {
+    const { 'layers-panel': layers, 'layouts-panel': layouts, 'library-panel': library } = panelSources
+
+    expect(layers).toContain('import { IconButton } from')
+    expect(layers).toContain('<IconButton label="Move up"')
+    expect(layouts).toMatch(/<EditorButton\b(?=[^>]*variant="primary")(?=[^>]*onClick=\{onCreate\})/)
+    expect(layouts).toMatch(/<EditorButton\b(?=[^>]*variant="secondary")(?=[^>]*onClick=\{\(\) => fileRef\.current\?\.click\(\)\})/)
+    expect(layouts).toContain('<IconButton label={`Duplicate ${layout.name}`}')
+    expect(library).toContain('<EditorButton')
   })
 
   it('uses shared action components for shell text and icon actions', () => {

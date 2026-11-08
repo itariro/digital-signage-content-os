@@ -41,7 +41,7 @@ export function SliderField({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-sm text-foreground">
+        <label htmlFor={id} className="text-sm font-medium text-foreground">
           {label}
         </label>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -74,8 +74,8 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-foreground">{label}</span>
-        <label htmlFor={id} className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-2 font-mono text-xs uppercase text-muted-foreground">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <label htmlFor={id} className="editor-control flex h-9 cursor-pointer items-center gap-2 px-2 font-mono text-xs uppercase text-muted-foreground">
           <span className="size-3.5 rounded-full ring-1 ring-border" style={{ background: value }} />
           {value}
           <input id={id} type="color" value={value} onChange={(e) => onChange(e.target.value)} className="sr-only" aria-label={`${label} custom color`} />
@@ -105,7 +105,7 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
 export function ThemeSwatches({ onApply, label = 'Quick themes' }: { onApply: (style: Partial<WidgetStyle>) => void; label?: string }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm text-foreground">{label}</span>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       <div className="grid grid-cols-5 gap-1.5">
         {STYLE_THEMES.map((theme) => (
           <button
@@ -131,7 +131,7 @@ export function TimeField({ label, value, onChange }: { label: string; value: st
   const id = useId()
   return (
     <div className="flex items-center justify-between gap-3">
-      <label htmlFor={id} className="text-sm text-foreground">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
         {label}
       </label>
       <input
@@ -139,7 +139,7 @@ export function TimeField({ label, value, onChange }: { label: string; value: st
         type="time"
         value={value}
         onChange={(e) => e.target.value && onChange(e.target.value)}
-        className="editor-control h-8 px-2 font-mono text-xs"
+        className="editor-control h-9 px-2 font-mono text-xs"
       />
     </div>
   )
@@ -152,7 +152,7 @@ export function ToggleField({ label, checked, onChange }: { label: string; check
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between gap-2 text-left text-sm text-foreground"
+      className="flex items-center justify-between gap-2 text-left text-sm font-medium text-foreground"
     >
       {label}
       <span className={cn('relative h-4 w-7 shrink-0 rounded-full transition-colors', checked ? 'bg-primary' : 'bg-secondary')}>
@@ -176,14 +176,14 @@ export function SelectField({
   const id = useId()
   return (
     <div className="flex items-center justify-between gap-3">
-      <label htmlFor={id} className="text-sm text-foreground">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
         {label}
       </label>
       <select
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="editor-control h-8 max-w-[60%] px-2"
+        className="editor-control h-9 max-w-[60%] px-2"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -209,7 +209,7 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn('flex h-8 rounded-md bg-secondary p-0.5', className)}>
+    <div role="radiogroup" aria-label={label} className={cn('editor-control flex h-9 bg-secondary p-0.5', className)}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -219,7 +219,7 @@ export function Segmented<T extends string>({
           title={o.title}
           onClick={() => onChange(o.value)}
           className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors',
+            'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring',
             value === o.value ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -233,8 +233,8 @@ export function Segmented<T extends string>({
 export function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   const id = useId()
   return (
-    <div className="editor-control flex h-8 items-center gap-2 px-2">
-      <label htmlFor={id} className="font-mono text-sm text-muted-foreground">
+    <div className="editor-control flex h-9 items-center gap-2 px-2">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
         {label}
       </label>
       <input

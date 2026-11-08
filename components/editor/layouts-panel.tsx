@@ -4,7 +4,7 @@ import { useRef } from 'react'
 import { Copy, FileUp, MonitorCheck, Plus, Trash2 } from 'lucide-react'
 import type { Layout } from '@/lib/types'
 import { FrameScene } from '@/components/frame/frame-scene'
-import { IconButton } from './controls'
+import { EditorButton, IconButton } from './controls'
 import { useLiveData } from './widget-preview'
 import { cn } from '@/lib/utils'
 
@@ -27,22 +27,24 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
   return (
     <div className="editor-panel flex flex-col gap-2 p-3">
       <div className="flex gap-2">
-        <button
+        <EditorButton
           type="button"
+          variant="primary"
           onClick={onCreate}
-          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          className="h-8 min-h-8 flex-1"
         >
           <Plus className="size-4" aria-hidden />
           New layout
-        </button>
-        <button
+        </EditorButton>
+        <EditorButton
           type="button"
+          variant="secondary"
           onClick={() => fileRef.current?.click()}
-          className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-medium text-foreground hover:bg-secondary/70"
+          className="h-8 min-h-8"
         >
           <FileUp className="size-4" aria-hidden />
           Import
-        </button>
+        </EditorButton>
         <input
           ref={fileRef}
           type="file"
@@ -93,13 +95,14 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
                       On frame
                     </span>
                   ) : (
-                    <button
+                    <EditorButton
                       type="button"
+                      variant="secondary"
                       onClick={() => onActivate(layout.id)}
-                      className="h-8 rounded-full bg-card px-2.5 text-xs font-medium text-foreground ring-1 ring-border hover:ring-primary"
+                      className="h-8 min-h-8 rounded-full px-2.5 text-xs"
                     >
                       Show on frame
-                    </button>
+                    </EditorButton>
                   )}
                   <IconButton label={`Duplicate ${layout.name}`} onClick={() => onDuplicate(layout)} className="ml-auto">
                     <Copy className="size-4" />

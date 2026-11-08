@@ -12,6 +12,7 @@ import {
   type WidgetLibraryCategory,
 } from '@/lib/editor-library'
 import { DRAG_MIME, type DropPayload } from './canvas'
+import { EditorButton } from './controls'
 import { WidgetPreview } from './widget-preview'
 
 function dragProps(payload: DropPayload, onClose: () => void) {
@@ -75,14 +76,14 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search widgets, combinations, stickers…"
-            className="min-w-0 flex-1 bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            className="editor-control h-9 min-h-0 min-w-0 flex-1 border-0 bg-transparent px-0 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0"
           />
           {query && (
             <button
               type="button"
               aria-label="Clear search"
               onClick={() => setQuery('')}
-              className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="editor-icon-button size-7 focus-visible:ring-2 focus-visible:ring-primary"
             >
               <X className="size-4" aria-hidden />
             </button>
@@ -94,19 +95,16 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
           className="flex flex-nowrap gap-1.5 overflow-x-auto overscroll-x-contain pb-1"
         >
           {WIDGET_LIBRARY_CATEGORIES.map((option) => (
-            <button
+            <EditorButton
               key={option}
               type="button"
+              variant={category === option ? 'primary' : 'quiet'}
               aria-pressed={category === option}
               onClick={() => setCategory(option)}
-              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                category === option
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
-              }`}
+              className={`h-7 min-h-7 rounded-full px-2.5 py-1 text-xs ${category === option ? '' : 'bg-secondary text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
             >
               {option}
-            </button>
+            </EditorButton>
           ))}
         </div>
       </div>
@@ -118,7 +116,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
             <section key={widgetCategory} className="flex flex-col gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{widgetCategory}</h3>
               {widgets.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+                <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-xs leading-relaxed text-muted-foreground">
                   No {widgetCategory.toLowerCase()} widgets match your search.
                 </p>
               ) : (
@@ -151,7 +149,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Combinations</h3>
         {visibleCombos.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-xs leading-relaxed text-muted-foreground">
             No combinations match your search.
           </p>
         ) : (
@@ -178,7 +176,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Text stickers</h3>
         {visibleStickers.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-xs leading-relaxed text-muted-foreground">
             No text stickers match your search.
           </p>
         ) : (
@@ -208,11 +206,11 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">My widgets</h3>
         {presets.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-xs leading-relaxed text-muted-foreground">
             Style a widget or group, then use the bookmark button in the inspector to save it here.
           </p>
         ) : visiblePresets.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-border bg-card p-4 text-center text-xs leading-relaxed text-muted-foreground">
             No saved widgets match your search.
           </p>
         ) : (
@@ -233,14 +231,15 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
                     </span>
                   </span>
                 </button>
-                <button
+                <EditorButton
                   type="button"
+                  variant="destructive"
                   aria-label={`Delete ${preset.name}`}
                   onClick={() => onDeletePreset(preset.id)}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-card hover:text-destructive"
+                  className="size-8 min-h-8 px-0"
                 >
                   <Trash2 className="size-4" aria-hidden />
-                </button>
+                </EditorButton>
               </div>
             ))}
           </div>
