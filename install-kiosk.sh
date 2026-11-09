@@ -55,7 +55,8 @@ readonly MIN_RAM_KB=1000000
 
 # Files replaced by --update-runtime. Keep in sync with t_install_cli,
 # t_write_session, t_write_ctl, t_xinit, t_getty, t_write_app_service,
-# t_write_update_timer and t_write_standby_scripts.
+# t_write_update_timer, t_write_standby_scripts, t_write_standby_timers and
+# t_ensure_surf.
 RUNTIME_FILES=(
     /usr/local/bin/kiosk
     "${LIB_DIR}/session.sh"
@@ -67,6 +68,10 @@ RUNTIME_FILES=(
     /etc/systemd/system/kiosk-update.timer
     /usr/local/bin/kiosk-standby-on
     /usr/local/bin/kiosk-standby-off
+    /etc/systemd/system/kiosk-standby-on.service
+    /etc/systemd/system/kiosk-standby-on.timer
+    /etc/systemd/system/kiosk-standby-off.service
+    /etc/systemd/system/kiosk-standby-off.timer
 )
 
 # UI state (defaults keep die()/usage() usable before the UI is initialised)
@@ -1148,6 +1153,18 @@ t_build_app() {
     pnpm run build
 }
 
+# A chromium-born frame that updates to the surf runtime has no surf
+# binary (full install provisions it via PACKAGES, --update-runtime does
+# not). Ensure it before writing the surf-expecting session, or every
+# following boot lands on the rc=127 respawn loop with a black screen.
+t_ensure_surf() {
+    if [[ -x /usr/bin/surf ]]; then echo "surf present"; return 0; fi
+    echo "surf missing; installing"
+    apt-get update || true
+    apt-get install -y --no-install-recommends surf
+    [[ -x /usr/bin/surf ]] || { echo "surf binary still missing after install" >&2; return 1; }
+}
+
 t_write_app_service() {
     local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
     cat > /etc/systemd/system/dscos.service <<SVC_EOF
@@ -1175,9 +1192,7 @@ SVC_EOF
     mkdir -p /var/lib/dscos/data
     chown -R kiosk:kiosk /var/lib/dscos
     systemctl daemon-reload
-    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
-        systemctl enable dscos.service
-    fi
+    systemctl enable dscos.service
 }
 
 t_write_update_timer() {
@@ -1202,9 +1217,7 @@ Unit=kiosk-update.service
 WantedBy=timers.target
 TIMER_EOF
     systemctl daemon-reload
-    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
-        systemctl enable --now kiosk-update.timer || true
-    fi
+    systemctl enable --now kiosk-update.timer || true
 }
 
 t_write_installer_version() {
@@ -1474,6 +1487,7 @@ if (( UPDATE_RUNTIME )); then
     # so ensure it before refreshing the helpers that will run against it.
     t_install_node
     t_install_cli
+    t_ensure_surf
     t_write_session
     t_write_ctl
     t_getty
@@ -1481,6 +1495,7 @@ if (( UPDATE_RUNTIME )); then
     t_write_app_service
     t_write_update_timer
     t_write_standby_scripts
+    t_write_standby_timers
     systemctl daemon-reload
     echo "kiosk runtime updated to ${INSTALLER_VERSION}"
     exit 0
