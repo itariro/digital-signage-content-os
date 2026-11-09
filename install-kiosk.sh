@@ -1157,6 +1157,8 @@ t_build_app() {
 # binary (full install provisions it via PACKAGES, --update-runtime does
 # not). Ensure it before writing the surf-expecting session, or every
 # following boot lands on the rc=127 respawn loop with a black screen.
+# Direct apt-get: apt_run needs STATE_DIR, which is only created in the
+# full-install flow after this early --update-runtime exit.
 t_ensure_surf() {
     if [[ -x /usr/bin/surf ]]; then echo "surf present"; return 0; fi
     echo "surf missing; installing"
@@ -1192,7 +1194,7 @@ SVC_EOF
     mkdir -p /var/lib/dscos/data
     chown -R kiosk:kiosk /var/lib/dscos
     systemctl daemon-reload
-    systemctl enable dscos.service
+    systemctl enable dscos.service || echo "warning: could not enable dscos.service" >&2
 }
 
 t_write_update_timer() {
@@ -1217,7 +1219,7 @@ Unit=kiosk-update.service
 WantedBy=timers.target
 TIMER_EOF
     systemctl daemon-reload
-    systemctl enable --now kiosk-update.timer || true
+    systemctl enable --now kiosk-update.timer || echo "warning: could not enable kiosk-update.timer" >&2
 }
 
 t_write_installer_version() {
@@ -1282,10 +1284,8 @@ Unit=kiosk-standby-off.service
 WantedBy=timers.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer
-}
-
-t_getty() {
+    systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer || echo "warning: could not enable kiosk standby timers" >&2
+}t_getty() {
     install -d -m 0755 /etc/systemd/system/getty@tty1.service.d
     write_file /etc/systemd/system/getty@tty1.service.d/override.conf 0644 <<'EOF'
 [Service]

@@ -292,19 +292,20 @@ async function cmdConfig(ctx: Ctx, sub: string, args: string[]): Promise<number>
 async function cmdApp(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   if (sub === 'start') {
     const r = execCmd('systemctl', ['start', APP_SERVICE])
-    if (r.status !== 0) { out(ctx, r.stdout || `started ${APP_SERVICE}`); return r.status }
+    if (r.status !== 0) { err(ctx, r.stderr || `failed to start ${APP_SERVICE}`); return r.status }
     refreshBrowserAfterApp(ctx)
     out(ctx, r.stdout || `started ${APP_SERVICE}`)
     return 0
   }
   if (sub === 'stop') {
     const r = execCmd('systemctl', ['stop', APP_SERVICE])
+    if (r.status !== 0) { err(ctx, r.stderr || `failed to stop ${APP_SERVICE}`); return r.status }
     out(ctx, r.stdout || `stopped ${APP_SERVICE}`)
-    return r.status
+    return 0
   }
   if (sub === 'restart') {
     const r = execCmd('systemctl', ['restart', APP_SERVICE])
-    if (r.status !== 0) { out(ctx, r.stdout || `restarted ${APP_SERVICE}`); return r.status }
+    if (r.status !== 0) { err(ctx, r.stderr || `failed to restart ${APP_SERVICE}`); return r.status }
     refreshBrowserAfterApp(ctx)
     out(ctx, r.stdout || `restarted ${APP_SERVICE}`)
     return 0
@@ -981,7 +982,8 @@ async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number
   })
   out(ctx, `admin password set in ${file}; restart the app to apply`)
   if (process.platform === 'linux' && !process.env.VITEST) {
-    execCmd('systemctl', ['restart', APP_SERVICE])
+    const restart = execCmd('systemctl', ['restart', APP_SERVICE])
+    if (restart.status !== 0) { err(ctx, `app restart failed (exit ${restart.status}); run: systemctl restart ${APP_SERVICE}`); return 1 }
     refreshBrowserAfterApp(ctx)
   }
   return 0

@@ -4,7 +4,7 @@
 
 **Goal:** Make chromium-born frames converge to surf + enabled services after `kiosk update apply`, and make `kiosk app restart` refresh the browser picture.
 
-**Architecture:** Fix the runtime/update seam, not the data path — installer provisions what the new session needs, CLI signals the browser after the app is healthy. No session polling, no hash-format change.
+**Architecture:** Fix the runtime/update seam, not the data path - installer provisions what the new session needs, CLI signals the browser after the app is healthy. No session polling, no hash-format change.
 
 **Tech Stack:** Bash (`install-kiosk.sh`), TypeScript CLI (`lib/kiosk/cli.ts`, `lib/kiosk/updater.ts`), Vitest, existing bash test harness in `tests/kiosk-install/`.
 
@@ -13,24 +13,24 @@
 ## File structure
 
 **Modify: `install-kiosk.sh`**
-- `RUNTIME_FILES` (lines 59-70) — add 4 standby unit files so backup/restore covers them. Responsibility: update allowlist.
-- `t_write_app_service` (1151-1181) — drop the `KIOSK_RUNTIME_UPDATE != 1` skip; always `systemctl enable dscos.service`. Responsibility: app service unit + enablement.
-- `t_write_update_timer` (1183-1208) — drop the skip; always `systemctl enable --now kiosk-update.timer`. Responsibility: update timer unit.
-- New `t_ensure_surf` — apt-install `surf` when `/usr/bin/surf` is missing. Responsibility: browser binary provisioning on update.
-- `UPDATE_RUNTIME` branch (1470-1487) — call `t_ensure_surf` + `t_write_standby_timers`, keep existing calls. Responsibility: runtime refresh sequence.
-- Header comment (56-58) — name the new tasks so `--runtime-files` docs stay accurate.
+- `RUNTIME_FILES` (lines 59-70) - add 4 standby unit files so backup/restore covers them. Responsibility: update allowlist.
+- `t_write_app_service` (1151-1181) - drop the `KIOSK_RUNTIME_UPDATE != 1` skip; always `systemctl enable dscos.service`. Responsibility: app service unit + enablement.
+- `t_write_update_timer` (1183-1208) - drop the skip; always `systemctl enable --now kiosk-update.timer`. Responsibility: update timer unit.
+- New `t_ensure_surf` - apt-install `surf` when `/usr/bin/surf` is missing. Responsibility: browser binary provisioning on update.
+- `UPDATE_RUNTIME` branch (1470-1487) - call `t_ensure_surf` + `t_write_standby_timers`, keep existing calls. Responsibility: runtime refresh sequence.
+- Header comment (56-58) - name the new tasks so `--runtime-files` docs stay accurate.
 
 **Modify: `lib/kiosk/updater.ts`**
-- `RUNTIME_FILES` (33-43) — add the same 4 standby unit paths. Responsibility: TypeScript mirror of the installer allowlist (unioned in `applyUpdate`).
+- `RUNTIME_FILES` (33-43) - add the same 4 standby unit paths. Responsibility: TypeScript mirror of the installer allowlist (unioned in `applyUpdate`).
 
 **Modify: `lib/kiosk/cli.ts`**
-- `restartAndCheckHealth` (436-455) — call `refreshBrowserAfterApp()` on success. Responsibility: post-update picture refresh.
-- `cmdApp` start/restart (292-307) — call `refreshBrowserAfterApp()` after successful `systemctl`. Responsibility: operator restart reloads picture.
-- New `refreshBrowserAfterApp()` helper — best-effort `pkill -TERM -u kiosk -x surf`. Responsibility: single browser-refresh signal.
-- `cmdEnroll` (928-931) and `cmdPassword` (967-969) — call same helper after `systemctl restart` succeeds. Responsibility: enroll/password also refresh picture.
+- `restartAndCheckHealth` (436-455) - call `refreshBrowserAfterApp()` on success. Responsibility: post-update picture refresh.
+- `cmdApp` start/restart (292-307) - call `refreshBrowserAfterApp()` after successful `systemctl`. Responsibility: operator restart reloads picture.
+- New `refreshBrowserAfterApp()` helper - best-effort `pkill -TERM -u kiosk -x surf`. Responsibility: single browser-refresh signal.
+- `cmdEnroll` (928-931) and `cmdPassword` (967-969) - call same helper after `systemctl restart` succeeds. Responsibility: enroll/password also refresh picture.
 
 **Modify: `docs/kiosk-cli.md`**
-- `### Application service` (147-158) — one paragraph: start/restart also reloads browser. Responsibility: operator contract.
+- `### Application service` (147-158) - one paragraph: start/restart also reloads browser. Responsibility: operator contract.
 
 **Modify: `lib/kiosk/__tests__/cli.test.ts` + `lib/kiosk/__tests__/update-command.test.ts`**
 - CLI test: `app restart` issues `pkill -TERM -u kiosk -x surf`; `pkill` failure does not fail the command.
@@ -40,7 +40,7 @@
 
 ---
 
-### Task 1: Installer — standby runtime files, always-enable, surf ensure
+### Task 1: Installer - standby runtime files, always-enable, surf ensure
 
 **Files:**
 - Modify: `install-kiosk.sh:56-70` (RUNTIME_FILES + header comment)
@@ -188,7 +188,7 @@ git commit -m "fix(kiosk): update-runtime ensures surf, enables services, restor
 
 ---
 
-### Task 2: Updater — mirror standby runtime files
+### Task 2: Updater - mirror standby runtime files
 
 **Files:**
 - Modify: `lib/kiosk/updater.ts:30-43`
@@ -248,7 +248,7 @@ git commit -m "fix(kiosk): mirror standby units in updater runtime allowlist"
 
 ---
 
-### Task 3: CLI — `refreshBrowserAfterApp()` + app start/restart wiring
+### Task 3: CLI - `refreshBrowserAfterApp()` + app start/restart wiring
 
 **Files:**
 - Modify: `lib/kiosk/cli.ts:292-307` (cmdApp) and new helper near `restartAndCheckHealth`
@@ -346,7 +346,7 @@ git commit -m "fix(kiosk): app start/restart reloads surf browser"
 
 ---
 
-### Task 4: CLI — propagate refresh to update health path, enroll, password
+### Task 4: CLI - propagate refresh to update health path, enroll, password
 
 **Files:**
 - Modify: `lib/kiosk/cli.ts:436-455` (`restartAndCheckHealth`), `919-933` (`cmdEnroll`), `935-971` (`cmdPassword`)
@@ -434,7 +434,7 @@ refreshes the picture.
 
 - [ ] **Step 2: Run full checks**
 
-Run: `pnpm test` (skipped in any sandbox where better-sqlite3 needs rebuild — record output)
+Run: `pnpm test` (skipped in any sandbox where better-sqlite3 needs rebuild - record output)
 Run: `bash tests/kiosk-install/test-frame-build-env.sh && bash tests/kiosk-install/test-update-runtime.sh && bash tests/kiosk-install/test-install-sh.sh`
 Expected: all PASS.
 
@@ -484,7 +484,7 @@ Before = boot log while disabled/missing-surf (already in DEBUG file). After = T
 - §4d no session loop / no hash change / reuse docs only → Task 5 keeps `docs/kiosk-cli.md` note, no session change. ✓
 - §7 tests (build-env stays green, pkill test, installer grep test, frame evidence) → Tasks 1, 3, 4, 5, 6. ✓
 
-**Placeholder scan:** No TBD/TODO, no “appropriate error handling” — every step has exact shell/TS text and exact commands. No “similar to Task N”; Task 4 repeats the one-line helper call explicitly.
+**Placeholder scan:** No TBD/TODO, no "appropriate error handling" - every step has exact shell/TS text and exact commands. No "similar to Task N"; Task 4 repeats the one-line helper call explicitly.
 
 **Type consistency:** `refreshBrowserAfterApp(ctx?: Ctx)` signature is used identically in `cmdApp`, `restartAndCheckHealth`, `cmdEnroll`, `cmdPassword`. `RUNTIME_FILES` entries match between `install-kiosk.sh` (slash paths) and `lib/kiosk/updater.ts` (same literals). `execCmd('pkill', ['-TERM','-u','kiosk','-x','surf'])` match test shim and `kiosk-ctl` string.
 

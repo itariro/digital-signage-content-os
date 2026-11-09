@@ -1,8 +1,8 @@
-# Kiosk Boot Resilience — Design
+# Kiosk Boot Resilience - Design
 
 - **Date:** 2026-11-09
 - **Status:** Approved design, awaiting spec review (brainstorming gate)
-- **Scope:** Fix three runtime faults seen on `oculus-02` — app disabled after reboot,
+- **Scope:** Fix three runtime faults seen on `oculus-02` - app disabled after reboot,
   `surf` binary missing after update, and a stale browser that never reloads after an app restart.
   Also record the fresh-install `$3` class of bug so it stays fixed.
 - **Related:** `docs/superpowers/specs/2026-11-07-surf-kiosk-optimization-design.md`,
@@ -37,7 +37,7 @@ No such file or directory`. `PACKAGES` switched `chromium` → `surf` in
 v0.9.6 (`v0.9.5: chromium`, `v0.9.6: surf`). `--update-runtime` (run by
 `kiosk update apply`) only calls `t_install_node`, `t_write_session`,
 `t_write_ctl`, `t_getty`, `t_xinit`, `t_write_app_service`,
-`t_write_update_timer`, `t_write_standby_scripts` — it never apt-installs.
+`t_write_update_timer`, `t_write_standby_scripts` - it never apt-installs.
 A frame born on chromium (log: `chromium is already newest 156...`) that
 updates to 0.9.7/0.9.8 gets a surf-expecting `session.sh` but never the
 `surf` package. Every update since ships this trap.
@@ -61,7 +61,7 @@ until the session's next backoff tick. Killing surf (`pkill -TERM -u kiosk
 under `set -u`. Old v0.9.5 `t_build_app` did `set -a; . /etc/dscos/frame.env`,
 which aborts with exactly `/etc/dscos/frame.env: line 2: $3: unbound
 variable` after the enroll step. Current HEAD (in v0.9.6+) already fixed
-this via `lib/kiosk/build-env.sh::load_frame_build_env` — it reads lines
+this via `lib/kiosk/build-env.sh::load_frame_build_env` - it reads lines
 literally and only `export`s `NEXT_PUBLIC_*`. Proven on the frame:
 `source lib/kiosk/build-env.sh; load_frame_build_env` → `BUILD_ENV_OK`
 while direct `.` → `$3` error. `tests/kiosk-install/test-frame-build-env.sh`
@@ -111,7 +111,7 @@ New task `t_ensure_surf` (or extend existing apt path) runs only in the
 ### 4b. `--update-runtime` always enables services (B)
 
 Stop skipping enablement on the update path in `t_write_app_service`
-and `t_write_update_timer` (ignore the `KIOSK_RUNTIME_UPDATE` flag —
+and `t_write_update_timer` (ignore the `KIOSK_RUNTIME_UPDATE` flag -
 `lib/kiosk/cli.ts` keeps passing it so older staged installers still
 work). After `daemon-reload`, unconditionally:
 
@@ -141,7 +141,7 @@ In `lib/kiosk/cli.ts`:
   gets the same post-health browser restart, so updates also refresh the
   picture.
 - `cmdEnroll` / `cmdPassword` app restarts follow the same rule if they
-  share the helper — keep one `refreshBrowserAfterApp()` helper, not
+  share the helper - keep one `refreshBrowserAfterApp()` helper, not
   three copies.
 
 On non-Linux dev hosts, `pkill` may not exist or no `kiosk` user exists;
@@ -208,7 +208,7 @@ systemd (dscos) → Next.js :3000 ──► curl gate in session.sh ──► su
 
 ## 8. Risks & follow-up
 
-- `apt-get update` inside `--update-runtime` adds ~30–60 s offline risk.
+- `apt-get update` inside `--update-runtime` adds ~30-60 s offline risk.
   Only run when binary is missing, and fail loudly rather than silently
   shipping a black screen.
 - Always-enable overrides an operator's intentional `systemctl disable`
