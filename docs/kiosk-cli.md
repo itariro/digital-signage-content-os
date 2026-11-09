@@ -157,6 +157,12 @@ The four core checks (process, port, HTTP, config) are critical: any one
 failing makes the whole report `failed`. It exits non-zero when unhealthy, so
 it works as a monitoring hook.
 
+`app start` and `app restart` also restart the Surf browser after the app
+is running, so the frame reloads `frameUrl` instead of keeping a stale
+failed page. The same reload happens after `update apply`, `enroll`, and
+`password` restarts the app. `systemctl restart dscos` alone never
+refreshes the picture.
+
 ### Pair the frame
 
 ```text
