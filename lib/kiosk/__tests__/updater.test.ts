@@ -11,6 +11,7 @@ import {
   acquireUpdateLock,
   backupRuntimeFiles,
   restoreRuntimeFiles,
+  RUNTIME_FILES,
 } from '../updater'
 
 function makeStaging(version = '1.0.0'): string {
@@ -165,6 +166,13 @@ describe('updater', () => {
       const result = restoreRuntimeFiles(path.join(base, 'missing'))
       expect(result.ok).toBe(false)
     })
+  })
+
+  it('RUNTIME_FILES covers standby units', () => {
+    expect(RUNTIME_FILES).toContain('/etc/systemd/system/kiosk-standby-on.service')
+    expect(RUNTIME_FILES).toContain('/etc/systemd/system/kiosk-standby-on.timer')
+    expect(RUNTIME_FILES).toContain('/etc/systemd/system/kiosk-standby-off.service')
+    expect(RUNTIME_FILES).toContain('/etc/systemd/system/kiosk-standby-off.timer')
   })
 })
 

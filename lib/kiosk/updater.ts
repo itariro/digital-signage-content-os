@@ -40,6 +40,10 @@ export const RUNTIME_FILES = [
   '/etc/systemd/system/kiosk-update.timer',
   '/usr/local/bin/kiosk-standby-on',
   '/usr/local/bin/kiosk-standby-off',
+  '/etc/systemd/system/kiosk-standby-on.service',
+  '/etc/systemd/system/kiosk-standby-on.timer',
+  '/etc/systemd/system/kiosk-standby-off.service',
+  '/etc/systemd/system/kiosk-standby-off.timer',
 ]
 
 export const RUNTIME_INCOMPLETE_MARKER = 'incomplete'
