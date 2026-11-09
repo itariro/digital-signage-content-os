@@ -14,7 +14,6 @@ import { getTables } from './db/tables'
 import { remoteEntityId } from './sync/ids'
 // Call-time table access: no mode freeze at import time.
 function frameDocumentsTable() { return getTables().frameDocuments }
-import { createTtlCache } from './ttl-cache'
 
 export const DEFAULT_FRAME_ID = 'home'
 export const DATA_DIR = process.env.FRAME_DATA_DIR ?? path.join(process.cwd(), '.data')
@@ -279,26 +278,21 @@ export function normalize(store: FrameStore): FrameStore {
   }
 }
 
-const STORE_CACHE_TTL_MS = 5_000
-const storeCache = createTtlCache<FrameStore>(STORE_CACHE_TTL_MS)
-
-/** Drop cached frame stores (used when the underlying database is reset). */
+/** Drop cached frame stores (used when the underlying database is reset). Kept as
+ *  a no-op: readStore no longer caches, so there is nothing to invalidate. The
+ *  database is the source of truth, which prevents a stale in-process cache
+ *  from reverting a freshly saved layout on the next read. */
 export function resetStoreCache() {
-  storeCache.clear()
+  // no-op
 }
 const queues = new Map<string, Promise<unknown>>()
 
 export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore | null> {
-  const cached = storeCache.get(frameId)
-  if (cached) return cached
-
   const db = getDb()
   const frameDocuments = frameDocumentsTable()
   const [document] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, frameId)).limit(1)
   if (document) {
-    const store = normalize(document.data as FrameStore)
-    storeCache.set(frameId, store)
-    return store
+    return normalize(document.data as FrameStore)
   }
 
   if (frameId !== DEFAULT_FRAME_ID) return null
@@ -322,9 +316,7 @@ export async function readStore(frameId = DEFAULT_FRAME_ID): Promise<FrameStore 
     .onConflictDoNothing({ target: frameDocuments.identifier })
 
   const [created] = await db.select().from(frameDocuments).where(eq(frameDocuments.identifier, frameId)).limit(1)
-  const resolved = created ? normalize(created.data as FrameStore) : store
-  storeCache.set(frameId, resolved)
-  return resolved
+  return created ? normalize(created.data as FrameStore) : store
 }
 
 async function createDoc(frameId: string, store: FrameStore, revision?: number): Promise<number> {
@@ -366,7 +358,6 @@ export function mutateStore(
     const newRevision = current
       ? await persist(frameId, next, opts?.revision)
       : await createDoc(frameId, next, opts?.revision)
-    storeCache.set(frameId, next)
     // Enqueue synchronization work in local-first (sqlite) mode — resolved
     // via getDatabaseMode so sync is never silently off when FRAME_MODE is
     // unset but the mode resolves to sqlite.
