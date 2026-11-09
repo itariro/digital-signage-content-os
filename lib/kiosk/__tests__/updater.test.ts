@@ -11,6 +11,8 @@ import {
   acquireUpdateLock,
   backupRuntimeFiles,
   restoreRuntimeFiles,
+  readTimerState,
+  writeTimerState,
   RUNTIME_FILES,
 } from '../updater'
 
@@ -173,6 +175,36 @@ describe('updater', () => {
     expect(RUNTIME_FILES).toContain('/etc/systemd/system/kiosk-standby-on.timer')
     expect(RUNTIME_FILES).toContain('/etc/systemd/system/kiosk-standby-off.service')
     expect(RUNTIME_FILES).toContain('/etc/systemd/system/kiosk-standby-off.timer')
+  })
+
+  it('round-trips managed timer state beside the runtime snapshot', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'))
+    const dest = path.join(base, 'snap')
+    fs.mkdirSync(dest)
+    expect(writeTimerState(dest, [
+      { unit: 'kiosk-update.timer', enabled: 'disabled', active: 'inactive' },
+      { unit: 'kiosk-standby-on.timer', enabled: 'enabled', active: 'active' },
+    ])).toEqual({ ok: true })
+    expect(readTimerState(dest)).toEqual([
+      { unit: 'kiosk-update.timer', enabled: 'disabled', active: 'inactive' },
+      { unit: 'kiosk-standby-on.timer', enabled: 'enabled', active: 'active' },
+    ])
+  })
+
+  it('ignores timer state for units that are not managed', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'))
+    fs.writeFileSync(path.join(base, 'timers.json'), JSON.stringify({
+      timers: [
+        { unit: 'sshd.timer', enabled: 'disabled', active: 'inactive' },
+        { unit: 'kiosk-update.timer', enabled: 'enabled', active: 'active' },
+      ],
+    }))
+    expect(readTimerState(base).map((e) => e.unit)).toEqual(['kiosk-update.timer'])
+  })
+
+  it('returns no timer state when the snapshot has none', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'))
+    expect(readTimerState(base)).toEqual([])
   })
 })
 

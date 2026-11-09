@@ -23,6 +23,9 @@ import {
   restoreRuntimeFiles,
   isRuntimeBackupIncomplete,
   markRuntimeBackupComplete,
+  MANAGED_TIMERS,
+  readTimerState,
+  writeTimerState,
 } from './updater'
 import { parseOsRelease, isSupportedDebian, checkPrerequisites, formatBytes } from './device'
 import { normalizeBuildSymlinks } from '../release/archive'
@@ -293,7 +296,7 @@ async function cmdApp(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   if (sub === 'start') {
     const r = execCmd('systemctl', ['start', APP_SERVICE])
     if (r.status !== 0) { err(ctx, r.stderr || `failed to start ${APP_SERVICE}`); return r.status }
-    refreshBrowserAfterApp(ctx)
+    reloadBrowserWhenReady(ctx)
     out(ctx, r.stdout || `started ${APP_SERVICE}`)
     return 0
   }
@@ -306,7 +309,7 @@ async function cmdApp(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   if (sub === 'restart') {
     const r = execCmd('systemctl', ['restart', APP_SERVICE])
     if (r.status !== 0) { err(ctx, r.stderr || `failed to restart ${APP_SERVICE}`); return r.status }
-    refreshBrowserAfterApp(ctx)
+    reloadBrowserWhenReady(ctx)
     out(ctx, r.stdout || `restarted ${APP_SERVICE}`)
     return 0
   }
@@ -443,31 +446,79 @@ function checkNodeRuntime(): { ok: boolean; error?: string } {
 // app was down never reloads unless we kill it. Never fail the caller
 // when pkill/surf/the kiosk user is absent (dev hosts, tests).
 function refreshBrowserAfterApp(ctx?: Ctx): void {
-  const r = execCmd('pkill', ['-TERM', '-u', 'kiosk', '-x', 'surf'])
-  if (ctx) {
-    out(ctx, r.status === 0 ? 'browser restarted to reload frame page' : 'browser not running; session will start it')
+  const pkill = execCmd('pkill', ['-TERM', '-u', 'kiosk', '-x', 'surf'])
+  if (pkill.status === 0) {
+    if (ctx) out(ctx, 'browser restarted to reload frame page')
+    return
+  }
+  // pkill exits 1 both when nothing matched and when a match could not be
+  // signalled, so ask pgrep which case this is instead of claiming the
+  // browser is not running while a stale page is still on screen.
+  const pgrep = execCmd('pgrep', ['-u', 'kiosk', '-x', 'surf'])
+  const pids = pgrep.stdout.trim()
+  if (pgrep.status === 0 && pids) {
+    if (ctx) err(ctx, `browser refresh not confirmed: could not signal surf (pid ${pids.split(/\s+/).join(', ')}); check the display or: journalctl -t kiosk`)
+    return
+  }
+  if (ctx) out(ctx, 'browser not running; session will start it')
+}
+
+// Poll until the URL answers 2xx. Reloading Surf before Next.js can render
+// leaves the boot-time error page on screen until the next reload, so callers
+// signal the browser only after this returns ok.
+function waitForAppHealthy(url: string, opts: { attempts: number; delayMs: number; deadlineMs: number }): { ok: boolean; lastCode: string } {
+  let lastCode = '000'
+  const deadline = Date.now() + opts.deadlineMs
+  for (let i = 0; i < opts.attempts && Date.now() < deadline; i++) {
+    const state = execCmd('systemctl', ['is-active', APP_SERVICE]).stdout.trim()
+    if (state !== 'active' && state !== 'activating' && state !== 'deactivating') {
+      return { ok: false, lastCode }
+    }
+    const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', url])
+    const code = parseInt(hr.stdout.trim(), 10)
+    lastCode = Number.isInteger(code) ? (code === 0 ? '000' : String(code)) : '000'
+    if (code >= 200 && code < 300) return { ok: true, lastCode }
+    if (i < opts.attempts - 1) execCmd('sleep', [String(opts.delayMs / 1000)])
+  }
+  return { ok: false, lastCode }
+}
+
+// What Surf will actually load, so a failing frame page (not just a failing
+// /api/health) keeps the reload back. A remote or file:// frameUrl is not this
+// process's page, so fall back to the local health endpoint.
+function frameProbeUrl(config: any): string {
+  const fallback = `http://127.0.0.1:${Number(config?.appPort) || 3000}/api/health`
+  const raw = typeof config?.frameUrl === 'string' ? config.frameUrl : ''
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return fallback
+    if (!['127.0.0.1', 'localhost', '[::1]', '::1'].includes(url.hostname)) return fallback
+    return url.toString()
+  } catch {
+    return fallback
   }
 }
 
+// Reload Surf only once a restarted app serves the frame page, and say why the
+// reload was skipped when it does not.
+function reloadBrowserWhenReady(ctx: Ctx): void {
+  const config: any = readConfig(ctx)
+  const url = frameProbeUrl(config)
+  const health = waitForAppHealthy(url, { attempts: 30, delayMs: 2000, deadlineMs: 60000 })
+  if (health.ok) { refreshBrowserAfterApp(ctx); return }
+  err(ctx, `browser left on its current page: ${url} is not ready (HTTP ${health.lastCode}); run: kiosk app health`)
+}
+
 function restartAndCheckHealth(config: any): { ok: boolean; error?: string } {
+  const port = Number(config.appPort) || 3000
   const rr = execCmd('systemctl', ['restart', APP_SERVICE])
   if (rr.status !== 0) return { ok: false, error: `restart failed: ${rr.stderr || rr.status}` }
-  // Next.js cold start on a thin client can exceed the old 10-poll (~20s)
-  // window, so probe up to ~90s. Gate each attempt on the service state so a
-  // crashed unit bails fast instead of burning the whole window. The attempt
-  // cap also bounds test doubles where sleeps return immediately.
-  let lastCode = '000'
-  const deadline = Date.now() + 90000
-  for (let i = 0; i < 45 && Date.now() < deadline; i++) {
-    const state = execCmd('systemctl', ['is-active', APP_SERVICE]).stdout.trim()
-    if (state !== 'active' && state !== 'activating' && state !== 'deactivating') break
-    const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
-    const code = parseInt(hr.stdout.trim(), 10)
-    lastCode = Number.isInteger(code) ? (code === 0 ? '000' : String(code)) : '000'
-    if (code >= 200 && code < 300) { refreshBrowserAfterApp(); return { ok: true } }
-    if (i < 44) execCmd('sleep', ['2'])
-  }
-  return { ok: false, error: `health check failed (HTTP ${lastCode} on 127.0.0.1:${config.appPort}); see: journalctl -u dscos -n 30` }
+  // Next.js cold start on a thin client can exceed a short poll window, so
+  // probe up to ~90s. The attempt cap also bounds test doubles where sleeps
+  // return immediately.
+  const health = waitForAppHealthy(`http://127.0.0.1:${port}/api/health`, { attempts: 45, delayMs: 2000, deadlineMs: 90000 })
+  if (health.ok) { refreshBrowserAfterApp(); return { ok: true } }
+  return { ok: false, error: `health check failed (HTTP ${health.lastCode} on 127.0.0.1:${port}); see: journalctl -u dscos -n 30` }
 }
 
 function readUpdateState(): any {
@@ -486,13 +537,47 @@ function writeUpdateState(state: Record<string, unknown>): void {
   fs.writeFileSync(p, JSON.stringify(state, null, 2))
 }
 
+// Snapshot systemd's enabled/active view of the managed timers. The files are
+// saved separately; this records the state that only systemd holds so rollback
+// can put it back.
+function captureTimerState(dest: string): string | null {
+  const entries = MANAGED_TIMERS.map((unit) => ({
+    unit,
+    enabled: execCmd('systemctl', ['is-enabled', unit]).stdout.trim() || 'unknown',
+    active: execCmd('systemctl', ['is-active', unit]).stdout.trim() || 'unknown',
+  }))
+  const saved = writeTimerState(dest, entries)
+  return saved.ok ? null : saved.error ?? 'could not write timer state'
+}
+
+function restoreTimerState(dest: string): string | null {
+  const entries = readTimerState(dest)
+  if (!entries.length) return null
+  const errors: string[] = []
+  for (const entry of entries) {
+    const disabled = entry.enabled !== 'enabled' && entry.enabled !== 'enabled-runtime'
+    const r = disabled
+      ? execCmd('systemctl', ['disable', '--now', entry.unit])
+      : execCmd('systemctl', ['enable', entry.unit])
+    // A unit that did not exist before the update is gone again now; disable
+    // is only there to drop the enablement symlink the update created, so a
+    // "unit not found" answer is expected.
+    if (r.status !== 0 && !disabled) errors.push(`enable ${entry.unit}: ${r.stderr || r.status}`)
+    if (!disabled && entry.active === 'active') {
+      const started = execCmd('systemctl', ['start', entry.unit])
+      if (started.status !== 0) errors.push(`start ${entry.unit}: ${started.stderr || started.status}`)
+    }
+  }
+  return errors.length ? errors.join('; ') : null
+}
+
 function restoreRuntimeSnapshot(snapshot: string | null): string | null {
   if (!snapshot) return null
   const result = restoreRuntimeFiles(snapshot)
   if (!result.ok) return result.error ?? 'runtime restore failed'
   const reload = execCmd('systemctl', ['daemon-reload'])
   if (reload.status !== 0) return `daemon-reload failed: ${reload.stderr || reload.status}`
-  return null
+  return restoreTimerState(snapshot)
 }
 
 function discardRuntimeSnapshot(snapshot: string | null): void {
@@ -668,9 +753,17 @@ async function applyUpdate(ctx: Ctx, args: string[], config: any): Promise<numbe
     err(ctx, `could not save runtime files: ${savedRuntime.error}`)
     return 1
   }
+  const savedTimers = captureTimerState(runtimeSnapshot)
+  if (savedTimers) {
+    err(ctx, `could not save timer state: ${savedTimers}`)
+    return 1
+  }
 
-  const r = execCmd('bash', [downloadedInstaller, '--update-runtime', '--yes'], {
-    timeoutMs: 120000,
+  // --update-runtime can install Surf (or Node) with apt before it writes the
+  // session, so a fixed 2-minute window is too tight on a slow link. Give it
+  // the long ceiling; the update lock already serialises concurrent applies.
+  const r = execCmdLong('bash', [downloadedInstaller, '--update-runtime', '--yes'], {
+    timeoutMs: 600000,
     env: { ...process.env, KIOSK_RUNTIME_UPDATE: '1', DSCOS_APP_DIR: appDir },
   })
   if (r.status !== 0) {
@@ -944,7 +1037,7 @@ async function cmdEnroll(ctx: Ctx, url: string | undefined, code: string | undef
   if (process.platform === 'linux' && !process.env.VITEST) {
     const restart = execCmd('systemctl', ['restart', APP_SERVICE])
     if (restart.status !== 0) { err(ctx, `app restart failed (exit ${restart.status}); run: systemctl restart ${APP_SERVICE}`); return 1 }
-    refreshBrowserAfterApp(ctx)
+    reloadBrowserWhenReady(ctx)
   }
   return 0
 }
@@ -984,7 +1077,7 @@ async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number
   if (process.platform === 'linux' && !process.env.VITEST) {
     const restart = execCmd('systemctl', ['restart', APP_SERVICE])
     if (restart.status !== 0) { err(ctx, `app restart failed (exit ${restart.status}); run: systemctl restart ${APP_SERVICE}`); return 1 }
-    refreshBrowserAfterApp(ctx)
+    reloadBrowserWhenReady(ctx)
   }
   return 0
 }

@@ -1167,6 +1167,23 @@ t_ensure_surf() {
     [[ -x /usr/bin/surf ]] || { echo "surf binary still missing after install" >&2; return 1; }
 }
 
+# Enable the units this runtime install just wrote. A runtime update must not
+# report success with dscos or a timer left disabled: the frame comes back dead
+# after the next reboot, so the failure aborts and the updater rolls the
+# runtime back. A fresh install warns and continues so a container or CI run
+# without systemd still finishes.
+enable_runtime_unit() {
+    local what=$1
+    shift
+    if systemctl "$@" 2>/dev/null; then return 0; fi
+    if (( UPDATE_RUNTIME )); then
+        echo "error: could not enable ${what}" >&2
+        return 1
+    fi
+    echo "warning: could not enable ${what}" >&2
+    return 0
+}
+
 t_write_app_service() {
     local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
     cat > /etc/systemd/system/dscos.service <<SVC_EOF
@@ -1194,10 +1211,16 @@ SVC_EOF
     mkdir -p /var/lib/dscos/data
     chown -R kiosk:kiosk /var/lib/dscos
     systemctl daemon-reload
-    [[" -f /etc/systemd/system/dscos.service ]] && systemctl enable dscos.service || echo "warning: could not enable dscos.service" >&2
+    enable_runtime_unit dscos.service enable dscos.service
 }
 
 t_write_update_timer() {
+    # A runtime update must not undo an operator's `kiosk update disable`.
+    # Rewriting the unit file leaves the enablement symlinks alone, so read the
+    # choice before the files change. A missing unit (old frame) is repaired by
+    # enabling it below.
+    local prev_state
+    prev_state=$(systemctl is-enabled kiosk-update.timer 2>/dev/null || true)
     cat > /etc/systemd/system/kiosk-update.service <<'SVC_EOF'
 [Unit]
 Description=Digital Signage Kiosk auto-update
@@ -1219,7 +1242,13 @@ Unit=kiosk-update.service
 WantedBy=timers.target
 TIMER_EOF
     systemctl daemon-reload
-    [[ -f /etc/systemd/system/kiosk-update.timer ]] && systemctl enable --now kiosk-update.timer || echo "warning: could not enable kiosk-update.timer" >&2
+    case "$prev_state" in
+        disabled)
+            echo "auto-update timer left disabled (run: kiosk update enable)"
+            return 0
+            ;;
+    esac
+    enable_runtime_unit kiosk-update.timer enable --now kiosk-update.timer
 }
 
 t_write_installer_version() {
@@ -1284,7 +1313,14 @@ Unit=kiosk-standby-off.service
 WantedBy=timers.target
 EOF
     systemctl daemon-reload
-    [[ -f /etc/systemd/system/kiosk-standby-on.timer ]] && systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer || echo "warning: could not enable kiosk standby timers" >&2
+    if [[ "${KIOSK_STANDBY_ENABLED:-1}" == "0" ]]; then
+        # Operator turned standby off: keep the units current but leave the
+        # timers stopped and disabled so the display never sleeps.
+        systemctl disable --now kiosk-standby-on.timer kiosk-standby-off.timer 2>/dev/null || true
+        echo "standby disabled in kiosk.conf; timers written but left off"
+        return 0
+    fi
+    enable_runtime_unit "kiosk standby timers" enable --now kiosk-standby-on.timer kiosk-standby-off.timer
 }
 
 t_getty() {
