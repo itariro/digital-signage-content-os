@@ -1194,7 +1194,7 @@ SVC_EOF
     mkdir -p /var/lib/dscos/data
     chown -R kiosk:kiosk /var/lib/dscos
     systemctl daemon-reload
-    systemctl enable dscos.service || echo "warning: could not enable dscos.service" >&2
+    [[" -f /etc/systemd/system/dscos.service ]] && systemctl enable dscos.service || echo "warning: could not enable dscos.service" >&2
 }
 
 t_write_update_timer() {
@@ -1219,7 +1219,7 @@ Unit=kiosk-update.service
 WantedBy=timers.target
 TIMER_EOF
     systemctl daemon-reload
-    systemctl enable --now kiosk-update.timer || echo "warning: could not enable kiosk-update.timer" >&2
+    [[ -f /etc/systemd/system/kiosk-update.timer ]] && systemctl enable --now kiosk-update.timer || echo "warning: could not enable kiosk-update.timer" >&2
 }
 
 t_write_installer_version() {
@@ -1284,8 +1284,10 @@ Unit=kiosk-standby-off.service
 WantedBy=timers.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer || echo "warning: could not enable kiosk standby timers" >&2
-}t_getty() {
+    [[ -f /etc/systemd/system/kiosk-standby-on.timer ]] && systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer || echo "warning: could not enable kiosk standby timers" >&2
+}
+
+t_getty() {
     install -d -m 0755 /etc/systemd/system/getty@tty1.service.d
     write_file /etc/systemd/system/getty@tty1.service.d/override.conf 0644 <<'EOF'
 [Service]
