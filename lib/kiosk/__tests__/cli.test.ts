@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { runCli } from '../cli'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 describe('cli', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiosk-'))
@@ -51,6 +52,16 @@ describe('cli', () => {
     expect(written).toContain('KIOSK_PORT=3300')
   })
 
+  it('quotes config values so kiosk.conf stays sourceable', async () => {
+    const confPath = path.join(tmpDir, 'quoted.conf')
+    process.env.KIOSK_CONFIG_PATH = confPath
+    const set = await runCli(['config', 'set', 'extraFlags', "don't --flag"])
+    expect(set.exitCode).toBe(0)
+    expect(() => execFileSync('bash', ['-c', `set -eu; . '${confPath}'`])).not.toThrow()
+    const shown = await runCli(['config', 'show'])
+    expect(shown.stdout).toContain("don't --flag")
+  })
+
   it('version prints versions', async () => {
     const r = await runCli(['version'])
     expect(r.exitCode).toBe(0)
@@ -73,5 +84,75 @@ describe('cli', () => {
   it('unknown command returns 2', async () => {
     const r = await runCli(['frobnicate'])
     expect(r.exitCode).toBe(2)
+  })
+
+  function fakeBin(root: string, opts: { healthCode?: string; pkill?: number; pgrep?: string } = {}): { binDir: string; logPath: string } {
+    const binDir = path.join(root, 'bin')
+    const logPath = path.join(root, 'cmds.log')
+    fs.mkdirSync(binDir, { recursive: true })
+    const writeSh = (name: string, body: string) =>
+      fs.writeFileSync(path.join(binDir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 })
+    writeSh('systemctl', 'echo "systemctl $*" >> "$FAKE_LOG"\nif [ "$1" = is-active ]; then echo active; fi\nexit 0')
+    writeSh('pkill', `echo "pkill $*" >> "$FAKE_LOG"\nexit ${opts.pkill ?? 0}`)
+    writeSh('pgrep', `echo "pgrep $*" >> "$FAKE_LOG"\n${opts.pgrep ? `echo "${opts.pgrep}"` : 'exit 1'}`)
+    writeSh('curl', `echo "curl $*" >> "$FAKE_LOG"\necho ${opts.healthCode ?? '200'}`)
+    writeSh('sleep', 'exit 0')
+    return { binDir, logPath }
+  }
+
+  it('app restart reloads the browser after the app is healthy; pkill failure does not fail the command', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kiosk-browser-'))
+    const { binDir, logPath } = fakeBin(root, { pkill: 1 })
+    const origPath = process.env.PATH
+    process.env.FAKE_LOG = logPath
+    process.env.PATH = `${binDir}:${origPath}`
+    try {
+      const r = await runCli(['app', 'restart'])
+      expect(r.exitCode).toBe(0)
+      const log = fs.readFileSync(logPath, 'utf8')
+      expect(log).toContain('systemctl restart dscos')
+      expect(log).toContain('pkill -TERM -u kiosk -x surf')
+      expect(r.stdout).toMatch(/browser/)
+    } finally {
+      process.env.PATH = origPath
+      delete process.env.FAKE_LOG
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('app restart leaves the browser alone while the app is not healthy', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kiosk-browser-'))
+    const { binDir, logPath } = fakeBin(root, { healthCode: '503' })
+    const origPath = process.env.PATH
+    process.env.FAKE_LOG = logPath
+    process.env.PATH = `${binDir}:${origPath}`
+    try {
+      const r = await runCli(['app', 'restart'])
+      expect(r.exitCode).toBe(0)
+      expect(fs.readFileSync(logPath, 'utf8')).not.toContain('pkill')
+      expect(r.stderr).toContain('browser left on its current page')
+    } finally {
+      process.env.PATH = origPath
+      delete process.env.FAKE_LOG
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('app restart reports an unconfirmed refresh when surf cannot be signalled', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kiosk-browser-'))
+    const { binDir, logPath } = fakeBin(root, { pkill: 1, pgrep: '4242' })
+    const origPath = process.env.PATH
+    process.env.FAKE_LOG = logPath
+    process.env.PATH = `${binDir}:${origPath}`
+    try {
+      const r = await runCli(['app', 'restart'])
+      expect(r.exitCode).toBe(0)
+      expect(r.stderr).toContain('browser refresh not confirmed')
+      expect(r.stderr).toContain('4242')
+    } finally {
+      process.env.PATH = origPath
+      delete process.env.FAKE_LOG
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

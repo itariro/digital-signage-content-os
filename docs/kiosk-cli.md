@@ -157,6 +157,16 @@ The four core checks (process, port, HTTP, config) are critical: any one
 failing makes the whole report `failed`. It exits non-zero when unhealthy, so
 it works as a monitoring hook.
 
+`app start` and `app restart` wait for the frame URL to answer before
+restarting the Surf browser, so the frame reloads `frameUrl` instead of
+keeping a stale failed page or showing a boot-time error page. The reload
+is best effort: when the frame page does not answer in time the command
+says so and leaves the current page up, and when Surf cannot be signalled
+it reports the refresh as unconfirmed. Run `kiosk app health` and check
+`journalctl -t kiosk` if the picture stays stale. The same gated reload
+happens after `update apply`, `enroll`, and `password` restarts the app.
+`systemctl restart dscos` alone never refreshes the picture.
+
 ### Pair the frame
 
 ```text
@@ -366,6 +376,19 @@ from finished updates are kept for rollback but are not restored. If recovery
 cannot move the old app back, or cannot restore the helpers, the backup and
 snapshot stay recorded in `state.json`; `kiosk update rollback` resumes from
 where recovery stopped.
+
+Runtime updates preserve operator choices. A timer disabled with
+`kiosk update disable` stays disabled, a masked timer stays masked, and a
+schedule disabled with `KIOSK_STANDBY_ENABLED=0` keeps its standby timers
+stopped; the unit files are still refreshed so a later `kiosk update enable`
+or config change works. A runtime update fails and rolls the runtime back when
+it cannot enable `dscos` or a timer it needs, when it cannot read the
+enablement state it is about to preserve, or when `kiosk.conf` cannot be
+sourced, because a frame that reboots with the app disabled or sleeps against
+the operator's schedule never comes back. Alongside the files, the snapshot
+records each managed timer's enabled and active state, and a rollback replays
+it, so a timer that the update started does not keep running after the old
+runtime returns.
 
 The update lock is an OS-held SQLite lock at
 `/var/lib/dscos-updates/lock.db`. The kernel releases it when the update

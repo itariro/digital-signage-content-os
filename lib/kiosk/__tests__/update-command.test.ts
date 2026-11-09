@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { runCli } from '../cli'
-import { backupRuntimeFiles, markRuntimeBackupComplete, RUNTIME_INCOMPLETE_MARKER } from '../updater'
+import { backupRuntimeFiles, markRuntimeBackupComplete, writeTimerState, RUNTIME_INCOMPLETE_MARKER } from '../updater'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -93,6 +93,13 @@ function setupHarness(opts: { version?: string; installerVersion?: string } = {}
   fs.writeFileSync(cfgPath, 'KIOSK_PORT=3000\n')
   fs.writeFileSync(versionFile, '2.0\n')
   fs.writeFileSync(path.join(runtimeRoot, 'usr', 'local', 'bin', 'kiosk'), 'old runtime\n', { mode: 0o755 })
+  // Managed timers are installed on a real frame; the timer-state snapshot
+  // reads systemd for these units, so give the fake runtime its unit files.
+  const systemdDir = path.join(runtimeRoot, 'etc', 'systemd', 'system')
+  fs.mkdirSync(systemdDir, { recursive: true })
+  for (const unit of ['kiosk-update.timer', 'kiosk-standby-on.timer', 'kiosk-standby-off.timer']) {
+    fs.writeFileSync(path.join(systemdDir, unit), '[Timer]\nOnCalendar=daily\n')
+  }
   // Stand-in for the frame's /usr/bin/node|npm. FAKE_NODE_VERSION simulates a
   // frame whose runtime predates the Node 24 floor.
   writeExecutable(path.join(runtimeRoot, 'usr', 'bin', 'node'), `
@@ -114,6 +121,10 @@ if [ "$1" = "is-active" ]; then
 fi
 if [ "$1" = "is-enabled" ]; then echo enabled; exit 0; fi
 if [ "$1" = "show" ]; then echo "Thu 2026-11-06 03:00:00 UTC"; exit 0; fi
+exit 0
+`)
+  writeExecutable(path.join(binDir, 'pkill'), `
+echo "pkill $*" >> "$FAKE_LOG"
 exit 0
 `)
   writeExecutable(path.join(binDir, 'curl'), `
@@ -232,10 +243,14 @@ describe('update command', () => {
     expect(state.lastBackup).toBe(path.join(h.updateRoot, 'backup', '0.9.0'))
     expect(state.runtimeBackup).toBe(path.join(h.updateRoot, 'runtime-backup', '0.9.0'))
     expect(fs.existsSync(path.join(state.runtimeBackup, RUNTIME_INCOMPLETE_MARKER))).toBe(false)
+    expect(fs.existsSync(path.join(state.runtimeBackup, 'timers.json'))).toBe(true)
 
     const rollback = await runCli(['update', 'rollback', '--yes'])
     expect(rollback.exitCode).toBe(0)
     expect(rollback.stdout).toContain('rolled back')
+    // The snapshot recorded the timers as enabled/active before the update, so
+    // the rollback replays that state after restoring the unit files.
+    expect(fs.readFileSync(h.logPath, 'utf8')).toContain('systemctl enable kiosk-update.timer')
     expect(fs.readFileSync(path.join(h.runtimeRoot, 'usr', 'local', 'lib', 'kiosk', 'build', 'kiosk', 'cli.js'), 'utf8').trim()).toBe('compiled cli')
     expect(appVersion(h)).toBe('0.8.0')
     expect(fs.readFileSync(h.versionFile, 'utf8').trim()).toBe('2.0')
@@ -455,6 +470,30 @@ describe('update command', () => {
     expect(state.runtimeBackup).toBeUndefined()
   })
 
+  it('replays recorded timer state when a rollback restores the runtime', async () => {
+    h = setupHarness()
+    const snapshot = path.join(h.updateRoot, 'runtime-backup', '0.9.0')
+    expect(backupRuntimeFiles([runtimeKiosk(h)], snapshot)).toEqual({ ok: true })
+    expect(writeTimerState(snapshot, [
+      { unit: 'kiosk-update.timer', enabled: 'disabled', active: 'inactive' },
+      { unit: 'kiosk-standby-on.timer', enabled: 'enabled', active: 'active' },
+    ])).toEqual({ ok: true })
+    fs.writeFileSync(runtimeKiosk(h), 'mixed runtime\n')
+    fs.mkdirSync(path.dirname(h.statePath), { recursive: true })
+    fs.writeFileSync(h.statePath, JSON.stringify({
+      lastBackup: null,
+      runtimeBackup: snapshot,
+      installedVersion: '0.8.0',
+    }))
+
+    const result = await runCli(['update', 'rollback', '--yes'])
+    expect(result.exitCode).toBe(0)
+    const log = fs.readFileSync(h.logPath, 'utf8')
+    expect(log).toContain('systemctl disable --now kiosk-update.timer')
+    expect(log).toContain('systemctl enable kiosk-standby-on.timer')
+    expect(log).toContain('systemctl start kiosk-standby-on.timer')
+  })
+
   it('keeps the runtime snapshot when finishing recovery fails', async () => {
     h = setupHarness()
     const snapshot = path.join(h.updateRoot, 'runtime-backup', '0.9.0')
@@ -543,5 +582,13 @@ describe('update command', () => {
     expect(payload.timerActive).toBe(true)
     expect(payload.timerEnabled).toBe(true)
     expect(payload.lastTrigger).toContain('2026-11-06')
+  })
+
+  it('refreshes the browser after a successful update health check', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(0)
+    expect(fs.readFileSync(h.logPath, 'utf8')).toContain('pkill -TERM -u kiosk -x surf')
   })
 })

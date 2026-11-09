@@ -55,7 +55,8 @@ readonly MIN_RAM_KB=1000000
 
 # Files replaced by --update-runtime. Keep in sync with t_install_cli,
 # t_write_session, t_write_ctl, t_xinit, t_getty, t_write_app_service,
-# t_write_update_timer and t_write_standby_scripts.
+# t_write_update_timer, t_write_standby_scripts, t_write_standby_timers and
+# t_ensure_surf.
 RUNTIME_FILES=(
     /usr/local/bin/kiosk
     "${LIB_DIR}/session.sh"
@@ -67,6 +68,10 @@ RUNTIME_FILES=(
     /etc/systemd/system/kiosk-update.timer
     /usr/local/bin/kiosk-standby-on
     /usr/local/bin/kiosk-standby-off
+    /etc/systemd/system/kiosk-standby-on.service
+    /etc/systemd/system/kiosk-standby-on.timer
+    /etc/systemd/system/kiosk-standby-off.service
+    /etc/systemd/system/kiosk-standby-off.timer
 )
 
 # UI state (defaults keep die()/usage() usable before the UI is initialised)
@@ -1148,6 +1153,37 @@ t_build_app() {
     pnpm run build
 }
 
+# A chromium-born frame that updates to the surf runtime has no surf
+# binary (full install provisions it via PACKAGES, --update-runtime does
+# not). Ensure it before writing the surf-expecting session, or every
+# following boot lands on the rc=127 respawn loop with a black screen.
+# Direct apt-get: apt_run needs STATE_DIR, which is only created in the
+# full-install flow after this early --update-runtime exit.
+t_ensure_surf() {
+    if [[ -x /usr/bin/surf ]]; then echo "surf present"; return 0; fi
+    echo "surf missing; installing"
+    apt-get update || true
+    apt-get install -y --no-install-recommends surf
+    [[ -x /usr/bin/surf ]] || { echo "surf binary still missing after install" >&2; return 1; }
+}
+
+# Enable the units this runtime install just wrote. A runtime update must not
+# report success with dscos or a timer left disabled: the frame comes back dead
+# after the next reboot, so the failure aborts and the updater rolls the
+# runtime back. A fresh install warns and continues so a container or CI run
+# without systemd still finishes.
+enable_runtime_unit() {
+    local what=$1
+    shift
+    if systemctl "$@" 2>/dev/null; then return 0; fi
+    if (( UPDATE_RUNTIME )); then
+        echo "error: could not enable ${what}" >&2
+        return 1
+    fi
+    echo "warning: could not enable ${what}" >&2
+    return 0
+}
+
 t_write_app_service() {
     local app_dir="${DSCOS_APP_DIR:-/opt/dscos}"
     cat > /etc/systemd/system/dscos.service <<SVC_EOF
@@ -1175,12 +1211,16 @@ SVC_EOF
     mkdir -p /var/lib/dscos/data
     chown -R kiosk:kiosk /var/lib/dscos
     systemctl daemon-reload
-    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
-        systemctl enable dscos.service
-    fi
+    enable_runtime_unit dscos.service enable dscos.service
 }
 
 t_write_update_timer() {
+    # A runtime update must not undo an operator's `kiosk update disable`.
+    # Rewriting the unit file leaves the enablement symlinks alone, so read the
+    # choice before the files change. A missing unit (old frame) is repaired by
+    # enabling it below.
+    local prev_state
+    prev_state=$(systemctl is-enabled kiosk-update.timer 2>/dev/null || true)
     cat > /etc/systemd/system/kiosk-update.service <<'SVC_EOF'
 [Unit]
 Description=Digital Signage Kiosk auto-update
@@ -1202,9 +1242,13 @@ Unit=kiosk-update.service
 WantedBy=timers.target
 TIMER_EOF
     systemctl daemon-reload
-    if [[ ${KIOSK_RUNTIME_UPDATE:-0} != 1 ]]; then
-        systemctl enable --now kiosk-update.timer || true
-    fi
+    case "$prev_state" in
+        disabled|masked|masked-runtime)
+            echo "auto-update timer left ${prev_state} (run: kiosk update enable)"
+            return 0
+            ;;
+    esac
+    enable_runtime_unit kiosk-update.timer enable --now kiosk-update.timer
 }
 
 t_write_installer_version() {
@@ -1230,8 +1274,24 @@ OFF_EOF
 }
 
 t_write_standby_timers() {
-    # shellcheck disable=SC1091
-    . /etc/kiosk/kiosk.conf 2>/dev/null || true
+    # A config that will not source must not silently fall back to "standby
+    # on": that would start timers the operator disabled. Check the syntax
+    # first, because `bash` exits the whole script when a sourced file has a
+    # syntax error (for example an unescaped apostrophe). Fresh installs warn
+    # and continue; a runtime update aborts and lets the updater restore the
+    # old runtime.
+    if [[ -f /etc/kiosk/kiosk.conf ]]; then
+        if ! bash -n /etc/kiosk/kiosk.conf 2>/dev/null; then
+            if (( UPDATE_RUNTIME )); then
+                echo "error: /etc/kiosk/kiosk.conf could not be sourced (syntax error); refusing to guess standby settings" >&2
+                return 1
+            fi
+            echo "warning: /etc/kiosk/kiosk.conf could not be sourced (syntax error); using standby defaults" >&2
+        else
+            # shellcheck disable=SC1091
+            . /etc/kiosk/kiosk.conf
+        fi
+    fi
     local start="${KIOSK_STANDBY_START:-22:00}"
     local end="${KIOSK_STANDBY_END:-06:00}"
     cat > /etc/systemd/system/kiosk-standby-on.service <<EOF
@@ -1269,7 +1329,14 @@ Unit=kiosk-standby-off.service
 WantedBy=timers.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now kiosk-standby-on.timer kiosk-standby-off.timer
+    if [[ "${KIOSK_STANDBY_ENABLED:-1}" == "0" ]]; then
+        # Operator turned standby off: keep the units current but leave the
+        # timers stopped and disabled so the display never sleeps.
+        systemctl disable --now kiosk-standby-on.timer kiosk-standby-off.timer 2>/dev/null || true
+        echo "standby disabled in kiosk.conf; timers written but left off"
+        return 0
+    fi
+    enable_runtime_unit "kiosk standby timers" enable --now kiosk-standby-on.timer kiosk-standby-off.timer
 }
 
 t_getty() {
@@ -1474,6 +1541,7 @@ if (( UPDATE_RUNTIME )); then
     # so ensure it before refreshing the helpers that will run against it.
     t_install_node
     t_install_cli
+    t_ensure_surf
     t_write_session
     t_write_ctl
     t_getty
@@ -1481,6 +1549,7 @@ if (( UPDATE_RUNTIME )); then
     t_write_app_service
     t_write_update_timer
     t_write_standby_scripts
+    t_write_standby_timers
     systemctl daemon-reload
     echo "kiosk runtime updated to ${INSTALLER_VERSION}"
     exit 0

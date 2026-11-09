@@ -40,9 +40,57 @@ export const RUNTIME_FILES = [
   '/etc/systemd/system/kiosk-update.timer',
   '/usr/local/bin/kiosk-standby-on',
   '/usr/local/bin/kiosk-standby-off',
+  '/etc/systemd/system/kiosk-standby-on.service',
+  '/etc/systemd/system/kiosk-standby-on.timer',
+  '/etc/systemd/system/kiosk-standby-off.service',
+  '/etc/systemd/system/kiosk-standby-off.timer',
 ]
 
 export const RUNTIME_INCOMPLETE_MARKER = 'incomplete'
+
+// systemd timers the installer manages. Their enabled/active state lives in
+// systemd, not in the unit files, so a file-only snapshot cannot restore it:
+// an update that enables a previously absent timer would leave a dangling
+// enablement symlink after rollback. Record the state beside the files and
+// replay it when the runtime is restored.
+export const MANAGED_TIMERS = [
+  'kiosk-update.timer',
+  'kiosk-standby-on.timer',
+  'kiosk-standby-off.timer',
+]
+
+export interface TimerStateEntry {
+  unit: string
+  enabled: string
+  active: string
+}
+
+export function timerStatePath(dest: string): string {
+  return path.join(dest, 'timers.json')
+}
+
+export function readTimerState(dest: string): TimerStateEntry[] {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(timerStatePath(dest), 'utf8'))
+    const entries = Array.isArray(parsed?.timers) ? parsed.timers : []
+    return entries.filter((e: any): e is TimerStateEntry =>
+      typeof e?.unit === 'string' &&
+      MANAGED_TIMERS.includes(e.unit) &&
+      typeof e?.enabled === 'string' &&
+      typeof e?.active === 'string')
+  } catch {
+    return []
+  }
+}
+
+export function writeTimerState(dest: string, entries: TimerStateEntry[]): RuntimeFileResult {
+  try {
+    fs.writeFileSync(timerStatePath(dest), JSON.stringify({ timers: entries }, null, 2), { mode: 0o600 })
+    return { ok: true }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
 
 export function runtimeFiles(): string[] {
   const root = process.env.KIOSK_RUNTIME_ROOT || ''
