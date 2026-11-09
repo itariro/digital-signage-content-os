@@ -292,8 +292,10 @@ async function cmdConfig(ctx: Ctx, sub: string, args: string[]): Promise<number>
 async function cmdApp(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   if (sub === 'start') {
     const r = execCmd('systemctl', ['start', APP_SERVICE])
+    if (r.status !== 0) { out(ctx, r.stdout || `started ${APP_SERVICE}`); return r.status }
+    refreshBrowserAfterApp(ctx)
     out(ctx, r.stdout || `started ${APP_SERVICE}`)
-    return r.status
+    return 0
   }
   if (sub === 'stop') {
     const r = execCmd('systemctl', ['stop', APP_SERVICE])
@@ -302,8 +304,10 @@ async function cmdApp(ctx: Ctx, sub: string, args: string[]): Promise<number> {
   }
   if (sub === 'restart') {
     const r = execCmd('systemctl', ['restart', APP_SERVICE])
+    if (r.status !== 0) { out(ctx, r.stdout || `restarted ${APP_SERVICE}`); return r.status }
+    refreshBrowserAfterApp(ctx)
     out(ctx, r.stdout || `restarted ${APP_SERVICE}`)
-    return r.status
+    return 0
   }
   if (sub === 'health') {
     const config: any = readConfig(ctx)
@@ -431,6 +435,17 @@ function checkNodeRuntime(): { ok: boolean; error?: string } {
     return { ok: false, error: `Node >=24 required (found ${found || 'unknown'}); run installer` }
   }
   return { ok: true }
+}
+
+// Best-effort browser refresh after the app is healthy. The session only
+// relaunches surf when its process dies, so a surf that loaded while the
+// app was down never reloads unless we kill it. Never fail the caller
+// when pkill/surf/the kiosk user is absent (dev hosts, tests).
+function refreshBrowserAfterApp(ctx?: Ctx): void {
+  const r = execCmd('pkill', ['-TERM', '-u', 'kiosk', '-x', 'surf'])
+  if (ctx) {
+    out(ctx, r.status === 0 ? 'browser restarted to reload frame page' : 'browser not running; session will start it')
+  }
 }
 
 function restartAndCheckHealth(config: any): { ok: boolean; error?: string } {

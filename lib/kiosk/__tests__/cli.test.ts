@@ -74,4 +74,30 @@ describe('cli', () => {
     const r = await runCli(['frobnicate'])
     expect(r.exitCode).toBe(2)
   })
+
+  it('app restart reloads the browser; pkill failure does not fail the command', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kiosk-browser-'))
+    const binDir = path.join(root, 'bin')
+    const logPath = path.join(root, 'cmds.log')
+    const origPath = process.env.PATH
+    fs.mkdirSync(binDir, { recursive: true })
+    const writeSh = (name: string, body: string) =>
+      fs.writeFileSync(path.join(binDir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 })
+    writeSh('systemctl', 'echo "systemctl $*" >> "$FAKE_LOG"\nexit 0')
+    writeSh('pkill', 'echo "pkill $*" >> "$FAKE_LOG"\nexit 1')
+    process.env.FAKE_LOG = logPath
+    process.env.PATH = `${binDir}:${origPath}`
+    try {
+      const r = await runCli(['app', 'restart'])
+      expect(r.exitCode).toBe(0)
+      const log = fs.readFileSync(logPath, 'utf8')
+      expect(log).toContain('systemctl restart dscos')
+      expect(log).toContain('pkill -TERM -u kiosk -x surf')
+      expect(r.stdout).toMatch(/browser/)
+    } finally {
+      process.env.PATH = origPath
+      delete process.env.FAKE_LOG
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
