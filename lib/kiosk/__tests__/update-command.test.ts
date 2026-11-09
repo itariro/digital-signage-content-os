@@ -93,6 +93,13 @@ function setupHarness(opts: { version?: string; installerVersion?: string } = {}
   fs.writeFileSync(cfgPath, 'KIOSK_PORT=3000\n')
   fs.writeFileSync(versionFile, '2.0\n')
   fs.writeFileSync(path.join(runtimeRoot, 'usr', 'local', 'bin', 'kiosk'), 'old runtime\n', { mode: 0o755 })
+  // Managed timers are installed on a real frame; the timer-state snapshot
+  // reads systemd for these units, so give the fake runtime its unit files.
+  const systemdDir = path.join(runtimeRoot, 'etc', 'systemd', 'system')
+  fs.mkdirSync(systemdDir, { recursive: true })
+  for (const unit of ['kiosk-update.timer', 'kiosk-standby-on.timer', 'kiosk-standby-off.timer']) {
+    fs.writeFileSync(path.join(systemdDir, unit), '[Timer]\nOnCalendar=daily\n')
+  }
   // Stand-in for the frame's /usr/bin/node|npm. FAKE_NODE_VERSION simulates a
   // frame whose runtime predates the Node 24 floor.
   writeExecutable(path.join(runtimeRoot, 'usr', 'bin', 'node'), `

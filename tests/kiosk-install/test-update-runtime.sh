@@ -43,11 +43,12 @@ done
 STANDBY=$(sed -n '/^t_write_standby_timers()/,/^}/p' "$SCRIPT")
 printf '%s\n' "$STANDBY" | grep -q 'KIOSK_STANDBY_ENABLED' || bad "t_write_standby_timers ignores KIOSK_STANDBY_ENABLED"
 printf '%s\n' "$STANDBY" | grep -Fq 'systemctl disable --now kiosk-standby-on.timer' || bad "t_write_standby_timers does not stop disabled standby timers"
+printf '%s\n' "$STANDBY" | grep -Fq 'could not be sourced' || bad "t_write_standby_timers does not fail a runtime update on an unreadable config"
 
 # An operator's `kiosk update disable` survives a runtime update.
 TIMER=$(sed -n '/^t_write_update_timer()/,/^}/p' "$SCRIPT")
 printf '%s\n' "$TIMER" | grep -Fq 'systemctl is-enabled kiosk-update.timer' || bad "t_write_update_timer does not read the previous enablement"
-printf '%s\n' "$TIMER" | grep -Fq 'disabled)' || bad "t_write_update_timer does not honour a disabled timer"
+printf '%s\n' "$TIMER" | grep -Fq 'disabled|masked|masked-runtime)' || bad "t_write_update_timer does not honour a disabled or masked timer"
 
 (( fail == 0 )) && echo "ALL PASS"
 exit "$fail"

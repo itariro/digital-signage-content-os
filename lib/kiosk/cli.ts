@@ -47,15 +47,49 @@ interface Ctx {
 function out(ctx: Ctx, msg: string) { ctx.stdout.push(msg) }
 function err(ctx: Ctx, msg: string) { ctx.stderr.push(msg) }
 
+// Undo shell quoting without executing anything. serializeShellConfig emits
+// single-quoted values, so an apostrophe becomes 'it'\''s'. A plain
+// slice(1,-1) would leave the escape behind and `config show` (or any later
+// read) would see mangles instead of the operator's text.
+function unquoteShellValue(raw: string): string {
+  let out = ''
+  let i = 0
+  while (i < raw.length) {
+    const ch = raw[i]
+    if (ch === "'") {
+      i++
+      while (i < raw.length && raw[i] !== "'") { out += raw[i]; i++ }
+      i++
+      if (raw[i] === '\\' && raw[i + 1] === "'") { out += "'"; i += 2 }
+    } else if (ch === '"') {
+      i++
+      while (i < raw.length && raw[i] !== '"') {
+        if (raw[i] === '\\' && i + 1 < raw.length) { i++; out += raw[i] } else out += raw[i]
+        i++
+      }
+      i++
+    } else if (ch === '\\' && i + 1 < raw.length) {
+      out += raw[i + 1]
+      i += 2
+    } else {
+      out += ch
+      i++
+    }
+  }
+  return out
+}
+
 function parseShellConfig(text: string): any {
   const cfg = defaultConfig()
   const vars: Record<string,string> = {}
   for (const line of text.split(/\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)=(.*)$/)
     if (!m) continue
-    let val = m[2].trim()
-    if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1,-1)
-    vars[m[1]] = val
+    const raw = m[2].trim()
+    // Only parse quoting when the value actually starts with a quote. An
+    // unquoted legacy value (for example a hand-edited KIOSK_EXTRA_FLAGS=don't)
+    // stays literal instead of losing its apostrophe.
+    vars[m[1]] = raw.startsWith("'") || raw.startsWith('"') ? unquoteShellValue(raw) : raw
   }
   if (vars.KIOSK_URL) cfg.frameUrl = vars.KIOSK_URL
   if (vars.KIOSK_ROTATE) cfg.rotate = vars.KIOSK_ROTATE as any
@@ -86,33 +120,37 @@ function parseShellConfig(text: string): any {
   return cfg
 }
 
+function shellQuote(value: unknown): string {
+  return `'${String(value).replace(/'/g, "'\\''")}'`
+}
+
 function serializeShellConfig(config: any): string {
   const lines = [
-    `KIOSK_URL='${config.frameUrl}'`,
-    `KIOSK_ROTATE='${config.rotate}'`,
-    `KIOSK_OUTPUT='${config.output}'`,
-    `KIOSK_MODE='${config.mode}'`,
-    `KIOSK_SCALE='${config.scale}'`,
+    `KIOSK_URL=${shellQuote(config.frameUrl)}`,
+    `KIOSK_ROTATE=${shellQuote(config.rotate)}`,
+    `KIOSK_OUTPUT=${shellQuote(config.output)}`,
+    `KIOSK_MODE=${shellQuote(config.mode)}`,
+    `KIOSK_SCALE=${shellQuote(config.scale)}`,
     `KIOSK_TOUCH=${config.touch ? 1 : 0}`,
     `KIOSK_RESTART_HOURS=${config.restartHours}`,
     `KIOSK_PORT=${config.appPort}`,
     `KIOSK_MGMT_PORT=${config.mgmtPort}`,
-    `KIOSK_TIMEZONE='${config.timezone}'`,
-    `KIOSK_LOG_LEVEL='${config.logLevel}'`,
-    `KIOSK_UPDATE_CHANNEL='${config.updateChannel}'`,
-    `KIOSK_CLOUD_ENDPOINT='${config.cloudEndpoint}'`,
+    `KIOSK_TIMEZONE=${shellQuote(config.timezone)}`,
+    `KIOSK_LOG_LEVEL=${shellQuote(config.logLevel)}`,
+    `KIOSK_UPDATE_CHANNEL=${shellQuote(config.updateChannel)}`,
+    `KIOSK_CLOUD_ENDPOINT=${shellQuote(config.cloudEndpoint)}`,
     `KIOSK_SYNC_ENABLED=${config.syncEnabled ? 1 : 0}`,
     `KIOSK_SYNC_INTERVAL=${config.syncIntervalMinutes}`,
     `KIOSK_NET_WAIT=${config.netWait}`,
     `KIOSK_DISPLAY_WAIT=${config.displayWait}`,
-    `KIOSK_EXTRA_FLAGS='${config.extraFlags}'`,
+    `KIOSK_EXTRA_FLAGS=${shellQuote(config.extraFlags)}`,
     `KIOSK_STANDBY_ENABLED=${config.standby.enabled ? 1 : 0}`,
-    `KIOSK_STANDBY_START='${config.standby.start}'`,
-    `KIOSK_STANDBY_END='${config.standby.end}'`,
-    `KIOSK_STANDBY_MODE='${config.standby.mode}'`,
+    `KIOSK_STANDBY_START=${shellQuote(config.standby.start)}`,
+    `KIOSK_STANDBY_END=${shellQuote(config.standby.end)}`,
+    `KIOSK_STANDBY_MODE=${shellQuote(config.standby.mode)}`,
   ]
   for (const [k,v] of Object.entries(config.secrets)) {
-    lines.push(`KIOSK_SECRET_${k.toUpperCase()}='${String(v).replace(/'/g, "'\\''")}'`)
+    lines.push(`KIOSK_SECRET_${k.toUpperCase()}=${shellQuote(v)}`)
   }
   return lines.join('\n') + '\n'
 }
@@ -468,13 +506,22 @@ function refreshBrowserAfterApp(ctx?: Ctx): void {
 // signal the browser only after this returns ok.
 function waitForAppHealthy(url: string, opts: { attempts: number; delayMs: number; deadlineMs: number }): { ok: boolean; lastCode: string } {
   let lastCode = '000'
+  let inactivePolls = 0
   const deadline = Date.now() + opts.deadlineMs
   for (let i = 0; i < opts.attempts && Date.now() < deadline; i++) {
     const state = execCmd('systemctl', ['is-active', APP_SERVICE]).stdout.trim()
-    if (state !== 'active' && state !== 'activating' && state !== 'deactivating') {
-      return { ok: false, lastCode }
+    const activeish = state === 'active' || state === 'activating' || state === 'deactivating' || state === 'reloading'
+    if (!activeish) {
+      // A restart queued behind another job can report `inactive` for a poll
+      // or two. Anything else (failed, or no systemctl at all) bails at once.
+      const transient = state === 'inactive' && ++inactivePolls < 3
+      if (!transient) return { ok: false, lastCode }
+      if (i < opts.attempts - 1) execCmd('sleep', [String(opts.delayMs / 1000)])
+      continue
     }
-    const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', url])
+    inactivePolls = 0
+    // -L: Next.js may redirect a frame URL with or without the trailing slash.
+    const hr = execCmd('curl', ['-sSL', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', url])
     const code = parseInt(hr.stdout.trim(), 10)
     lastCode = Number.isInteger(code) ? (code === 0 ? '000' : String(code)) : '000'
     if (code >= 200 && code < 300) return { ok: true, lastCode }
@@ -539,33 +586,84 @@ function writeUpdateState(state: Record<string, unknown>): void {
 
 // Snapshot systemd's enabled/active view of the managed timers. The files are
 // saved separately; this records the state that only systemd holds so rollback
-// can put it back.
+// can put it back. An absent unit is a known state; a unit that exists but
+// answers nothing means systemd could not be asked, so the update aborts
+// rather than guessing "disabled" and stopping a timer on rollback.
+const TIMER_UNIT_DIRS = ['/etc/systemd/system', '/run/systemd/system', '/usr/lib/systemd/system', '/lib/systemd/system']
+
+function timerUnitFile(unit: string): string | null {
+  const fs = require('node:fs')
+  const path = require('node:path')
+  const root = process.env.KIOSK_RUNTIME_ROOT || ''
+  for (const dir of TIMER_UNIT_DIRS) {
+    const file = root ? path.join(root, dir, unit) : path.join(dir, unit)
+    if (fs.existsSync(file)) return file
+  }
+  return null
+}
+
 function captureTimerState(dest: string): string | null {
-  const entries = MANAGED_TIMERS.map((unit) => ({
-    unit,
-    enabled: execCmd('systemctl', ['is-enabled', unit]).stdout.trim() || 'unknown',
-    active: execCmd('systemctl', ['is-active', unit]).stdout.trim() || 'unknown',
-  }))
-  const saved = writeTimerState(dest, entries)
-  return saved.ok ? null : saved.error ?? 'could not write timer state'
+  try {
+    const entries = MANAGED_TIMERS.map((unit) => {
+      const enabled = execCmd('systemctl', ['is-enabled', unit])
+      const state = enabled.stdout.trim()
+      if (!state) {
+        if (!timerUnitFile(unit)) return { unit, enabled: 'absent', active: 'inactive' }
+        throw new Error(`could not read the enablement state of ${unit} (${enabled.stderr.trim() || `exit ${enabled.status}`})`)
+      }
+      const active = execCmd('systemctl', ['is-active', unit]).stdout.trim() || 'unknown'
+      return { unit, enabled: state, active }
+    })
+    const saved = writeTimerState(dest, entries)
+    return saved.ok ? null : saved.error ?? 'could not write timer state'
+  } catch (e: unknown) {
+    return e instanceof Error ? e.message : String(e)
+  }
+}
+
+// "not loaded"/"not found" answers are expected while restoring a unit that was
+// absent before the update; anything else is a real failure worth reporting.
+function timerCommandError(r: { status: number; stderr: string }, unit: string, verb: string, tolerateMissing = false): string | null {
+  if (r.status === 0) return null
+  if (tolerateMissing && /not (loaded|found)|No such file|does not exist/i.test(r.stderr)) return null
+  return `${verb} ${unit}: ${r.stderr.trim() || r.status}`
 }
 
 function restoreTimerState(dest: string): string | null {
   const entries = readTimerState(dest)
   if (!entries.length) return null
   const errors: string[] = []
+  const add = (message: string | null) => { if (message) errors.push(message) }
   for (const entry of entries) {
-    const disabled = entry.enabled !== 'enabled' && entry.enabled !== 'enabled-runtime'
-    const r = disabled
-      ? execCmd('systemctl', ['disable', '--now', entry.unit])
-      : execCmd('systemctl', ['enable', entry.unit])
-    // A unit that did not exist before the update is gone again now; disable
-    // is only there to drop the enablement symlink the update created, so a
-    // "unit not found" answer is expected.
-    if (r.status !== 0 && !disabled) errors.push(`enable ${entry.unit}: ${r.stderr || r.status}`)
-    if (!disabled && entry.active === 'active') {
-      const started = execCmd('systemctl', ['start', entry.unit])
-      if (started.status !== 0) errors.push(`start ${entry.unit}: ${started.stderr || started.status}`)
+    switch (entry.enabled) {
+      case 'enabled':
+      case 'enabled-runtime': {
+        add(timerCommandError(execCmd('systemctl', ['enable', entry.unit]), entry.unit, 'enable'))
+        if (entry.active === 'active') {
+          add(timerCommandError(execCmd('systemctl', ['start', entry.unit]), entry.unit, 'start'))
+        } else if (entry.active === 'inactive') {
+          // enable --now in the installer may have started a timer that was
+          // stopped before the update; put it back to stopped.
+          add(timerCommandError(execCmd('systemctl', ['stop', entry.unit]), entry.unit, 'stop'))
+        }
+        break
+      }
+      case 'masked':
+      case 'masked-runtime':
+        add(timerCommandError(execCmd('systemctl', ['mask', '--now', entry.unit]), entry.unit, 'mask'))
+        break
+      case 'disabled':
+        add(timerCommandError(execCmd('systemctl', ['disable', '--now', entry.unit]), entry.unit, 'disable', true))
+        break
+      case 'absent':
+        // The file is gone again; just drop the enablement symlink an update
+        // may have created.
+        add(timerCommandError(execCmd('systemctl', ['disable', entry.unit]), entry.unit, 'disable', true))
+        break
+      default:
+        // static/indirect/alias timers get their state from the restored unit
+        // files; there is nothing to replay.
+        break
     }
   }
   return errors.length ? errors.join('; ') : null

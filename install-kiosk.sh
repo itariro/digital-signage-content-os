@@ -1243,8 +1243,8 @@ WantedBy=timers.target
 TIMER_EOF
     systemctl daemon-reload
     case "$prev_state" in
-        disabled)
-            echo "auto-update timer left disabled (run: kiosk update enable)"
+        disabled|masked|masked-runtime)
+            echo "auto-update timer left ${prev_state} (run: kiosk update enable)"
             return 0
             ;;
     esac
@@ -1274,8 +1274,24 @@ OFF_EOF
 }
 
 t_write_standby_timers() {
-    # shellcheck disable=SC1091
-    . /etc/kiosk/kiosk.conf 2>/dev/null || true
+    # A config that will not source must not silently fall back to "standby
+    # on": that would start timers the operator disabled. Check the syntax
+    # first, because `bash` exits the whole script when a sourced file has a
+    # syntax error (for example an unescaped apostrophe). Fresh installs warn
+    # and continue; a runtime update aborts and lets the updater restore the
+    # old runtime.
+    if [[ -f /etc/kiosk/kiosk.conf ]]; then
+        if ! bash -n /etc/kiosk/kiosk.conf 2>/dev/null; then
+            if (( UPDATE_RUNTIME )); then
+                echo "error: /etc/kiosk/kiosk.conf could not be sourced (syntax error); refusing to guess standby settings" >&2
+                return 1
+            fi
+            echo "warning: /etc/kiosk/kiosk.conf could not be sourced (syntax error); using standby defaults" >&2
+        else
+            # shellcheck disable=SC1091
+            . /etc/kiosk/kiosk.conf
+        fi
+    fi
     local start="${KIOSK_STANDBY_START:-22:00}"
     local end="${KIOSK_STANDBY_END:-06:00}"
     cat > /etc/systemd/system/kiosk-standby-on.service <<EOF

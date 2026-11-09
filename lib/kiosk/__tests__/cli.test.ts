@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { runCli } from '../cli'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 describe('cli', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiosk-'))
@@ -49,6 +50,16 @@ describe('cli', () => {
     const written = fs.readFileSync(confPath, 'utf8')
     expect(written).toContain('KIOSK_MGMT_PORT=8808')
     expect(written).toContain('KIOSK_PORT=3300')
+  })
+
+  it('quotes config values so kiosk.conf stays sourceable', async () => {
+    const confPath = path.join(tmpDir, 'quoted.conf')
+    process.env.KIOSK_CONFIG_PATH = confPath
+    const set = await runCli(['config', 'set', 'extraFlags', "don't --flag"])
+    expect(set.exitCode).toBe(0)
+    expect(() => execFileSync('bash', ['-c', `set -eu; . '${confPath}'`])).not.toThrow()
+    const shown = await runCli(['config', 'show'])
+    expect(shown.stdout).toContain("don't --flag")
   })
 
   it('version prints versions', async () => {

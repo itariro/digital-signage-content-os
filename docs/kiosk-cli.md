@@ -378,14 +378,17 @@ snapshot stay recorded in `state.json`; `kiosk update rollback` resumes from
 where recovery stopped.
 
 Runtime updates preserve operator choices. A timer disabled with
-`kiosk update disable` stays disabled, and a schedule disabled with
-`KIOSK_STANDBY_ENABLED=0` keeps its standby timers stopped; the unit files are
-still refreshed so a later `kiosk update enable` or config change works. A
-runtime update fails and rolls the runtime back when it cannot enable `dscos`
-or a timer it needs, because a frame that reboots with the app disabled never
-comes back. Alongside the files, the snapshot records each managed timer's
-enabled and active state, and a rollback replays it, so a timer that the
-update started does not keep running after the old runtime returns.
+`kiosk update disable` stays disabled, a masked timer stays masked, and a
+schedule disabled with `KIOSK_STANDBY_ENABLED=0` keeps its standby timers
+stopped; the unit files are still refreshed so a later `kiosk update enable`
+or config change works. A runtime update fails and rolls the runtime back when
+it cannot enable `dscos` or a timer it needs, when it cannot read the
+enablement state it is about to preserve, or when `kiosk.conf` cannot be
+sourced, because a frame that reboots with the app disabled or sleeps against
+the operator's schedule never comes back. Alongside the files, the snapshot
+records each managed timer's enabled and active state, and a rollback replays
+it, so a timer that the update started does not keep running after the old
+runtime returns.
 
 The update lock is an OS-held SQLite lock at
 `/var/lib/dscos-updates/lock.db`. The kernel releases it when the update
