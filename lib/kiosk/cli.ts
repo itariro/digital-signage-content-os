@@ -463,7 +463,7 @@ function restartAndCheckHealth(config: any): { ok: boolean; error?: string } {
     const hr = execCmd('curl', ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `http://127.0.0.1:${config.appPort}/api/health`])
     const code = parseInt(hr.stdout.trim(), 10)
     lastCode = Number.isInteger(code) ? (code === 0 ? '000' : String(code)) : '000'
-    if (code >= 200 && code < 300) return { ok: true }
+    if (code >= 200 && code < 300) { refreshBrowserAfterApp(); return { ok: true } }
     if (i < 44) execCmd('sleep', ['2'])
   }
   return { ok: false, error: `health check failed (HTTP ${lastCode} on 127.0.0.1:${config.appPort}); see: journalctl -u dscos -n 30` }
@@ -943,6 +943,7 @@ async function cmdEnroll(ctx: Ctx, url: string | undefined, code: string | undef
   if (process.platform === 'linux' && !process.env.VITEST) {
     const restart = execCmd('systemctl', ['restart', APP_SERVICE])
     if (restart.status !== 0) { err(ctx, `app restart failed (exit ${restart.status}); run: systemctl restart ${APP_SERVICE}`); return 1 }
+    refreshBrowserAfterApp(ctx)
   }
   return 0
 }
@@ -981,6 +982,7 @@ async function cmdPassword(ctx: Ctx, secret: string | undefined): Promise<number
   out(ctx, `admin password set in ${file}; restart the app to apply`)
   if (process.platform === 'linux' && !process.env.VITEST) {
     execCmd('systemctl', ['restart', APP_SERVICE])
+    refreshBrowserAfterApp(ctx)
   }
   return 0
 }

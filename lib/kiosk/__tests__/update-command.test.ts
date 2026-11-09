@@ -116,6 +116,10 @@ if [ "$1" = "is-enabled" ]; then echo enabled; exit 0; fi
 if [ "$1" = "show" ]; then echo "Thu 2026-11-06 03:00:00 UTC"; exit 0; fi
 exit 0
 `)
+  writeExecutable(path.join(binDir, 'pkill'), `
+echo "pkill $*" >> "$FAKE_LOG"
+exit 0
+`)
   writeExecutable(path.join(binDir, 'curl'), `
 echo "curl $*" >> "$FAKE_LOG"
 if [ "\${FAKE_HEALTH_FAIL:-0}" = "1" ]; then echo "\${FAKE_HEALTH_CODE:-503}"; exit 0; fi
@@ -543,5 +547,13 @@ describe('update command', () => {
     expect(payload.timerActive).toBe(true)
     expect(payload.timerEnabled).toBe(true)
     expect(payload.lastTrigger).toContain('2026-11-06')
+  })
+
+  it('refreshes the browser after a successful update health check', async () => {
+    h = setupHarness()
+    mockRelease(h)
+    const result = await runCli(['update', 'apply', '--yes'])
+    expect(result.exitCode).toBe(0)
+    expect(fs.readFileSync(h.logPath, 'utf8')).toContain('pkill -TERM -u kiosk -x surf')
   })
 })
