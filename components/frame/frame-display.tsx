@@ -72,11 +72,14 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
             album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
             scale={scale}
             night={night ? store.schedule.night : null}
-          />
+          >
+            {/* Inside FrameScene so the notice is pinned to the frame's scaled
+                coordinate space, exactly like the editor canvas and preview. */}
+            <FrameNoticeLayer />
+          </FrameScene>
         ) : (
           !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
         )}
-        <FrameNoticeLayer />
       </main>
     </NotificationProvider>
   )

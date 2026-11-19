@@ -3,65 +3,82 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Box, CalendarClock, ListTodo, Signpost, Split } from 'lucide-react'
 import type { FrameNotification } from '@/lib/types'
+import { FRAME_WIDTH } from '@/lib/types'
 import { useNotifications } from './notification-provider'
 
 /* -------------------------------------------------------------------------
  * Design tokens
  *
- * Every measurement below comes from the reference artboards, where the
- * colour banner is 1306 units wide. `u(n)` converts a reference unit into a
- * length that scales with the card, so the layout is identical at any
- * resolution (the kiosk is a 1440-wide portrait screen).
- *   card width      = --card-w
- *   1 unit (--u)    = card width / 1332   (banner 1306 + 13 inset each side)
+ * The notice is drawn in the frame's own coordinate space (1080 x 1920), not
+ * the browser viewport. FrameScene renders that space at
+ * `scale = min(viewport / frame)`, so every length below grows with the frame
+ * and the kiosk, the editor canvas, and the full-screen preview all show the
+ * same proportions. Never use `vw`/`vh` here: those follow the browser window,
+ * not the frame, and drift as soon as the frame is scaled.
+ *
+ * `u(n)` converts a frame pixel measured on the reference 1080-wide frame to
+ * a length that follows FRAME_WIDTH if it ever changes.
+ *   --frame-w = the frame's logical width (1080)
+ *   --card-w  = 0.833 * --frame-w (900 at the reference size)
+ *   --u       = --frame-w / 1080
  * ----------------------------------------------------------------------- */
 const u = (n: number) => `calc(${n} * var(--u))`
 
-const FONT = "Montserrat, 'Montserrat Variable', ui-sans-serif, system-ui, sans-serif"
+// System stack only: no webfont is loaded for the frame, so naming one here
+// would silently fall back and vary between macOS, Windows, and kiosk Linux.
+const FONT = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
 const T = {
-  cardInset: 13,
-  cardRadius: 53,
-  bannerRadius: 40,
-  bannerPadX: 57,
-  bannerPadTop: 59,
-  bannerPadBottom: 65,
-  pillHeight: 84,
-  pillPadX: 44,
-  pillToTitle: 52,
-  metaTop: 225, // text block min-height so the first metadata row starts at the same y in every layout
-  descToMeta: 40,
-  titleIndent: 17,
-  descIndent: 22,
-  descMaxWidth: 700,
-  titleSize: 60,
-  titleLeading: 72,
-  pillSize: 36,
-  bodySize: 30,
-  bodyLeading: 33,
-  metaIcon: 60,
-  metaGap: 39,
-  metaRowGap: 44,
-  listGap: 17,
-  listInset: 7,
-  listRadius: 24,
-  rowTile: 112,
-  rowTileRadius: 26,
-  footerHeight: 70,
-  footerWidth: 273,
-  footerProgress: 167,
-  footerGapAfterList: 32,
-  footerGapAfterBanner: 28,
-  footerBottom: 20,
-  mascotRight: 54, // visual edge sits ~60 from the banner edge (stand-in mascots carry 6 of padding)
-  qrRight: 78,
-  qrBottom: 38,
-  qrWidth: 308,
-  qrPadX: 31,
-  qrPadTop: 30,
-  qrCode: 245,
-  qrBar: 85,
+  cardInset: 16,
+  cardRadius: 44,
+  bannerRadius: 30,
+  bannerPadX: 44,
+  bannerPadTop: 44,
+  bannerPadBottom: 44,
+  pillHeight: 56,
+  pillPadX: 30,
+  pillToTitle: 34,
+  metaTop: 170, // text block min-height so the first metadata row starts at the same y in every layout
+  descToMeta: 30,
+  titleIndent: 6,
+  descIndent: 8,
+  descMaxWidth: 470,
+  titleSize: 58,
+  titleLeading: 68,
+  pillSize: 26,
+  bodySize: 31,
+  bodyLeading: 42,
+  metaIcon: 44,
+  metaGap: 22,
+  metaRowGap: 26,
+  listGap: 18,
+  listInset: 8,
+  listRadius: 22,
+  rowTile: 76,
+  rowTileRadius: 18,
+  footerHeight: 68,
+  footerWidth: 246,
+  footerProgress: 154,
+  footerGapAfterList: 26,
+  footerGapAfterBanner: 30,
+  footerBottom: 18,
+  mascotRight: 32, // visual edge sits ~60 from the banner edge (stand-in mascots carry 6 of padding)
+  qrRight: 44,
+  qrBottom: 26,
+  qrWidth: 292,
+  qrPadX: 24,
+  qrPadTop: 24,
+  qrCode: 244,
+  qrBar: 72,
 } as const
+
+/** Keeps long author content inside the card so the overlay never clips. */
+const clampLines = (lines: number): CSSProperties => ({
+  display: '-webkit-box',
+  WebkitLineClamp: lines,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+})
 
 const COLOR = {
   pink: '#FAE2F2',
@@ -104,11 +121,13 @@ type LayoutSpec = {
 }
 
 const LAYOUTS: Record<Layout, LayoutSpec> = {
-  warning: { background: COLOR.pink, pill: COLOR.pillWarning, label: 'Warning', minHeight: 690, padBottom: T.bannerPadBottom, pillMinWidth: 272, metaIndent: 12, textRight: 820, descGap: 15, descIndent: 22, mascot: { key: 'warning', width: 415, dy: -29 } },
-  calendar: { background: COLOR.blue, pill: COLOR.pill, label: 'Calendar', minHeight: 690, padBottom: T.bannerPadBottom, pillMinWidth: 329, metaIndent: 12, textRight: 800, descGap: 15, descIndent: 22, mascot: { key: 'calendar', width: 442, dy: -28 } },
-  reminder: { background: COLOR.yellow, pill: COLOR.pill, label: 'Today’s the day', minHeight: 704, padBottom: T.bannerPadBottom, metaIndent: 12, textRight: 830, descGap: 35, descIndent: 22, mascot: { key: 'reminder', width: 404, dy: -18 } },
-  system: { background: COLOR.pink, pill: COLOR.pill, label: 'System Message', minHeight: 618, padBottom: 53, metaIndent: 33, textRight: 880, descGap: 32, descIndent: 22 },
-  custom: { background: COLOR.blue, pill: COLOR.pill, label: 'Hey there!', minHeight: 690, padBottom: T.bannerPadBottom, metaIndent: 12, textRight: 775, descGap: 65, descIndent: 17, mascot: { key: 'custom', width: 495, dy: -6 } },
+  // textRight is measured from the banner's left edge and reserved so copy
+  // never runs under the mascot or QR panel at the larger type scale.
+  warning: { background: COLOR.pink, pill: COLOR.pillWarning, label: 'Warning', minHeight: 560, padBottom: T.bannerPadBottom, pillMinWidth: 186, metaIndent: 8, textRight: 520, descGap: 16, descIndent: 8, mascot: { key: 'warning', width: 280, dy: -14 } },
+  calendar: { background: COLOR.blue, pill: COLOR.pill, label: 'Calendar', minHeight: 540, padBottom: T.bannerPadBottom, pillMinWidth: 214, metaIndent: 8, textRight: 515, descGap: 16, descIndent: 8, mascot: { key: 'calendar', width: 300, dy: -14 } },
+  reminder: { background: COLOR.yellow, pill: COLOR.pill, label: 'Today’s the day', minHeight: 560, padBottom: T.bannerPadBottom, pillMinWidth: 236, metaIndent: 8, textRight: 540, descGap: 28, descIndent: 8, mascot: { key: 'reminder', width: 272, dy: -8 } },
+  system: { background: COLOR.pink, pill: COLOR.pill, label: 'System Message', minHeight: 520, padBottom: 40, metaIndent: 24, textRight: 508, descGap: 26, descIndent: 8 },
+  custom: { background: COLOR.blue, pill: COLOR.pill, label: 'Hey there!', minHeight: 540, padBottom: T.bannerPadBottom, pillMinWidth: 196, metaIndent: 8, textRight: 490, descGap: 40, descIndent: 6, mascot: { key: 'custom', width: 334, dy: -4 } },
 }
 
 /** Optional extras a notification may carry. All are optional so existing payloads render unchanged. */
@@ -199,14 +218,14 @@ function CategoryPill({ layout, label }: { layout: Layout; label: string }) {
         background: spec.pill,
         fontSize: u(T.pillSize),
         lineHeight: 1,
-        fontWeight: 400,
+        fontWeight: 500,
         color: COLOR.text,
         whiteSpace: 'nowrap',
       }}
     >
       {withIcon && (
-        <span style={{ ...iconBox(74), display: 'grid', placeItems: 'center', borderRadius: 9999, background: '#fff' }}>
-          <CalendarClock style={iconBox(44)} strokeWidth={2} aria-hidden />
+        <span style={{ ...iconBox(50), display: 'grid', placeItems: 'center', borderRadius: 9999, background: '#fff' }}>
+          <CalendarClock style={iconBox(30)} strokeWidth={2} aria-hidden />
         </span>
       )}
       {label}
@@ -216,14 +235,14 @@ function CategoryPill({ layout, label }: { layout: Layout; label: string }) {
 
 function MetaRow({ icon, children, bold, indent }: { icon: ReactNode; children: ReactNode; bold?: boolean; indent: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', height: u(T.metaIcon), gap: u(T.metaGap), marginLeft: u(indent) }}>
+    <div style={{ display: 'flex', alignItems: 'center', height: u(T.metaIcon), gap: u(T.metaGap), marginLeft: u(indent), minWidth: 0 }}>
       <span style={{ ...iconBox(T.metaIcon), display: 'grid', placeItems: 'center' }}>{icon}</span>
-      <span style={{ fontSize: u(T.bodySize), lineHeight: 1.2, fontWeight: bold ? 700 : 400 }}>{children}</span>
+      <span style={{ fontSize: u(T.bodySize), lineHeight: 1.2, fontWeight: bold ? 700 : 400, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</span>
     </div>
   )
 }
 
-/* lucide glyphs fill ~83% of their 24px box; scale up so the ink matches the 60-unit reference icon */
+/* lucide glyphs fill ~83% of their 24px box; scale up so the ink matches the meta icon box */
 const metaIcon: CSSProperties = { width: '120%', height: '120%' }
 
 function Metadata({ layout, notification, items }: { layout: Layout; notification: NoticeData; items: NoticeItem[] }) {
@@ -235,9 +254,10 @@ function Metadata({ layout, notification, items }: { layout: Layout; notificatio
       <MetaRow indent={ind} key="module" icon={<Box style={metaIcon} strokeWidth={2} aria-hidden />}>Module with the code</MetaRow>,
     ]
   } else if (layout === 'calendar') {
-    const urgent = items.filter((item) => item.urgent).length
+    const shownItems = items.slice(0, 3)
+    const urgent = shownItems.filter((item) => item.urgent).length
     rows = [
-      <MetaRow indent={ind} key="count" icon={<ListTodo style={metaIcon} strokeWidth={2} aria-hidden />}>{items.length} {items.length === 1 ? 'item' : 'items'}</MetaRow>,
+      <MetaRow indent={ind} key="count" icon={<ListTodo style={metaIcon} strokeWidth={2} aria-hidden />}>{shownItems.length} {shownItems.length === 1 ? 'item' : 'items'}</MetaRow>,
       <MetaRow indent={ind} key="urgent" icon={<UrgentIcon style={metaIcon} />}>{urgent} marked as <strong style={{ fontWeight: 700 }}>Important/Urgent</strong></MetaRow>,
     ]
   } else if (layout === 'reminder') {
@@ -268,7 +288,7 @@ function QrPanel({ value }: { value: string }) {
         boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
       }}
     >
-      <div style={{ padding: `${u(T.qrPadTop)} ${u(T.qrPadX)} ${u(45)}` }}>
+      <div style={{ padding: `${u(T.qrPadTop)} ${u(T.qrPadX)} ${u(24)}` }}>
         <img src={src} alt="Scannable notification QR code" style={{ display: 'block', width: u(T.qrCode), height: u(T.qrCode), imageRendering: 'pixelated' }} />
       </div>
       <div
@@ -279,14 +299,14 @@ function QrPanel({ value }: { value: string }) {
           color: '#fff',
           display: 'grid',
           placeItems: 'center',
-          fontFamily: "'DIN Condensed','Bahnschrift','Barlow Condensed','Arial Narrow',Montserrat,sans-serif",
-          fontSize: u(50),
+          fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Arial Narrow', sans-serif",
+          fontSize: u(36),
           fontWeight: 600,
           letterSpacing: '0.02em',
           lineHeight: 1,
         }}
       >
-        <span aria-hidden style={{ position: 'absolute', top: u(-14), left: '50%', width: 0, height: 0, transform: 'translateX(-50%)', borderLeft: `${u(14)} solid transparent`, borderRight: `${u(14)} solid transparent`, borderBottom: `${u(14)} solid #000` }} />
+        <span aria-hidden style={{ position: 'absolute', top: u(-10), left: '50%', width: 0, height: 0, transform: 'translateX(-50%)', borderLeft: `${u(10)} solid transparent`, borderRight: `${u(10)} solid transparent`, borderBottom: `${u(10)} solid #000` }} />
         SCAN ME
       </div>
     </div>
@@ -305,7 +325,7 @@ function Tile({ tone, children }: { tone: 'pink' | 'green'; children: ReactNode 
 
 function Row({ tile, children, trailing, height, last, shift = 0 }: { tile: ReactNode; children: ReactNode; trailing?: ReactNode; height: number; last: boolean; shift?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: u(30), minHeight: u(height), padding: `${u(shift)} ${u(46)} 0 ${u(37)}`, borderBottom: last ? 'none' : `1px solid ${COLOR.border}`, fontSize: u(T.bodySize), lineHeight: 1.2 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: u(22), minHeight: u(height), padding: `${u(shift)} ${u(30)} 0 ${u(24)}`, borderBottom: last ? 'none' : `1px solid ${COLOR.border}`, fontSize: u(T.bodySize), lineHeight: 1.2 }}>
       {tile}
       <div style={{ minWidth: 0, flex: 1 }}>{children}</div>
       {trailing}
@@ -320,18 +340,18 @@ function ListBox({ children }: { children: ReactNode }) {
 function EventRows({ items }: { items: NoticeItem[] }) {
   return (
     <ListBox>
-      {items.map((item, index) => (
+      {items.slice(0, 3).map((item, index, list) => (
         <Row
           key={item.id ?? index}
-          height={167}
-          shift={22}
-          last={index === items.length - 1}
-          tile={<Tile tone={item.urgent ? 'pink' : 'green'}>{item.urgent ? <UrgentIcon style={{ ...iconBox(60), color: COLOR.urgentPurple }} /> : <CalendarClock style={{ ...iconBox(60), color: COLOR.eventGreen }} strokeWidth={2} aria-hidden />}</Tile>}
-          trailing={item.time ? <span style={{ whiteSpace: 'nowrap', alignSelf: 'flex-start', marginTop: u(26) }}>{item.time}</span> : undefined}
+          height={132}
+          shift={16}
+          last={index === list.length - 1}
+          tile={<Tile tone={item.urgent ? 'pink' : 'green'}>{item.urgent ? <UrgentIcon style={{ ...iconBox(40), color: COLOR.urgentPurple }} /> : <CalendarClock style={{ ...iconBox(40), color: COLOR.eventGreen }} strokeWidth={2} aria-hidden />}</Tile>}
+          trailing={item.time ? <span style={{ whiteSpace: 'nowrap', alignSelf: 'flex-start', marginTop: u(20) }}>{item.time}</span> : undefined}
         >
-          <div style={{ fontWeight: 700 }}>{item.title}</div>
+          <div style={{ fontWeight: 700, ...clampLines(2) }}>{item.title}</div>
           {item.tag && (
-            <span style={{ display: 'inline-block', marginTop: u(14), padding: `${u(8)} ${u(15)}`, borderRadius: 9999, background: COLOR.tag, color: '#fff', fontSize: u(24), fontWeight: 500, lineHeight: 1.1 }}>{item.tag}</span>
+            <span style={{ display: 'inline-block', marginTop: u(10), padding: `${u(6)} ${u(12)}`, borderRadius: 9999, background: COLOR.tag, color: '#fff', fontSize: u(22), fontWeight: 500, lineHeight: 1.1 }}>{item.tag}</span>
           )}
         </Row>
       ))}
@@ -342,9 +362,9 @@ function EventRows({ items }: { items: NoticeItem[] }) {
 function TaskRows({ items }: { items: NoticeItem[] }) {
   return (
     <ListBox>
-      {items.map((item, index) => (
-        <Row key={item.id ?? index} height={167} shift={24} last={index === items.length - 1} tile={<Tile tone={index % 2 === 0 ? 'pink' : 'green'}><ListTodo style={iconBox(60)} strokeWidth={2} aria-hidden /></Tile>}>
-          {item.title}
+      {items.slice(0, 3).map((item, index, list) => (
+        <Row key={item.id ?? index} height={132} shift={18} last={index === list.length - 1} tile={<Tile tone={index % 2 === 0 ? 'pink' : 'green'}><ListTodo style={iconBox(40)} strokeWidth={2} aria-hidden /></Tile>}>
+          <div style={clampLines(2)}>{item.title}</div>
         </Row>
       ))}
     </ListBox>
@@ -354,7 +374,7 @@ function TaskRows({ items }: { items: NoticeItem[] }) {
 function ResolutionRow({ text }: { text: string }) {
   return (
     <ListBox>
-      <Row height={158} last tile={<Tile tone="green"><ExtinguisherIcon style={iconBox(60)} strokeWidth={2} /></Tile>}>{text}</Row>
+      <Row height={132} last tile={<Tile tone="green"><ExtinguisherIcon style={iconBox(40)} strokeWidth={2} /></Tile>}><div style={{ ...clampLines(2), paddingTop: u(12), paddingBottom: u(12) }}>{text}</div></Row>
     </ListBox>
   )
 }
@@ -429,8 +449,9 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
   const mascot = spec.mascot
 
   const cardVars = {
-    '--card-w': 'min(480px, 62vw, max(280px, calc(100vw - 48px)))',
-    '--u': 'calc(var(--card-w) / 1332)',
+    '--frame-w': `${FRAME_WIDTH}px`,
+    '--card-w': 'calc(var(--frame-w) * 0.833)',
+    '--u': 'calc(var(--frame-w) / 1080)',
   } as CSSProperties
 
   return (
@@ -444,9 +465,9 @@ function NoticeCard({ notification, onDismiss }: NoticeProps) {
         <CategoryPill layout={layout} label={notification.label ?? spec.label} />
 
         <div style={{ position: 'relative', zIndex: 1, marginTop: u(T.pillToTitle), maxWidth: u(spec.textRight - T.bannerPadX), minHeight: layout === 'system' || layout === 'custom' ? undefined : u(T.metaTop), paddingLeft: u(T.titleIndent) }}>
-          <h2 style={{ margin: 0, fontSize: u(T.titleSize), lineHeight: u(T.titleLeading),fontWeight: 500, letterSpacing: 0 }}>{notification.title}</h2>
+          <h2 style={{ margin: 0, fontSize: u(T.titleSize), lineHeight: u(T.titleLeading), fontWeight: 600, letterSpacing: 0, ...clampLines(3) }}>{notification.title}</h2>
           {notification.message && (
-            <p style={{ margin: 0, marginTop: u(spec.descGap), paddingLeft: u(spec.descIndent - T.titleIndent), maxWidth: u(T.descMaxWidth), fontSize: u(T.bodySize), lineHeight: u(T.bodyLeading), fontWeight: 400, color: COLOR.muted, whiteSpace: 'pre-line' }}>{notification.message}</p>
+            <p style={{ margin: 0, marginTop: u(spec.descGap), paddingLeft: u(spec.descIndent - T.titleIndent), maxWidth: u(T.descMaxWidth), fontSize: u(T.bodySize), lineHeight: u(T.bodyLeading), fontWeight: 400, color: COLOR.muted, whiteSpace: 'pre-line', ...clampLines(5) }}>{notification.message}</p>
           )}
         </div>
 
