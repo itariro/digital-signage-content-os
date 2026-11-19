@@ -8,6 +8,12 @@ const source = readFileSync(path.join(root, 'components/notifications/frame-noti
 const frameDisplay = readFileSync(path.join(root, 'components/frame/frame-display.tsx'), 'utf8')
 
 describe('frame notice scale', () => {
+  it('keeps notifications visible when the frame has no layout', () => {
+    // A notification posted before the first publish still has to show, and the
+    // no-layout branch has no FrameScene, so the layer mounts in both branches.
+    expect(frameDisplay.match(/<FrameNoticeLayer \/>/g)).toHaveLength(2)
+  })
+
   it('renders the notice inside the frame scene on the kiosk', () => {
     // FrameScene scales a 1080x1920 space to the viewport. A notice rendered
     // as its sibling keeps CSS pixels and stays tiny on a 1440x2560 kiosk.

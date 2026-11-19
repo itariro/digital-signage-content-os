@@ -254,10 +254,11 @@ function Metadata({ layout, notification, items }: { layout: Layout; notificatio
       <MetaRow indent={ind} key="module" icon={<Box style={metaIcon} strokeWidth={2} aria-hidden />}>Module with the code</MetaRow>,
     ]
   } else if (layout === 'calendar') {
-    const shownItems = items.slice(0, 3)
-    const urgent = shownItems.filter((item) => item.urgent).length
+    // Totals cover every item, including any past the three-row limit, so the
+    // summary does not understate the list. EventRows still renders three rows.
+    const urgent = items.filter((item) => item.urgent).length
     rows = [
-      <MetaRow indent={ind} key="count" icon={<ListTodo style={metaIcon} strokeWidth={2} aria-hidden />}>{shownItems.length} {shownItems.length === 1 ? 'item' : 'items'}</MetaRow>,
+      <MetaRow indent={ind} key="count" icon={<ListTodo style={metaIcon} strokeWidth={2} aria-hidden />}>{items.length} {items.length === 1 ? 'item' : 'items'}</MetaRow>,
       <MetaRow indent={ind} key="urgent" icon={<UrgentIcon style={metaIcon} />}>{urgent} marked as <strong style={{ fontWeight: 700 }}>Important/Urgent</strong></MetaRow>,
     ]
   } else if (layout === 'reminder') {
