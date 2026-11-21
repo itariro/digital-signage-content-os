@@ -19,6 +19,9 @@ export async function GET(request: Request) {
       (r: { id: number; name: string; country?: string; admin1?: string; latitude: number; longitude: number }) => ({
         id: r.id,
         name: [r.name, r.admin1, r.country].filter(Boolean).join(', '),
+        city: r.name,
+        country: r.country,
+        admin1: r.admin1,
         lat: r.latitude,
         lon: r.longitude,
       }),
