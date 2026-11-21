@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
+import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, Map as MapIcon, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -485,6 +485,9 @@ export function Editor({
             >
               <Grid2X2 className="size-[18px]" aria-hidden />
             </button>
+            <a href="/map-art" aria-label="Map Art Generator" title="Map Art Generator" className="editor-icon-button size-8 rounded-lg">
+              <MapIcon className="size-[18px]" aria-hidden />
+            </a>
             {canManageFrames && (
               <button
                 type="button"
