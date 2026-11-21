@@ -54,10 +54,18 @@ function rasterMapStyle(styleId: string) {
 }
 
 function waitForIdle(map: MapLibreMap) {
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     if (map.loaded()) return resolve()
-    map.once('idle', () => resolve())
-    window.setTimeout(resolve, 20000)
+    let timeout: number
+    const finish = (error?: Error) => {
+      window.clearTimeout(timeout)
+      map.off('idle', onIdle)
+      if (error) reject(error)
+      else resolve()
+    }
+    const onIdle = () => finish()
+    timeout = window.setTimeout(() => finish(new Error('Map tiles did not finish loading in time.')), 20000)
+    map.once('idle', onIdle)
   })
 }
 
@@ -102,10 +110,11 @@ async function renderMapAtResolution({
   }
 }
 
-export function MapArtStudio() {
+export function MapArtStudio({ frameId }: { frameId?: string }) {
   const mapNode = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const albumRef = useRef<Album | null>(null)
+  const frameQuery = frameId ? `?frame=${encodeURIComponent(frameId)}` : ''
   const [city, setCity] = useState<City>({ id: 1, name: 'Melbourne', country: 'Australia', lat: -37.8136, lon: 144.9631 })
   const [mode, setMode] = useState<'cities' | 'continent'>('cities')
   const [query, setQuery] = useState('Melbourne, Australia\nSydney, Australia\nTokyo, Japan\nParis, France')
@@ -114,7 +123,7 @@ export function MapArtStudio() {
   const [customCount, setCustomCount] = useState(10)
   const [cities, setCities] = useState<City[]>([{ id: 1, name: 'Melbourne', country: 'Australia', lat: -37.8136, lon: 144.9631 }])
   const [results, setResults] = useState<City[]>([])
-  const [ambiguities, setAmbiguities] = useState<{ query: string; chosenId: number; matches: City[] }[]>([])
+  const [ambiguities, setAmbiguities] = useState<{ query: string; rowId: number; chosenId: number; matches: City[] }[]>([])
   const [style, setStyle] = useState(styles[0])
   const [title, setTitle] = useState(true)
   const [showCoords, setShowCoords] = useState(true)
@@ -173,13 +182,14 @@ export function MapArtStudio() {
     setBusy(true)
     setStatus(`Checking ${unique.length} locations…`)
     const found: City[] = []
-    const needsReview: { query: string; chosenId: number; matches: City[] }[] = []
+    const needsReview: { query: string; rowId: number; chosenId: number; matches: City[] }[] = []
     try {
       for (const line of unique) {
         const matches = await resolveCity(line)
         if (matches[0]) {
+          const rowId = found.length
           found.push(matches[0])
-          if (matches.length > 1) needsReview.push({ query: line, chosenId: matches[0].id, matches })
+          if (matches.length > 1) needsReview.push({ query: line, rowId, chosenId: matches[0].id, matches })
         }
       }
       setAmbiguities(needsReview)
@@ -197,10 +207,10 @@ export function MapArtStudio() {
     const ambiguity = ambiguities.find((entry) => entry.query === queryText)
     const selected = ambiguity?.matches.find((match) => match.id === selectedId)
     if (!ambiguity || !selected) return
-    setResults((current) => current.map((entry) => entry.id === ambiguity.chosenId ? selected : entry))
-    setCities((current) => current.map((entry) => entry.id === ambiguity.chosenId ? selected : entry))
-    setAmbiguities((current) => current.map((entry) => entry.query === queryText ? { ...entry, chosenId: selected.id } : entry))
-    if (city.id === ambiguity.chosenId) setCity(selected)
+    setResults((current) => current.map((entry, index) => index === ambiguity.rowId ? selected : entry))
+    setCities((current) => current.map((entry, index) => index === ambiguity.rowId ? selected : entry))
+    setAmbiguities((current) => current.map((entry) => entry.rowId === ambiguity.rowId ? { ...entry, chosenId: selected.id } : entry))
+    if (activeIndex === ambiguity.rowId) setCity(selected)
   }
 
   async function discoverCities() {
@@ -228,12 +238,12 @@ export function MapArtStudio() {
   async function savePosterToCollection(url: string, selected: City) {
     let album = albumRef.current
     if (!album) {
-      const storeResponse = await fetch('/api/store', { cache: 'no-store' })
+      const storeResponse = await fetch(`/api/store${frameQuery}`, { cache: 'no-store' })
       if (!storeResponse.ok) throw new Error('Could not open the frame image library.')
       const store = await storeResponse.json() as FrameStore
       album = store.albums.find((entry) => entry.name === 'City Map Collection' && entry.theme === 'photos') ?? null
       if (!album) {
-        const createdResponse = await fetch('/api/albums', {
+        const createdResponse = await fetch(`/api/albums${frameQuery}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: 'City Map Collection', theme: 'photos' }),
@@ -252,20 +262,20 @@ export function MapArtStudio() {
       subtitle: selected.country ?? '',
       year: '',
     }
-    const updated: Album = { ...album, items: [...album.items, item] }
-    const response = await fetch(`/api/albums/${updated.id}`, {
-      method: 'PUT',
+    const response = await fetch(`/api/albums/${album.id}${frameQuery}`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: updated.name, theme: updated.theme, items: updated.items, slideshow: updated.slideshow }),
+      body: JSON.stringify({ item }),
     })
-    const body = await response.json().catch(() => ({})) as { error?: string }
+    const body = await response.json().catch(() => ({})) as { error?: string; store?: FrameStore }
     if (!response.ok) throw new Error(body.error ?? 'Map image was saved but could not be added to the frame album.')
-    albumRef.current = updated
+    albumRef.current = body.store?.albums.find((entry) => entry.id === album?.id) ?? album
   }
 
   async function renderArtwork(selected: City) {
     const map = mapRef.current
     if (!map) throw new Error('Map renderer is not ready yet.')
+    const requestedZoom = map.getZoom()
     map.flyTo({ center: [selected.lon, selected.lat], zoom: 12, duration: 0 })
     await waitForIdle(map)
     const width = orientation === 'portrait' ? 1440 : 1920
@@ -286,7 +296,7 @@ export function MapArtStudio() {
       width: mapWidth,
       height: mapHeight,
       city: selected,
-      zoom: map.getZoom(),
+      zoom: requestedZoom,
       styleId: style.id,
     })
     ctx.save()
@@ -449,7 +459,7 @@ export function MapArtStudio() {
         </aside>
         <main className="map-art-stage">
           <div className="map-art-stage-head"><div><span className="eyebrow">MAP PREVIEW</span><h1>{city.name}<span>{city.country}</span></h1></div><div className="map-art-pager"><button aria-label="Previous city" onClick={() => changeCity(activeIndex - 1)} disabled={cities.length < 2}><ChevronLeft size={17} /></button><span>{cities.length ? `${activeIndex + 1} / ${cities.length}` : '0 / 0'}</span><button aria-label="Next city" onClick={() => changeCity(activeIndex + 1)} disabled={cities.length < 2}><ChevronRight size={17} /></button></div></div>
-          <div className="map-art-canvas-wrap"><div className={`map-art-poster ${orientation}`} style={{ backgroundColor: style.swatches[0] }}><div className="map-art-map-area"><div className="map-art-map" ref={mapNode} style={{ filter: styleFilters[style.id] ?? 'none' }} /><span className="map-art-map-credit">© OpenStreetMap contributors</span></div>{title && <div className="map-art-title"><h2>{city.name}</h2><p>{city.country}</p>{showCoords && <small>{Math.abs(city.lat).toFixed(4)}° {city.lat < 0 ? 'S' : 'N'} · {Math.abs(city.lon).toFixed(4)}° {city.lon < 0 ? 'W' : 'E'}</small>}{customText && <small>{customText}</small>}</div>}</div></div>
+          <div className="map-art-canvas-wrap"><div className={`map-art-poster ${orientation}`} data-style={style.id} style={{ backgroundColor: style.swatches[0] }}><div className="map-art-map-area"><div className="map-art-map" ref={mapNode} style={{ filter: styleFilters[style.id] ?? 'none' }} /><span className="map-art-map-credit">© OpenStreetMap contributors</span></div>{title && <div className="map-art-title"><h2>{city.name}</h2><p>{city.country}</p>{showCoords && <small>{Math.abs(city.lat).toFixed(4)}° {city.lat < 0 ? 'S' : 'N'} · {Math.abs(city.lon).toFixed(4)}° {city.lon < 0 ? 'W' : 'E'}</small>}{customText && <small>{customText}</small>}</div>}</div></div>
           <div className="map-art-stage-foot"><div className="map-art-zoom"><button aria-label="Zoom out" onClick={() => { mapRef.current?.zoomOut(); setZoom((current) => Math.max(0.5, current - 0.2)) }}><Minus size={15} /></button><span>{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" onClick={() => { mapRef.current?.zoomIn(); setZoom((current) => current + 0.2) }}><Plus size={15} /></button><button onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(1) }}>Fit</button><button aria-label="Reset map position" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(1) }}><RotateCcw size={14} /></button></div><span>{style.label} · {orientation === 'portrait' ? '2K portrait' : 'Full HD landscape'}</span><button className="map-art-outline" onClick={() => void generateBatch()} disabled={busy}><Upload size={14} /> {busy ? 'Rendering…' : 'Save poster'}</button></div>
           {status && <div className="map-art-status" role="status"><span>{status}</span>{busy && <progress aria-label="Map generation progress" max={cities.length || 1} value={batchProgress} />}</div>}
           {artworks.length > 0 && <section className="map-art-gallery"><div className="map-art-gallery-head"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2></div><button className="map-art-outline" onClick={() => void downloadAll()} disabled={busy}><Download size={14} /> Download ZIP</button></div><div className="map-art-gallery-grid">{artworks.map((artwork, index) => <article key={`${artwork.city.id}-${artwork.createdAt}`}><button className="map-art-thumb" onClick={() => { setCity(artwork.city); setActiveIndex(index) }}><img src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} /></button><div><strong>{artwork.city.name}</strong><small>{artwork.city.country}</small><a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`}><Download size={14} /></a></div></article>)}</div></section>}

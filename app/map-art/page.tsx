@@ -10,10 +10,12 @@ export const metadata: Metadata = {
 
 const hasClerk = Boolean(process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
 
-export default async function MapArtPage() {
+export default async function MapArtPage({ searchParams }: { searchParams: Promise<{ frame?: string }> }) {
   if (hasClerk) {
     const { userId } = await auth()
     if (!userId) return <Hero />
   }
-  return <MapArtStudio />
+  const { frame } = await searchParams
+  const frameId = frame && /^[a-zA-Z0-9_-]{1,64}$/.test(frame) ? frame : undefined
+  return <MapArtStudio frameId={frameId} />
 }

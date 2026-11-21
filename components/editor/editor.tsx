@@ -485,7 +485,7 @@ export function Editor({
             >
               <Grid2X2 className="size-[18px]" aria-hidden />
             </button>
-            <a href="/map-art" aria-label="Map Art Generator" title="Map Art Generator" className="editor-icon-button size-8 rounded-lg">
+            <a href={frameId ? `/map-art?frame=${encodeURIComponent(frameId)}` : '/map-art'} aria-label="Map Art Generator" title="Map Art Generator" className="editor-icon-button size-8 rounded-lg">
               <MapIcon className="size-[18px]" aria-hidden />
             </a>
             {canManageFrames && (
