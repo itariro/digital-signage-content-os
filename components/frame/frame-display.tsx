@@ -72,11 +72,29 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
             album={store.albums?.find((a) => a.id === layout.settings.albumId) ?? null}
             scale={scale}
             night={night ? store.schedule.night : null}
-          />
+          >
+            {/* Inside FrameScene so the notice is pinned to the frame's scaled
+                coordinate space, exactly like the editor canvas and preview. */}
+            <FrameNoticeLayer />
+          </FrameScene>
         ) : (
-          !layout && <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
+          // No layout means no FrameScene, but a notification posted before the
+          // first publish still has to show. Put the fallback and the notice in
+          // the same 1080x1920 space FrameScene would have provided.
+          <div
+            className="relative overflow-hidden"
+            style={scale > 0 ? { width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale } : { width: FRAME_WIDTH, height: FRAME_HEIGHT }}
+          >
+            <div className="absolute left-0 top-0 origin-top-left" style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT, transform: `scale(${scale})` }}>
+              {!layout && (
+                <div className="flex h-full w-full items-start justify-center p-16">
+                  <p className="text-sm text-muted-foreground">No layout has been published to this frame yet.</p>
+                </div>
+              )}
+              <FrameNoticeLayer />
+            </div>
+          </div>
         )}
-        <FrameNoticeLayer />
       </main>
     </NotificationProvider>
   )
