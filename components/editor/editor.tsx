@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, Map as MapIcon, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
+import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -62,12 +62,14 @@ export function Editor({
   frameId,
   singleFrame = false,
   canManageFrames = false,
+  clerkEnabled = false,
   initialPanel = null,
 }: {
   initialStore: FrameStore
   frameId?: string
   singleFrame?: boolean
   canManageFrames?: boolean
+  clerkEnabled?: boolean
   initialPanel?: 'frames' | null
 }) {
   const { store, call } = useFrameStore(initialStore, frameId)
@@ -127,9 +129,9 @@ export function Editor({
     albumDraftRef.current = next
     setAlbumDraft(next)
     if (!persist) return
-    const { name, theme, items, slideshow } = next
+    const { name, theme, items, slideshow, mapArt } = next
     albumQueue.current = albumQueue.current
-      .then(() => call(`/api/albums/${id}`, 'PUT', { name, theme, items, slideshow }))
+      .then(() => call(`/api/albums/${id}`, 'PUT', { name, theme, items, slideshow, mapArt }))
       .catch((e) => toast.error(errorMessage(e)))
   }
 
@@ -464,6 +466,7 @@ export function Editor({
       <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
         <TopBar
           singleFrame={singleFrame}
+          clerkEnabled={clerkEnabled}
           editor={editor}
           isActive={store.activeId === state.layoutId}
           saving={saving}
@@ -485,9 +488,6 @@ export function Editor({
             >
               <Grid2X2 className="size-[18px]" aria-hidden />
             </button>
-            <a href={frameId ? `/map-art?frame=${encodeURIComponent(frameId)}` : '/map-art'} aria-label="Map Art Generator" title="Map Art Generator" className="editor-icon-button size-8 rounded-lg">
-              <MapIcon className="size-[18px]" aria-hidden />
-            </a>
             {canManageFrames && (
               <button
                 type="button"

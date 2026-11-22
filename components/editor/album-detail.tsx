@@ -12,6 +12,7 @@ import { downscaleImage } from '@/lib/frame-utils'
 import { useArtworkSearch, usePortraitSearch, type ArtworkResult, type PortraitResult } from '@/hooks/use-frame-store'
 import { useNow } from '@/hooks/use-now'
 import { AlbumSlideshow } from '@/components/frame/album-slideshow'
+import { MapArtStudio } from '@/components/map-art/map-art-studio'
 import { ColorField, EditorButton, Section, Segmented, SelectField, SliderField, ToggleField } from './controls'
 import { cn } from '@/lib/utils'
 
@@ -78,7 +79,25 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
         </div>
       </div>
 
-      {meta.searchable ? <ArtworkSearch album={album} onUpdate={update} /> : <PhotoUpload album={album} onUpdate={update} />}
+      {album.theme === 'map-art' ? (
+        <MapArtStudio
+          embedded
+          mapArt={album.mapArt}
+          onSettingsChange={(mapArt) => update((current) => ({ ...current, mapArt }))}
+          albumCount={album.items.length}
+          onAddToAlbum={(item) => {
+            if (album.items.length >= MAX_ITEMS) {
+              toast.error(`Albums hold up to ${MAX_ITEMS} items`)
+              return
+            }
+            update((current) => ({ ...current, items: [...current.items, item] }))
+          }}
+        />
+      ) : meta.searchable ? (
+        <ArtworkSearch album={album} onUpdate={update} />
+      ) : (
+        <PhotoUpload album={album} onUpdate={update} />
+      )}
 
       <ItemsGrid album={album} onUpdate={update} />
 

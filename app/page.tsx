@@ -36,6 +36,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ f
         frameId={frameId}
         singleFrame={Boolean(process.env.INSTANCE_ID)}
         canManageFrames={canManageFrames}
+        clerkEnabled={hasClerk}
         initialPanel={initialPanel}
       />
     </FrameAdminGate>

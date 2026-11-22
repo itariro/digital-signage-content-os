@@ -4,7 +4,29 @@
 @media(max-width:1050px){.map-art-body{grid-template-columns:238px minmax(360px,1fr)}.map-art-right{display:none}.map-art-stage{padding:16px}.map-art-poster{width:min(100%,min(57vh,460px))}}
 @media(max-width:700px){.map-art-shell{height:auto;min-height:100dvh;overflow:auto}.map-art-topbar{height:56px;padding:0 12px;gap:10px}.map-art-wordmark{font-size:17px}.map-art-heading{font-size:12px;gap:5px}.map-art-back{display:none}.map-art-primary{min-width:0;height:36px;padding:0 8px;font-size:11px}.map-art-body{display:flex;flex-direction:column;overflow:visible}.map-art-left{order:2;border:0;border-top:1px solid var(--ink);overflow:visible}.map-art-stage{order:1;min-height:600px;padding:16px 10px 22px}.map-art-stage-head{padding:0 5px}.map-art-canvas-wrap{min-height:430px}.map-art-poster{width:min(86vw,420px)}.map-art-poster.landscape{width:96%}.map-art-stage-foot{flex-wrap:wrap;gap:8px}.map-art-stage-foot>span{margin-left:0;flex:1}.map-art-mode{margin:12px 14px}.map-art-block{padding:13px 15px}.map-art-gallery{padding:16px 5px}.map-art-gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .map-art-status{display:flex;flex-direction:column;gap:8px}
+.map-art-embedded{--paper:var(--card);--paper-deep:var(--secondary);--ink:var(--foreground);--muted:var(--muted-foreground);--line:var(--border);--accent:var(--primary);height:auto;min-height:0;overflow:visible;font-family:inherit;border-top:1px solid var(--border)}
+.map-art-embedded .map-art-topbar{display:none}
+.map-art-embedded .map-art-body{display:flex;flex-direction:column;overflow:visible;min-height:0}
+.map-art-embedded .map-art-left{order:2;overflow:visible;border:0;background:var(--card)}
+.map-art-embedded .map-art-stage{order:1;min-height:0;padding:16px 12px;background:var(--background)}
+.map-art-embedded .map-art-right{display:none}
+.map-art-embedded .map-art-poster{width:min(100%,340px);max-height:56vh}
+.map-art-embedded .map-art-canvas-wrap{min-height:340px}
+.map-art-embedded .map-art-stage-head{padding:0 4px}
+.map-art-embedded .map-art-block{padding:14px 16px;border-color:var(--border)}
+.map-art-embedded .map-art-mode{border-color:var(--border)}
+.map-art-embedded .map-art-mode button[aria-selected=true],.map-art-embedded .map-art-segment button[aria-pressed=true]{background:var(--primary);color:var(--primary-foreground)}
+.map-art-embedded .map-art-primary{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+.map-art-embedded .map-art-primary:hover{filter:brightness(.94)}
+.map-art-embedded .map-art-outline{border-color:var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground)}
+.map-art-embedded .map-art-outline:hover{background:var(--secondary)}
+.map-art-embedded .map-art-input,.map-art-embedded textarea,.map-art-embedded .map-art-select select{border-color:var(--border);border-radius:var(--radius-md);background:var(--background);color:var(--foreground);font:inherit}
+.map-art-embedded .map-art-status{border-color:var(--border);background:var(--secondary);color:var(--foreground)}
+.map-art-embedded .map-art-stage-foot{border-color:var(--border)}
 .map-art-status progress{width:100%;height:4px;accent-color:var(--accent)}
 .map-art-poster[data-style='dark'] .map-art-title h2{color:#f1eee5}
 .map-art-poster[data-style='dark'] .map-art-title p{color:#d1cec5}
 .map-art-poster[data-style='dark'] .map-art-title small{color:#dedbd1}
+.map-art-color-picker{display:flex;align-items:center;gap:8px}.map-art-color-picker input[type=color]{width:42px;height:38px;padding:3px;border:1px solid var(--line);border-radius:8px;background:transparent}.map-art-color-picker .map-art-input{flex:1}.map-art-zoom-presets{display:flex;flex-wrap:wrap;gap:6px}.map-art-zoom-presets button{padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:transparent;color:inherit;font-size:11px;cursor:pointer}.map-art-zoom-presets button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.map-art-layer-toggle{display:flex;align-items:center;gap:9px;margin-top:11px;font-size:12px;color:var(--ink);cursor:pointer}
+.map-art-layer-toggle input{width:15px;height:15px;accent-color:var(--accent)}
