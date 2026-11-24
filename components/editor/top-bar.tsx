@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 
 type TopBarProps = {
   singleFrame?: boolean
+  clerkEnabled?: boolean
   editor: EditorApi
   isActive: boolean
   saving: boolean
@@ -65,7 +66,7 @@ export function ThemeToggle() {
   )
 }
 
-export function TopBar({ editor, isActive, saving, nightPreview, onSave, onPreview, onToggleNight, onExport, singleFrame = false }: TopBarProps) {
+export function TopBar({ editor, isActive, saving, nightPreview, onSave, onPreview, onToggleNight, onExport, singleFrame = false, clerkEnabled = false }: TopBarProps) {
   const { state, dirty } = editor
   return (
     <header className="editor-panel sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border px-3 lg:px-4">
@@ -146,11 +147,13 @@ export function TopBar({ editor, isActive, saving, nightPreview, onSave, onPrevi
         {dirty ? 'Save' : 'Saved'}
         {dirty && !saving && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-card" aria-label="Unsaved changes" />}
       </EditorButton>
-      <div className="ml-2 flex items-center gap-2">
-        <Show when="signed-in">
-          <UserButton />
-        </Show>
-      </div>
+      {clerkEnabled && (
+        <div className="ml-2 flex items-center gap-2">
+          <Show when="signed-in">
+            <UserButton />
+          </Show>
+        </div>
+      )}
     </header>
   )
 }

@@ -96,7 +96,7 @@ export type LayoutSettings = {
   albumId: string | null
 }
 
-export const ALBUM_THEMES = ['movies', 'tv', 'books', 'music', 'photos'] as const
+export const ALBUM_THEMES = ['movies', 'tv', 'books', 'music', 'photos', 'map-art'] as const
 export type AlbumTheme = (typeof ALBUM_THEMES)[number]
 
 export const PRESENTATIONS = ['fill', 'poster', 'book', 'vinyl', 'gallery', 'mosaic', 'reveal'] as const
@@ -114,6 +114,45 @@ export type AlbumItem = {
   director?: string
   rating?: string
   artist?: string
+}
+
+export type MapArtLocation = {
+  id: number
+  name: string
+  lat: number
+  lon: number
+  country?: string
+  region?: string
+}
+
+export type MapArtAmbiguity = {
+  query: string
+  rowId: number
+  chosenId: number
+  matches: MapArtLocation[]
+}
+
+export type MapArtSettings = {
+  mode: 'cities' | 'continent'
+  query: string
+  continent: string
+  count: string
+  customCount: number
+  cities: MapArtLocation[]
+  results: MapArtLocation[]
+  ambiguities: MapArtAmbiguity[]
+  city: MapArtLocation
+  activeIndex: number
+  styleId: 'classic' | 'minimal' | 'topographic' | 'vintage' | 'dark'
+  title: boolean
+  showCoords: boolean
+  orientation: 'portrait' | 'landscape'
+  zoom: number
+  backgroundColor: string
+  streetLabels: 'major' | 'all' | 'none'
+  showRailways: boolean
+  showTrails: boolean
+  customText: string
 }
 
 export type Mosaic = {
@@ -162,6 +201,7 @@ export type Album = {
   theme: AlbumTheme
   items: AlbumItem[]
   slideshow: Slideshow
+  mapArt?: MapArtSettings
   subject?: SubjectPortrait | null
   subjects?: SubjectPortrait[]
   createdAt: string

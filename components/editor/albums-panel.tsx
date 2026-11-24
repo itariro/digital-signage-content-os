@@ -105,7 +105,7 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
 
         {albums.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
-            No albums yet. Create one to turn the frame into a rotating poster wall, bookshelf or record crate.
+            No albums yet. Create one to turn the frame into a rotating poster wall, map gallery, bookshelf or record crate.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">

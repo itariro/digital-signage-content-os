@@ -126,7 +126,7 @@ export function LayoutSettingsPanel({
           </>
         ) : (
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Pick an album to cycle movie posters, book covers, album art or photos behind this layout.
+            Pick an album to cycle movie posters, book covers, album art, map posters or photos behind this layout.
           </p>
         )}
       </Section>

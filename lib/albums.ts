@@ -1,4 +1,4 @@
-import { BookOpen, Clapperboard, Disc3, Images, Tv, type LucideIcon } from 'lucide-react'
+import { BookOpen, Clapperboard, Disc3, Images, MapPin, Tv, type LucideIcon } from 'lucide-react'
 import type { Album, AlbumItem, AlbumTheme, Presentation, Slideshow, SubjectPortrait } from './types'
 
 export type ThemeMeta = {
@@ -69,6 +69,17 @@ export const THEME_META: Record<AlbumTheme, ThemeMeta> = {
     placeholder: '',
     suggestions: [],
   },
+  'map-art': {
+    label: 'Map Art',
+    noun: 'map poster',
+    nowLabel: 'Now exploring',
+    icon: MapPin,
+    aspect: 2 / 3,
+    searchable: false,
+    source: 'Map Art Generator',
+    placeholder: '',
+    suggestions: [],
+  },
 }
 
 /** Safe lookup: legacy/imported albums may carry an unknown theme. */
@@ -92,6 +103,7 @@ const THEME_PRESENTATION: Record<AlbumTheme, Presentation> = {
   books: 'book',
   music: 'vinyl',
   photos: 'fill',
+  'map-art': 'gallery',
 }
 
 export function defaultSlideshow(theme: AlbumTheme): Slideshow {

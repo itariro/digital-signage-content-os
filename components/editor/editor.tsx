@@ -62,12 +62,14 @@ export function Editor({
   frameId,
   singleFrame = false,
   canManageFrames = false,
+  clerkEnabled = false,
   initialPanel = null,
 }: {
   initialStore: FrameStore
   frameId?: string
   singleFrame?: boolean
   canManageFrames?: boolean
+  clerkEnabled?: boolean
   initialPanel?: 'frames' | null
 }) {
   const { store, call } = useFrameStore(initialStore, frameId)
@@ -127,9 +129,9 @@ export function Editor({
     albumDraftRef.current = next
     setAlbumDraft(next)
     if (!persist) return
-    const { name, theme, items, slideshow } = next
+    const { name, theme, items, slideshow, mapArt } = next
     albumQueue.current = albumQueue.current
-      .then(() => call(`/api/albums/${id}`, 'PUT', { name, theme, items, slideshow }))
+      .then(() => call(`/api/albums/${id}`, 'PUT', { name, theme, items, slideshow, mapArt }))
       .catch((e) => toast.error(errorMessage(e)))
   }
 
@@ -464,6 +466,7 @@ export function Editor({
       <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
         <TopBar
           singleFrame={singleFrame}
+          clerkEnabled={clerkEnabled}
           editor={editor}
           isActive={store.activeId === state.layoutId}
           saving={saving}

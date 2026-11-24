@@ -171,6 +171,43 @@ export const slideshowSchema = z.object({
   reveal: revealSchema.optional(),
 })
 
+const mapArtLocationSchema = z.object({
+  id: z.number().int(),
+  name: z.string().max(160),
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+  country: z.string().max(120).optional(),
+  region: z.string().max(120).optional(),
+})
+
+const mapArtSettingsSchema = z.object({
+  mode: z.enum(['cities', 'continent']),
+  query: z.string().max(4000),
+  continent: z.string().max(60),
+  count: z.string().max(10),
+  customCount: z.number().int().min(1).max(20),
+  cities: z.array(mapArtLocationSchema).max(100),
+  results: z.array(mapArtLocationSchema).max(100),
+  ambiguities: z.array(z.object({
+    query: z.string().max(160),
+    rowId: z.number().int().min(0).max(100),
+    chosenId: z.number().int(),
+    matches: z.array(mapArtLocationSchema).max(100),
+  })).max(100),
+  city: mapArtLocationSchema,
+  activeIndex: z.number().int().min(0).max(100),
+  styleId: z.enum(['classic', 'minimal', 'topographic', 'vintage', 'dark']),
+  title: z.boolean(),
+  showCoords: z.boolean(),
+  orientation: z.enum(['portrait', 'landscape']),
+  zoom: z.number().min(0.5).max(30),
+  backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#f5f0e3'),
+  streetLabels: z.enum(['major', 'all', 'none']).default('all'),
+  showRailways: z.boolean().default(true),
+  showTrails: z.boolean().default(true),
+  customText: z.string().max(60),
+})
+
 export const albumCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   theme: z.enum(ALBUM_THEMES),
@@ -181,6 +218,7 @@ export const albumUpdateSchema = z.object({
   theme: z.enum(ALBUM_THEMES),
   items: z.array(albumItemSchema).max(200),
   slideshow: slideshowSchema,
+  mapArt: mapArtSettingsSchema.optional(),
   subject: subjectSchema.nullable().optional(),
 })
 
