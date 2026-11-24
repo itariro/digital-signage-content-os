@@ -6,6 +6,7 @@ import JSZip from 'jszip'
 import * as maplibregl from 'maplibre-gl'
 import type { FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
 import type { Album, AlbumItem, FrameStore, MapArtAmbiguity, MapArtLocation, MapArtSettings } from '@/lib/types'
+import { removeAmbiguityRow, resolveExportView, type MapView } from '@/lib/map-art'
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Search, Upload, X } from 'lucide-react'
 
 type City = MapArtLocation
@@ -118,14 +119,14 @@ function waitForIdle(map: MapLibreMap, forceRefresh = false) {
 async function renderMapAtResolution({
   width,
   height,
-  city,
+  center,
   zoom,
   styleId,
   preferences,
 }: {
   width: number
   height: number
-  city: City
+  center: [number, number]
   zoom: number
   styleId: string
   preferences: Pick<MapArtSettings, 'streetLabels' | 'showRailways' | 'showTrails' | 'backgroundColor'>
@@ -138,7 +139,7 @@ async function renderMapAtResolution({
     exportMap = new maplibregl.Map({
       container,
       style: vectorMapStyle(styleId),
-      center: [city.lon, city.lat],
+      center,
       zoom,
       attributionControl: false,
       interactive: false,
@@ -330,6 +331,25 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     if (activeIndex === ambiguity.rowId) setCity(selected)
   }
 
+  function removeLocation(removed: City) {
+    const index = results.findIndex((entry) => entry.id === removed.id)
+    if (index === -1) return
+    const remaining = results.filter((_, currentIndex) => currentIndex !== index)
+    setResults(remaining)
+    setCities(remaining)
+    setAmbiguities((current) => removeAmbiguityRow(current, index))
+    if (city.id === removed.id) {
+      const nextIndex = Math.min(index, Math.max(0, remaining.length - 1))
+      const nextCity = remaining[nextIndex]
+      if (nextCity) {
+        setCity(nextCity)
+        setActiveIndex(nextIndex)
+      }
+    } else if (index < activeIndex) {
+      setActiveIndex(activeIndex - 1)
+    }
+  }
+
   async function discoverCities() {
     if (continent === 'Antarctica') { setStatus('Antarctica has no permanent cities. Select a research station by name in Enter cities.'); return }
     const candidates = continentCities[continent] ?? []
@@ -389,12 +409,9 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     albumRef.current = body.store?.albums.find((entry) => entry.id === album?.id) ?? album
   }
 
-  async function renderArtwork(selected: City) {
+  async function renderArtwork(selected: City, view: MapView) {
     const map = mapRef.current
     if (!map) throw new Error('Map renderer is not ready yet.')
-    const requestedZoom = zoom
-    map.flyTo({ center: [selected.lon, selected.lat], zoom: requestedZoom, duration: 0 })
-    await waitForIdle(map)
     const width = orientation === 'portrait' ? 2880 : 3840
     const height = orientation === 'portrait' ? 3840 : 2160
     const canvas = document.createElement('canvas')
@@ -412,8 +429,8 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const exportMapCanvas = await renderMapAtResolution({
       width: mapWidth,
       height: mapHeight,
-      city: selected,
-      zoom: requestedZoom,
+      center: view.center,
+      zoom: view.zoom,
       styleId: style.id,
       preferences: { streetLabels, showRailways, showTrails, backgroundColor },
     })
@@ -479,6 +496,13 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const available = onAddToAlbum ? Math.max(0, 200 - albumCount) : cities.length
     if (available === 0) { setStatus('This album has reached the 200 map limit. Remove a map before generating more.'); return }
     const batch = cities.slice(0, available)
+    const previewView: MapView | null = mapRef.current
+      ? {
+          center: [mapRef.current.getCenter().lng, mapRef.current.getCenter().lat],
+          zoom: mapRef.current.getZoom(),
+        }
+      : null
+    const activeCityId = city.id
     setBusy(true)
     setBatchProgress(0)
     const output: Artwork[] = []
@@ -488,7 +512,8 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
         setCity(selected)
         setActiveIndex(index)
         setStatus(`Rendering and saving ${index + 1} of ${batch.length}: ${selected.name}…`)
-        const url = await renderArtwork(selected)
+        const view = resolveExportView(selected, activeCityId, previewView, zoom)
+        const url = await renderArtwork(selected, view)
         output.push({ city: selected, url, style: style.label, createdAt: Date.now() })
         setArtworks((current) => [...current, output[output.length - 1]])
         setBatchProgress(index + 1)
@@ -561,7 +586,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
           </section>}
           {results.length > 0 && <section className="map-art-block">
             <div className="map-art-label">Review locations <span>{results.length}</span></div>
-            <div className="map-art-city-list">{results.map((item) => <div key={item.id} className={city.id === item.id ? 'selected' : ''}><button type="button" onClick={() => { setCity(item); setActiveIndex(results.indexOf(item)) }}>{item.name}</button><small>{[item.region, item.country].filter(Boolean).join(', ')}</small><button type="button" aria-label={`Remove ${item.name}`} onClick={() => { setResults((current) => current.filter((entry) => entry.id !== item.id)); setCities((current) => current.filter((entry) => entry.id !== item.id)) }}><X size={13} /></button></div>)}</div>
+            <div className="map-art-city-list">{results.map((item) => <div key={item.id} className={city.id === item.id ? 'selected' : ''}><button type="button" onClick={() => { setCity(item); setActiveIndex(results.indexOf(item)) }}>{item.name}</button><small>{[item.region, item.country].filter(Boolean).join(', ')}</small><button type="button" aria-label={`Remove ${item.name}`} onClick={() => removeLocation(item)}><X size={13} /></button></div>)}</div>
           </section>}
           {ambiguities.map((entry, index) => (
             <section className="map-art-block" key={entry.query}>
