@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { MapArtAmbiguity, MapArtLocation } from '@/lib/types'
-import { removeAmbiguityRow, resolveExportView } from '@/lib/map-art'
+import { removeAmbiguityRow, resolveExportView, waitForCameraSettled } from '@/lib/map-art'
 
 const studioSource = readFileSync(
   path.resolve(__dirname, '../components/map-art/map-art-studio.tsx'),
@@ -37,10 +37,59 @@ describe('map art export view', () => {
   })
 
   it('wires the live view into export without resetting the preview', () => {
-    expect(studioSource).toContain('resolveExportView(selected, activeCityId, previewView, zoom)')
+    expect(studioSource).toContain('resolveExportView(selected, activeCityId, previewView, settingsRef.current.zoom)')
     expect(studioSource).toContain('center: view.center')
     expect(studioSource).toContain('zoom: view.zoom')
     expect(studioSource).not.toMatch(/map\.flyTo\(\{ center: \[selected\.lon, selected\.lat\]/)
+  })
+})
+
+describe('map art camera settling', () => {
+  it('returns immediately when no city move is pending', async () => {
+    await expect(waitForCameraSettled(() => null)).resolves.toBeUndefined()
+  })
+
+  it('waits for the pending city move before continuing', async () => {
+    let finish!: () => void
+    const move = new Promise<void>((resolve) => { finish = resolve })
+    let checks = 0
+    const settled = waitForCameraSettled(() => {
+      checks += 1
+      return checks === 1 ? move : null
+    })
+    let done = false
+    void settled.then(() => { done = true })
+    await Promise.resolve()
+    expect(done).toBe(false)
+    finish()
+    await settled
+    expect(done).toBe(true)
+    expect(checks).toBe(2)
+  })
+
+  it('waits for a replacement move started by another city change', async () => {
+    const finish: Array<() => void> = []
+    const moves = [
+      new Promise<void>((resolve) => { finish.push(resolve) }),
+      new Promise<void>((resolve) => { finish.push(resolve) }),
+    ]
+    let index = 0
+    const settled = waitForCameraSettled(() => moves[index++] ?? null)
+    finish[0]()
+    await Promise.resolve()
+    await Promise.resolve()
+    finish[1]()
+    await settled
+    expect(index).toBe(3)
+  })
+
+  it('takes the export snapshot only after the camera settles', () => {
+    const waitIndex = studioSource.indexOf('await waitForCameraSettled')
+    const snapshotIndex = studioSource.indexOf('const previewView: MapView | null')
+    expect(waitIndex).toBeGreaterThan(-1)
+    expect(snapshotIndex).toBeGreaterThan(waitIndex)
+    expect(studioSource).toContain("map.once('moveend', finish)")
+    expect(studioSource).toContain('const activeCityId = cityRef.current.id')
   })
 })
 

@@ -32,3 +32,17 @@ export function removeAmbiguityRow(ambiguities: MapArtAmbiguity[], removedRowId:
     .filter((entry) => entry.rowId !== removedRowId)
     .map((entry) => (entry.rowId > removedRowId ? { ...entry, rowId: entry.rowId - 1 } : entry))
 }
+
+/**
+ * Wait until the preview camera has finished its city transition. `pending`
+ * returns the move currently in flight, or null when the camera is settled. A
+ * new city change can start while the previous one finishes, so keep checking
+ * until nothing is pending.
+ */
+export async function waitForCameraSettled(pending: () => Promise<void> | null): Promise<void> {
+  let move = pending()
+  while (move) {
+    await move
+    move = pending()
+  }
+}

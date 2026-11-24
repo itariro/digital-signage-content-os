@@ -6,7 +6,7 @@ import JSZip from 'jszip'
 import * as maplibregl from 'maplibre-gl'
 import type { FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
 import type { Album, AlbumItem, FrameStore, MapArtAmbiguity, MapArtLocation, MapArtSettings } from '@/lib/types'
-import { removeAmbiguityRow, resolveExportView, type MapView } from '@/lib/map-art'
+import { removeAmbiguityRow, resolveExportView, waitForCameraSettled, type MapView } from '@/lib/map-art'
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Search, Upload, X } from 'lucide-react'
 
 type City = MapArtLocation
@@ -167,6 +167,8 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const initialSettings = settingsRef.current
   const mapNode = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const pendingCityMove = useRef<Promise<void> | null>(null)
+  const cityRef = useRef<City>(initialSettings.city)
   const activeStyleId = useRef(initialSettings.styleId)
   const preferencesRef = useRef<Pick<MapArtSettings, 'streetLabels' | 'showRailways' | 'showTrails' | 'backgroundColor'>>({ streetLabels: initialSettings.streetLabels ?? 'all', showRailways: initialSettings.showRailways ?? true, showTrails: initialSettings.showTrails ?? true, backgroundColor: initialSettings.backgroundColor ?? '#f5f0e3' })
   const albumRef = useRef<Album | null>(null)
@@ -233,6 +235,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const setShowTrails = (value: boolean) => setShowTrailsState(persistField('showTrails', value))
 
   preferencesRef.current = { streetLabels, showRailways, showTrails, backgroundColor }
+  cityRef.current = city
 
   useEffect(() => {
     if (!mapNode.current || mapRef.current) return
@@ -278,7 +281,22 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
+    let resolveMove: (() => void) | undefined
+    const move = new Promise<void>((resolve) => { resolveMove = resolve })
+    let timeout = 0
+    const finish = () => {
+      window.clearTimeout(timeout)
+      resolveMove?.()
+      resolveMove = undefined
+      map.off('moveend', finish)
+      if (pendingCityMove.current === move) pendingCityMove.current = null
+    }
+    pendingCityMove.current = move
+    map.once('moveend', finish)
+    // Do not let a stalled animation block generation forever.
+    timeout = window.setTimeout(finish, 1500)
     map.flyTo({ center: [city.lon, city.lat], zoom, duration: 700 })
+    return finish
   }, [city, zoom])
 
   const resolveCity = useCallback(async (line: string) => {
@@ -496,15 +514,18 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const available = onAddToAlbum ? Math.max(0, 200 - albumCount) : cities.length
     if (available === 0) { setStatus('This album has reached the 200 map limit. Remove a map before generating more.'); return }
     const batch = cities.slice(0, available)
+    setBusy(true)
+    setBatchProgress(0)
+    // A city selection starts a 700 ms camera move. Exporting before it ends
+    // would pair an in-between center with the newly selected city.
+    await waitForCameraSettled(() => pendingCityMove.current)
     const previewView: MapView | null = mapRef.current
       ? {
           center: [mapRef.current.getCenter().lng, mapRef.current.getCenter().lat],
           zoom: mapRef.current.getZoom(),
         }
       : null
-    const activeCityId = city.id
-    setBusy(true)
-    setBatchProgress(0)
+    const activeCityId = cityRef.current.id
     const output: Artwork[] = []
     try {
       for (let index = 0; index < batch.length; index += 1) {
@@ -512,7 +533,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
         setCity(selected)
         setActiveIndex(index)
         setStatus(`Rendering and saving ${index + 1} of ${batch.length}: ${selected.name}…`)
-        const view = resolveExportView(selected, activeCityId, previewView, zoom)
+        const view = resolveExportView(selected, activeCityId, previewView, settingsRef.current.zoom)
         const url = await renderArtwork(selected, view)
         output.push({ city: selected, url, style: style.label, createdAt: Date.now() })
         setArtworks((current) => [...current, output[output.length - 1]])
