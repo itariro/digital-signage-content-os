@@ -4,6 +4,7 @@ import { canvasContentHash, deployedCanvasContentHash } from '@/lib/canvas/hash'
 import type { CanvasClockQuality, CanvasStatusRow } from '@/lib/canvas/problems'
 import { CANVAS_LIBRARY_ID, ensureCanvasLibrary } from '@/lib/canvas/library'
 import { listCanvasStates, pruneCanvasState } from '@/lib/canvas/state-store'
+import type { CanvasStateRow } from '@/lib/canvas/state-store'
 import { readStore } from '@/lib/store'
 import type { CanvasDeployment } from '@/lib/types'
 
@@ -38,6 +39,22 @@ function toEpochMs(value: Date | string | number | null): number | null {
   if (typeof value === 'number') return value
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+/**
+ * The deployed snapshot lives on the members that received it. A draft slot can
+ * point at a replacement frame with no state row, so read the snapshot from the
+ * canvas's delivery rows rather than from the draft assignment.
+ */
+function deployedSnapshot(rows: CanvasStateRow[], layoutId: string): CanvasDeployment | null {
+  let newest: CanvasDeployment | null = null
+  for (const row of rows) {
+    for (const candidate of [row.data.pending, row.data.active]) {
+      if (!candidate || candidate.canvasId !== layoutId) continue
+      if (!newest || candidate.revision > newest.revision) newest = candidate
+    }
+  }
+  return newest
 }
 
 export async function getCanvasStatus(
@@ -75,6 +92,8 @@ export async function getCanvasStatus(
     )
     if (canvasRows.length === 0) continue
     const rowsByInstance = new Map(canvasRows.map((row) => [row.instanceId, row]))
+    const snapshot = deployedSnapshot(canvasRows, layout.id)
+    const deployedHash = snapshot ? deployedCanvasContentHash(snapshot) : null
     const album = layout.settings.albumId
       ? store.albums.find((value) => value.id === layout.settings.albumId && value.theme === 'canvas') ?? null
       : null
@@ -87,7 +106,6 @@ export async function getCanvasStatus(
       const deployment = stateRow?.data.pending ?? stateRow?.data.active ?? null
       const deploymentRevision = deployment?.revision ?? null
       const rowRevision = stateRow?.revision ?? 0
-      const deployedHash = deployment ? deployedCanvasContentHash(deployment) : null
 
       statuses.push({
         canvasId: layout.id,

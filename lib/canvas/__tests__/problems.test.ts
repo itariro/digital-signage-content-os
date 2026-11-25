@@ -78,9 +78,14 @@ describe('canvas problem labels', () => {
     expect(canvasProblems(value, now, STATUS_POLL_MS)).toEqual(['Out of date'])
   })
 
-  it('does not flag an identify-only revision bump', () => {
-    const value = row({ revision: 3, deploymentRevision: 2, reportedRevision: 2, effectiveAtMs: 100_000 })
+  it('does not flag a frame whose delivered row revision is current', () => {
+    const value = row({ revision: 1, deploymentRevision: 5, reportedRevision: 1, effectiveAtMs: 100_000 })
     expect(canvasProblems(value, now, STATUS_POLL_MS)).toEqual([])
+  })
+
+  it('flags a behind row even when the deployment revision is lower', () => {
+    const value = row({ revision: 5, deploymentRevision: 2, reportedRevision: 3, effectiveAtMs: 100_000 })
+    expect(canvasProblems(value, now, STATUS_POLL_MS)).toContain('Out of date')
   })
 
   it('flags poor clock quality', () => {

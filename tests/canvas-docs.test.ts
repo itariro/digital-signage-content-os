@@ -60,4 +60,8 @@ describe('canvas operator documentation', () => {
   it('does not promise a missing slot row after revoke', () => {
     expect(operations).not.toContain('marks the slot as missing')
   })
+
+  it('tells operators to remove or replace a revoked assignment before deploying', () => {
+    expect(operations).toContain('Remove or replace any revoked frame still assigned to a slot before deploying again')
+  })
 })
