@@ -10,6 +10,13 @@ const querySchema = z.object({
   instanceId: z.string().min(1).max(64).optional(),
   since: z.string().optional(),
   apiVersion: z.string().min(1).max(20).default(API_VERSION),
+  cvRev: z.coerce.number().int().min(0).optional(),
+  cvApplied: z.coerce.number().int().min(0).optional(),
+  cvOff: z.coerce.number().optional(),
+  cvUnc: z.coerce.number().optional(),
+  vw: z.coerce.number().int().optional(),
+  vh: z.coerce.number().int().optional(),
+  fps: z.coerce.number().optional(),
 })
 
 export const dynamic = 'force-dynamic'
@@ -21,14 +28,33 @@ export async function GET(request: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams))
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'invalid query' }, { status: 400 })
 
-  const { since, apiVersion } = parsed.data
+  const { since, apiVersion, cvRev, cvApplied, cvOff, cvUnc, vw, vh, fps } = parsed.data
   if (!checkCompatibility(apiVersion, API_VERSION)) {
     return NextResponse.json({ error: 'incompatible api version' }, { status: 426 })
   }
 
-  const outcome = await handlePull(instanceId, since)
-  if (outcome.expired) {
-    return NextResponse.json({ changes: [], cursor: outcome.cursor, reset: true, resolvedConflicts: [] }, { status: 410 })
+  const hasReport = [cvApplied, cvOff, cvUnc, vw, vh, fps].some((value) => value !== undefined)
+  const outcome = await handlePull(instanceId, since, {
+    cvRev: cvRev ?? 0,
+    report: hasReport
+      ? {
+          appliedRevision: cvApplied ?? null,
+          clockOffsetMs: cvOff ?? null,
+          clockUncertaintyMs: cvUnc ?? null,
+          viewportW: vw ?? null,
+          viewportH: vh ?? null,
+          fpsAvg: fps ?? null,
+        }
+      : undefined,
+  })
+
+  const body = {
+    changes: outcome.changes,
+    cursor: outcome.cursor,
+    resolvedConflicts: outcome.resolvedConflicts,
+    serverTime: outcome.serverTime,
+    ...(outcome.canvas ? { canvas: outcome.canvas } : {}),
   }
-  return NextResponse.json({ changes: outcome.changes, cursor: outcome.cursor, resolvedConflicts: outcome.resolvedConflicts })
+  if (outcome.expired) return NextResponse.json({ ...body, changes: [], reset: true }, { status: 410 })
+  return NextResponse.json(body)
 }
