@@ -95,6 +95,33 @@ describe('deployCanvas', () => {
     expect(logs.some((log) => log.action === 'canvas_deploy')).toBe(true)
   })
 
+  it('drops layers whose scenes are all disabled from the deployment snapshot', async () => {
+    const { store, albumId, layoutId } = await seed()
+    const album = store.albums.find((entry) => entry.id === albumId)
+    if (!album) throw new Error('missing canvas album')
+    const { emptySyncTestScene } = await import('@/lib/canvas/defaults')
+    const base = emptySyncTestScene(nanoid(8))
+    const disabled = { ...emptySyncTestScene(nanoid(8)), enabled: false }
+    const overlay = emptySyncTestScene(nanoid(8))
+    album.scenes = [base]
+    album.layers = [
+      { id: 'base', name: 'Base', enabled: true, scenes: [base], order: 'sequence', crossfadeMs: 400 },
+      { id: 'off', name: 'Off', enabled: true, scenes: [disabled], order: 'sequence', crossfadeMs: 400 },
+      { id: 'top', name: 'Top', enabled: true, scenes: [overlay], order: 'sequence', crossfadeMs: 400 },
+    ]
+
+    const deployed = await deployCanvas({ layoutId, actor: 'op' })
+    expect(deployed.ok).toBe(true)
+    const { getCanvasState } = await import('@/lib/canvas/state-store')
+    const { deploymentAlbumSchema } = await import('@/lib/canvas/schema')
+    const snapshot = (await getCanvasState('fa'))?.data.pending?.album
+    expect(snapshot?.layers?.map((layer) => layer.id)).toEqual(['base', 'top'])
+    expect(snapshot?.layers?.every((layer) => layer.scenes.length > 0)).toBe(true)
+    expect(snapshot?.scenes).toEqual([base])
+    expect(snapshot?.layers?.[1].scenes).toEqual([overlay])
+    expect(deploymentAlbumSchema.safeParse(snapshot).success).toBe(true)
+  })
+
   it('keeps deployment revisions climbing after state rows are pruned', async () => {
     const { layoutId } = await seed()
     const first = await deployCanvas({ layoutId, actor: 'op' })

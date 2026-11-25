@@ -87,6 +87,9 @@ export function useCanvasLibrary() {
     items: [],
     slideshow: album.slideshow,
     scenes: album.scenes ?? [],
+    layers: album.layers,
+    transition: album.transition,
+    paletteId: album.paletteId,
   }), [])
 
   const deleteAlbum = useCallback((id: string) => call(`/api/albums/${id}`, 'DELETE'), [])

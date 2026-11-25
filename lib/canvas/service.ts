@@ -5,6 +5,7 @@ import { getDatabaseMode } from '@/lib/db/mode'
 import { getTables } from '@/lib/db/tables'
 import type {
   Album,
+  CanvasAlbum,
   CanvasConfig,
   CanvasDeployment,
   CanvasIdentify,
@@ -12,7 +13,7 @@ import type {
   FrameStore,
   Layout,
 } from '@/lib/types'
-import { deploymentAlbumFromLibrary } from '@/lib/canvas/deployment-album'
+import { deploymentAlbumFrom } from './composition'
 import { canvasSceneSchema } from '@/lib/canvas/schema'
 import { resolveGeometry, validateGeometry, canvasPhysicalIssues, type FrameScreenSize } from '@/lib/canvas/geometry'
 import { ensureCanvasLibrary } from '@/lib/canvas/library'
@@ -237,9 +238,9 @@ async function deployCanvasNow(input: {
   if (blocking) return fail(blocking.code, blocking.message, { slotIds: blocking.slotIds })
 
   const albumId = layout.settings.albumId
-  const album: Album | undefined = albumId ? store.albums.find((entry) => entry.id === albumId && entry.theme === 'canvas') : undefined
-  if (!album) return fail('E_NO_ALBUM', 'Choose a canvas album before going live')
-  const scenes = (album.scenes ?? []).filter((scene) => scene.enabled)
+  const sourceAlbum: Album | undefined = albumId ? store.albums.find((entry) => entry.id === albumId && entry.theme === 'canvas') : undefined
+  if (!sourceAlbum) return fail('E_NO_ALBUM', 'Choose a canvas album before going live')
+  const scenes = (sourceAlbum.scenes ?? []).filter((scene) => scene.enabled)
   if (scenes.length === 0) return fail('E_NO_SCENES', 'Enable at least one scene in the canvas album')
   for (const scene of scenes) {
     const parsed = canvasSceneSchema.safeParse(scene)
@@ -260,7 +261,14 @@ async function deployCanvasNow(input: {
   }
   const deploymentRevision = await deploymentRevisionOf(rows, input.layoutId) + 1
   await rememberDeploymentRevision(input.layoutId, deploymentRevision)
-  const deploymentAlbum = deploymentAlbumFromLibrary(album)
+  // Disabled scenes must not reach the frame, and the snapshot must match the
+  // library hash, which hashes only enabled scenes.
+  const album = {
+    ...sourceAlbum,
+    scenes,
+    layers: sourceAlbum.layers?.map((layer) => ({ ...layer, scenes: layer.scenes.filter((scene) => scene.enabled) })).filter((layer) => layer.scenes.length > 0),
+  } as CanvasAlbum
+  const deploymentAlbum = deploymentAlbumFrom(album as CanvasAlbum)
 
   const members: DeployMember[] = []
   const updates: { instanceId: string; state: CanvasState }[] = []

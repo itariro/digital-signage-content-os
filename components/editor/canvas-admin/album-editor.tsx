@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { EditorButton, SelectField, SliderField } from '@/components/editor/controls'
 import { canvasSceneSchema } from '@/lib/canvas/schema'
+import { syncCanvasAlbumLayers } from '@/lib/canvas/composition'
 import { SCENE_FIELDS } from '@/lib/canvas/scenes/fields'
 import { SCENE_META, defaultScene } from '@/lib/canvas/scenes/registry'
-import type { CanvasScene, CanvasSceneType } from '@/lib/types'
+import type { CanvasAlbum, CanvasScene, CanvasSceneType } from '@/lib/types'
 import type { ResolvedGeometry } from '@/lib/canvas/geometry'
 import type { Album, CanvasAlbumSlideshow } from '@/lib/canvas/admin-types'
+import { CanvasAlbumOptions } from './canvas-album-options'
 import { SceneFields } from './scene-fields'
 
 function normaliseConfig(scene: CanvasScene): CanvasScene {
@@ -66,12 +68,24 @@ export function AlbumEditor({
   const problems = problemsFor(album)
   const scenes = album.scenes ?? []
 
+  function changeAlbum(next: Album) {
+    const canvas = next as CanvasAlbum
+    const order = canvas.slideshow.order
+    const crossfadeMs = canvas.slideshow.canvas?.crossfadeMs ?? 400
+    const layers = canvas.layers?.length
+      ? canvas.layers.map((layer, index) =>
+          index === 0 ? { ...layer, scenes: canvas.scenes, order, crossfadeMs } : layer,
+        )
+      : [{ id: 'base', name: 'Base', enabled: true, scenes: canvas.scenes ?? [], order, crossfadeMs }]
+    onChange(syncCanvasAlbumLayers({ ...canvas, layers }) as Album)
+  }
+
   function updateScene(id: string, fn: (scene: CanvasScene) => CanvasScene) {
-    onChange({ ...album, scenes: scenes.map((scene) => scene.id === id ? fn(scene) : scene) })
+    changeAlbum({ ...album, scenes: scenes.map((scene) => scene.id === id ? fn(scene) : scene) })
   }
 
   function addScene(type: CanvasSceneType) {
-    onChange({ ...album, scenes: [...scenes, defaultScene(type, geometry)] })
+    changeAlbum({ ...album, scenes: [...scenes, defaultScene(type, geometry)] })
     setAdding(false)
   }
 
@@ -82,7 +96,7 @@ export function AlbumEditor({
           aria-label="Album name"
           value={album.name}
           maxLength={80}
-          onChange={(e) => onChange({ ...album, name: e.target.value })}
+          onChange={(e) => changeAlbum({ ...album, name: e.target.value })}
           className="editor-control h-9 min-w-0 flex-1 px-2"
         />
         <EditorButton type="button" variant="destructive" aria-label="Delete album" onClick={onDelete}>
@@ -100,7 +114,7 @@ export function AlbumEditor({
         label="Scene order"
         value={album.slideshow.order}
         options={[{ value: 'sequence', label: 'Sequence' }, { value: 'shuffle', label: 'Shuffle' }]}
-        onChange={(v) => onChange({ ...album, slideshow: { ...album.slideshow, order: v as CanvasAlbumSlideshow['order'] } })}
+        onChange={(v) => changeAlbum({ ...album, slideshow: { ...album.slideshow, order: v as CanvasAlbumSlideshow['order'] } })}
       />
       <SliderField
         label="Crossfade"
@@ -109,11 +123,13 @@ export function AlbumEditor({
         max={1500}
         step={50}
         suffix="ms"
-        onChange={(v) => onChange({
+        onChange={(v) => changeAlbum({
           ...album,
           slideshow: { ...album.slideshow, canvas: { crossfadeMs: v } },
         })}
       />
+
+      <CanvasAlbumOptions album={album as CanvasAlbum} onChange={changeAlbum} />
 
       <section aria-label="Scenes" className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
@@ -160,7 +176,7 @@ export function AlbumEditor({
                   type="button"
                   variant="destructive"
                   aria-label={`Delete ${scene.name}`}
-                  onClick={() => onChange({ ...album, scenes: scenes.filter((s) => s.id !== scene.id) })}
+                  onClick={() => changeAlbum({ ...album, scenes: scenes.filter((s) => s.id !== scene.id) })}
                 >
                   <Trash2 className="size-4" aria-hidden />
                 </EditorButton>

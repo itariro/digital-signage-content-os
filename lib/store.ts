@@ -2,6 +2,8 @@ import path from 'node:path'
 import { nanoid } from 'nanoid'
 import { eq, sql } from 'drizzle-orm'
 import type { Album, ExperienceRule, FrameStore, Layout, LayoutSettings, Slideshow, Widget } from './types'
+import type { CanvasAlbum } from './types'
+import { syncCanvasAlbumLayers } from './canvas/composition'
 import { createWidget } from './widgets'
 import { DEFAULT_SCHEDULE } from './schedule'
 import { defaultSlideshow } from './albums'
@@ -206,10 +208,17 @@ export function normalize(store: FrameStore): FrameStore {
     }
     if (next.theme === 'canvas') {
       const crossfadeMs = Math.round(clampLegacyNumber(show.canvas?.crossfadeMs, 0, 3000, 400))
+      const synced = syncCanvasAlbumLayers({
+        ...next,
+        scenes: next.scenes ?? [],
+        layers: next.layers,
+        transition: next.transition,
+        paletteId: next.paletteId,
+      } as CanvasAlbum)
       return {
         ...next,
+        ...synced,
         items: [],
-        scenes: next.scenes ?? [],
         slideshow: {
           ...show,
           presentation: 'canvas',

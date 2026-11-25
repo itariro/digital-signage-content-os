@@ -189,6 +189,10 @@
     @apply border border-border bg-background text-foreground hover:bg-secondary;
   }
 
+  .button-secondary {
+    @apply inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
   .editor-button-quiet {
     @apply bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground;
   }

@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ToggleField } from '@/components/editor/controls'
-import type { CanvasConfig, CanvasScene, DeploymentAlbum, Layout } from '@/lib/types'
+import type { CanvasConfig, DeploymentAlbum, Layout } from '@/lib/types'
 import { resolveGeometry, rotatedSlotStyle, type FrameScreenSize } from '@/lib/canvas/geometry'
 import { seedFromString } from '@/lib/canvas/prng'
 import { sceneAt } from '@/lib/canvas/scheduler'
-import { computeSceneState } from '@/lib/canvas/scenes/registry'
-import { CanvasFrameScene, paintScene, type CanvasElementRefs } from '@/components/frame/canvas/canvas-frame-scene'
+import { layerRendersAt } from '@/lib/canvas/render-model'
+import { paintScene, type CanvasElementRefs } from '@/components/frame/canvas/canvas-frame-scene'
+import { CanvasLayerStack, refsForLayer } from '@/components/frame/canvas/canvas-layer-stack'
 import { CanvasBezelOverlay } from '@/components/frame/canvas/canvas-bezel-overlay'
 
 export function WallPreview({ layout, album, frames = [] }: { layout: Layout; album: DeploymentAlbum | null; frames?: FrameScreenSize[] }) {
@@ -19,7 +20,7 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
   const [consoleStart, setConsoleStart] = useState<number | null>(null)
   const [localEpoch, setLocalEpoch] = useState<number | null>(null)
   const [now, setNow] = useState(0)
-  const refsBySlot = useRef(new Map<string, CanvasElementRefs>())
+  const refsBySlot = useRef(new Map<string, Map<string, CanvasElementRefs>>())
 
   useEffect(() => {
     let cancelled = false
@@ -52,28 +53,22 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
     return sceneAt(album, seed, Math.max(0, now - consoleStart), album.crossfadeMs)
   }, [album, consoleStart, now])
 
-  const model = useMemo(() => {
-    if (!plan) return null
-    const scene = plan.scene as CanvasScene
-    return computeSceneState(scene, {
-      bounds: { width: geometry.width, height: geometry.height },
-      geometry,
-      tMs: plan.sceneTimeMs,
-      seed: plan.seed,
-    })
-  }, [plan, geometry])
-
   useEffect(() => {
-    if (!model) return
+    if (!album || consoleStart === null) return
+    const seed = seedFromString(album.id)
+    const t = Math.max(0, now - consoleStart)
     for (const slot of geometry.slots) {
-      let refs = refsBySlot.current.get(slot.slotId)
-      if (!refs) {
-        refs = new Map()
-        refsBySlot.current.set(slot.slotId, refs)
+      let slotRefs = refsBySlot.current.get(slot.slotId)
+      if (!slotRefs) {
+        slotRefs = new Map<string, CanvasElementRefs>()
+        refsBySlot.current.set(slot.slotId, slotRefs)
       }
-      paintScene(model, geometry, slot, refs)
+      for (const layer of layerRendersAt(album, seed, t, geometry, slot)) {
+        if (!layer.render) continue
+        paintScene(layer.render, geometry, slot, refsForLayer(slotRefs, layer.layerId))
+      }
     }
-  }, [model, geometry])
+  }, [album, consoleStart, now, geometry])
 
   const scale = Math.min(1, 320 / geometry.width, 180 / geometry.height)
 
@@ -87,7 +82,20 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
         >
           {geometry.slots.map((slot) => {
             const assigned = config.slots.find((entry) => entry.id === slot.slotId)?.frameId ?? null
-            const refs = refsBySlot.current.get(slot.slotId) ?? new Map<string, HTMLElement | null>()
+            let slotRefs = refsBySlot.current.get(slot.slotId)
+            if (!slotRefs) {
+              slotRefs = new Map<string, CanvasElementRefs>()
+              refsBySlot.current.set(slot.slotId, slotRefs)
+            }
+            const layers = album && consoleStart !== null
+              ? layerRendersAt(
+                  album,
+                  seedFromString(album.id),
+                  Math.max(0, now - consoleStart),
+                  geometry,
+                  slot,
+                )
+              : []
             const rotationStyle = rotatedSlotStyle(slot, scale)
             return (
               <div
@@ -103,7 +111,26 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
                     height: slot.h / slot.scale,
                   }}
                 >
-                  {model && <CanvasFrameScene model={model} geometry={geometry} slot={slot} refs={refs} />}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: -slot.x,
+                      top: -slot.y,
+                      width: geometry.width,
+                      height: geometry.height,
+                      background: config.background,
+                    }}
+                  >
+                    {/* CanvasLayerStack renders CanvasFrameScene once per enabled layer. */}
+                    {layers.length > 0 && (
+                      <CanvasLayerStack
+                        layers={layers}
+                        geometry={geometry}
+                        slot={slot}
+                        refsByLayer={slotRefs}
+                      />
+                    )}
+                  </div>
                 </div>
                 <span className="absolute bottom-1 left-1 bg-black/60 px-1 text-[24px] leading-tight text-white">
                   {slot.marker} · {assigned ?? 'empty'}
