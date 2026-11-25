@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { NightMode } from '@/lib/types'
 import type { CanvasClock } from '@/lib/canvas/clock'
 import type { CanvasRenderModel } from '@/lib/canvas/render-model'
-import { fitScale } from '@/lib/canvas/stage'
+import { canvasLoopKey, fitScale } from '@/lib/canvas/stage'
 import { sceneAt } from '@/lib/canvas/scheduler'
 import { seedFromString } from '@/lib/canvas/prng'
 import { sceneStateAt } from '@/lib/canvas/scenes/registry'
@@ -48,10 +48,18 @@ export function CanvasStage({
   const refs = useRef<CanvasElementRefs>(new Map())
   const [scene, setScene] = useState(() => model.plan?.scene ?? null)
   const takeover = model.takeover
+  const takeoverRef = useRef(takeover)
+  takeoverRef.current = takeover
+  const clockRef = useRef(clock.offsetMs)
+  clockRef.current = clock.offsetMs
+  const sceneRef = useRef(scene)
+  sceneRef.current = scene
+  const loopKey = canvasLoopKey(takeover, clock.offsetMs)
 
   useEffect(() => {
-    if (!takeover) return
-    const { deployment, geometry, slot } = takeover
+    const current = takeoverRef.current
+    if (!current || loopKey === 'none') return
+    const { deployment, geometry, slot } = current
     const album = deployment.album
     const seed = album ? seedFromString(album.id) : 0
     let handle = 0
@@ -66,10 +74,11 @@ export function CanvasStage({
       last = timestamp
       frames += 1
 
-      const t = Date.now() + clock.offsetMs - deployment.effectiveAt
+      const t = Date.now() + clockRef.current - deployment.effectiveAt
       const plan = album && t >= 0 ? sceneAt(album, seed, t, album.crossfadeMs) : null
-      if (plan && plan.scene.id !== scene?.id) {
+      if (plan && plan.scene.id !== sceneRef.current?.id) {
         refs.current.clear()
+        sceneRef.current = plan.scene
         setScene(plan.scene)
       }
       if (plan) {
@@ -93,7 +102,7 @@ export function CanvasStage({
 
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-  }, [takeover, scene, clock.offsetMs, onFps])
+  }, [loopKey, onFps])
 
   if (!takeover) {
     return (

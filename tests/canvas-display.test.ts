@@ -29,6 +29,12 @@ describe('frame display canvas takeover', () => {
     expect(stage).not.toContain('setFrameTick')
   })
 
+  it('keys the animation loop so parent renders do not reset the fps window', () => {
+    expect(stage).toContain('canvasLoopKey(')
+    expect(stage).toContain('}, [loopKey, onFps])')
+    expect(stage).toContain('sceneRef.current')
+  })
+
   it('keeps the stage filled with the canvas background and handles pre-roll', () => {
     expect(stage).toContain('deployment.config.background')
     expect(stage).toContain('fitScale(')
