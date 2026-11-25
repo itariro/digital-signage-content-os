@@ -19,8 +19,8 @@ function normaliseConfig(scene: CanvasScene): CanvasScene {
     if (wrapper.strip && typeof wrapper.strip === 'object') config.strip = wrapper.strip
   }
   if (scene.type === 'bounce') {
-    const logo = config.logo as Record<string, unknown>
-    const tint = config.tint as Record<string, unknown>
+    const logo = (config.logo as Record<string, unknown>) ?? {}
+    const tint = (config.tint as Record<string, unknown>) ?? {}
     if (logo.src && typeof logo.src === 'object') logo.src = ''
     if (tint.colors && !Array.isArray(tint.colors) && typeof tint.colors === 'object') {
       tint.colors = (tint.colors as { colors?: string[] }).colors ?? []

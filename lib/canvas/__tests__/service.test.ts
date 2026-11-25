@@ -95,6 +95,25 @@ describe('deployCanvas', () => {
     expect(logs.some((log) => log.action === 'canvas_deploy')).toBe(true)
   })
 
+  it('keeps deployment revisions climbing after state rows are pruned', async () => {
+    const { layoutId } = await seed()
+    const first = await deployCanvas({ layoutId, actor: 'op' })
+    if (!first.ok) throw new Error(first.error)
+    const { deleteCanvasState } = await import('@/lib/canvas/state-store')
+    for (const id of ['fa', 'fb', 'fc']) await deleteCanvasState(id)
+    const second = await deployCanvas({ layoutId, actor: 'op' })
+    expect(second.ok && second.revision).toBe(2)
+  })
+
+  it('reports unassigned slots by slot id rather than frame id', async () => {
+    const { store, layoutId } = await seed()
+    const config = store.layouts.find((entry) => entry.id === layoutId)?.canvas
+    if (!config) throw new Error('missing canvas config')
+    config.slots[1].frameId = null
+    const result = await identifyCanvas({ layoutId, seconds: 10, actor: 'op' })
+    expect(result.ok && result.skipped).toEqual([{ frameId: null, slotId: 's2', reason: 'unassigned' }])
+  })
+
   it('serialises concurrent deployments so revisions are unique', async () => {
     const { layoutId } = await seed()
     const results = await Promise.all([

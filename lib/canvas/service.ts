@@ -21,9 +21,11 @@ import { canvasLayoutPhaseFromRows, ensureCanvasLibrary, type CanvasLayoutPhase 
 import { leadMs } from '@/lib/canvas/lead'
 import { pollDelayMs } from '@/lib/canvas/poll'
 import {
+  canvasDeploymentFloor,
   listCanvasStates,
   pruneCanvasState,
   putCanvasState,
+  rememberDeploymentRevision,
 } from '@/lib/canvas/state-store'
 import type { CanvasStateRow } from '@/lib/canvas/state-store'
 
@@ -53,7 +55,7 @@ function fail(code: CanvasErrorCode, error: string, details?: Record<string, unk
 }
 
 export type DeployMember = { slotId: string; frameId: string; marker: number }
-export type SkippedMember = { frameId: string; reason: string }
+export type SkippedMember = { frameId: string | null; slotId?: string; reason: string }
 export type DeployResult = CanvasFailure | {
   ok: true
   revision: number
@@ -162,8 +164,8 @@ async function writeStates(updates: { instanceId: string; state: CanvasState }[]
   for (const update of updates) await putCanvasState(update.instanceId, update.state)
 }
 
-function deploymentRevisionOf(rows: CanvasStateRow[], layoutId: string): number {
-  let max = 0
+async function deploymentRevisionOf(rows: CanvasStateRow[], layoutId: string): Promise<number> {
+  let max = await canvasDeploymentFloor(layoutId)
   for (const row of rows) {
     if (row.data.active?.canvasId === layoutId) max = Math.max(max, row.data.active.revision)
     if (row.data.pending?.canvasId === layoutId) max = Math.max(max, row.data.pending.revision)
@@ -256,7 +258,8 @@ async function deployCanvasNow(input: {
   if (releaseAt !== null && releaseAt <= effectiveAt) {
     return fail('E_RELEASE_AT', 'Release time must be after the canvas goes live')
   }
-  const deploymentRevision = deploymentRevisionOf(rows, input.layoutId) + 1
+  const deploymentRevision = await deploymentRevisionOf(rows, input.layoutId) + 1
+  await rememberDeploymentRevision(input.layoutId, deploymentRevision)
   const deploymentAlbum: DeploymentAlbum = {
     id: album.id,
     name: album.name,
@@ -341,7 +344,7 @@ async function releaseCanvasNow(input: {
   )
   const chosenLead = leadMs(input.leadMs, affected.map(() => true))
   const releaseAt = now + chosenLead
-  const revision = deploymentRevisionOf(rows, layout.id)
+  const revision = await deploymentRevisionOf(rows, layout.id)
   const updates: { instanceId: string; state: CanvasState }[] = []
   const members: DeployMember[] = []
   const skipped: SkippedMember[] = []
@@ -400,7 +403,7 @@ export async function identifyCanvas(input: {
 
   for (const slot of config.slots) {
     if (!slot.frameId) {
-      skipped.push({ frameId: slot.id, reason: 'unassigned' })
+      skipped.push({ frameId: slot.frameId, slotId: slot.id, reason: 'unassigned' })
       continue
     }
     if (!enrolled.has(slot.frameId)) {
@@ -440,10 +443,10 @@ export async function getCanvasStatus(input: { layoutId?: string } = {}): Promis
     ? store.layouts.filter((layout) => layout.id === input.layoutId && layout.kind === 'canvas')
     : store.layouts.filter((layout) => layout.kind === 'canvas')
 
-  return layouts.map((layout): CanvasStatus => {
+  return Promise.all(layouts.map(async (layout): Promise<CanvasStatus> => {
     const config = layout.canvas ?? { arrangement: 'row', gap: 0, align: 'center', slots: [], background: '#000000', markers: 'never', notifications: 'suppress', nightMode: 'inherit', maxFps: 30 }
     const geometry = resolveGeometry(config)
-    const revision = deploymentRevisionOf(rows, layout.id)
+    const revision = await deploymentRevisionOf(rows, layout.id)
     const skipped: SkippedMember[] = []
     const members = config.slots.map((slot, index): CanvasStatusMember => {
       const row = rows.find((entry) => entry.instanceId === slot.frameId)
@@ -464,7 +467,7 @@ export async function getCanvasStatus(input: { layoutId?: string } = {}): Promis
         if (Math.abs(ratio - expected) / expected > 0.01) problems.push('Wrong aspect ratio')
       }
       if (!slot.frameId) {
-        skipped.push({ frameId: slot.id, reason: 'unassigned' })
+        skipped.push({ frameId: slot.frameId, slotId: slot.id, reason: 'unassigned' })
       }
       return {
         slotId: slot.id,
@@ -491,5 +494,5 @@ export async function getCanvasStatus(input: { layoutId?: string } = {}): Promis
       members,
       skipped,
     }
-  })
+  }))
 }

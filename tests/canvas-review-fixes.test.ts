@@ -18,6 +18,12 @@ describe('canvas review fixes', () => {
     expect(source.match(/disabled=\{dirty \|\| busy\}/g)?.length).toBe(4)
   })
 
+  it('tolerates a malformed imported bounce scene', () => {
+    const source = read('components/editor/canvas-admin/album-editor.tsx')
+    expect(source).toContain('const logo = (config.logo as Record<string, unknown>) ?? {}')
+    expect(source).toContain('const tint = (config.tint as Record<string, unknown>) ?? {}')
+  })
+
   it('measures marquee strips even when the config style is missing', async () => {
     const { measureMarquee } = await import('@/lib/canvas/measure-client')
     const context = { font: '', measureText: (text: string) => ({ width: text.length * 10 }) }
