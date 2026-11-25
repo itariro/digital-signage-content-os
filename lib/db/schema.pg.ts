@@ -60,11 +60,26 @@ export const displayHistory = pgTable('display_history', {
 export type DisplayHistory = typeof displayHistory.$inferSelect
 export type NewDisplayHistory = typeof displayHistory.$inferInsert
 
+export const canvasState = pgTable('canvas_state', {
+  instanceId: text('instance_id').primaryKey(),
+  revision: integer('revision').notNull().default(0),
+  data: jsonb('data').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  reportedRevision: integer('reported_revision'),
+  clockOffsetMs: doublePrecision('clock_offset_ms'),
+  clockUncertaintyMs: doublePrecision('clock_uncertainty_ms'),
+  viewportW: integer('viewport_w'),
+  viewportH: integer('viewport_h'),
+  fpsAvg: doublePrecision('fps_avg'),
+  reportedAt: timestamp('reported_at', { withTimezone: true }),
+})
+
 export const databaseSchema = {
   frameDocuments,
   frameTemplates,
   contentSources,
   displayHistory,
+  canvasState,
 }
 
 export const assets = pgTable('assets', {

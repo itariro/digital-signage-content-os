@@ -8,4 +8,12 @@ describe('sqlite schema', () => {
     expect(s.displayHistory).toBeDefined()
     expect(s.assets).toBeDefined()
   })
+
+  it('exports canvasState with the report columns', () => {
+    expect(s.canvasState).toBeDefined()
+    const columns = Object.keys(s.canvasState)
+    for (const name of ['instanceId', 'revision', 'data', 'updatedAt', 'reportedRevision', 'clockOffsetMs', 'clockUncertaintyMs', 'viewportW', 'viewportH', 'fpsAvg', 'reportedAt']) {
+      expect(columns).toContain(name)
+    }
+  })
 })
