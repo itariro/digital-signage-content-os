@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { mutate as revalidateAll } from 'swr'
 import { toast } from 'sonner'
 import { EditorButton } from '@/components/editor/controls'
 import { useCanvasLibrary } from '@/hooks/use-canvas-library'
 import { resolveGeometry } from '@/lib/canvas/geometry'
 import { emptyCanvasConfig } from '@/lib/canvas/defaults'
-import type { Album } from '@/lib/types'
+import type { Album, CanvasTemplateId } from '@/lib/types'
+import { consoleTemplateWriteClient, createCanvasTemplate } from '@/lib/canvas/template-service'
 import { AlbumEditor } from './album-editor'
+import { TemplatePicker } from './template-picker'
 
 function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : 'Something went wrong'
@@ -18,8 +21,21 @@ export function AlbumsTab() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Album | null>(null)
   const [busy, setBusy] = useState(false)
+  const [templateOpen, setTemplateOpen] = useState(false)
+  const [templateError, setTemplateError] = useState<string | null>(null)
   const visibleAlbums = useMemo(() => store.albums.filter((album) => album.theme === 'canvas'), [store.albums])
   const geometry = useMemo(() => resolveGeometry(emptyCanvasConfig()), [])
+
+  const pickTemplate = async (id: CanvasTemplateId) => {
+    setTemplateError(null)
+    try {
+      await createCanvasTemplate(id, consoleTemplateWriteClient())
+      setTemplateOpen(false)
+      await revalidateAll(() => true)
+    } catch (error) {
+      setTemplateError(error instanceof Error ? error.message : 'Could not create the starter show')
+    }
+  }
 
   useEffect(() => {
     if (!openId) return
@@ -79,8 +95,15 @@ export function AlbumsTab() {
     <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Canvas albums</h2>
+        <button type="button" className="button-secondary" onClick={() => setTemplateOpen(true)}>
+          New from template
+        </button>
         <EditorButton type="button" variant="secondary" onClick={() => void create()} disabled={busy}>New album</EditorButton>
       </div>
+      {templateOpen && (
+        <TemplatePicker onPick={(id) => void pickTemplate(id)} onClose={() => setTemplateOpen(false)} />
+      )}
+      {templateError && <p className="mt-2 text-sm text-red-500">{templateError}</p>}
       <ul className="flex flex-col gap-2">
         {visibleAlbums.map((album) => (
           <li key={album.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-2">
