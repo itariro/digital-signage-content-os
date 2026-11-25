@@ -63,6 +63,8 @@ export async function initInstance() {
         { endpoint: process.env.SYNC_ENDPOINT, token: process.env.SYNC_TOKEN, instanceId: process.env.INSTANCE_ID },
         Number(process.env.SYNC_INTERVAL_MINUTES) || 15,
       )
+      const { startCanvasPoll } = await import('@/lib/canvas/poll')
+      startCanvasPoll({ endpoint: process.env.SYNC_ENDPOINT, token: process.env.SYNC_TOKEN, instanceId: process.env.INSTANCE_ID })
     } catch (e: unknown) {
       console.error('sync worker failed to start:', e)
     }
@@ -70,6 +72,12 @@ export async function initInstance() {
 }
 
 export async function shutdownInstance() {
+  try {
+    const { stopCanvasPoll } = await import('@/lib/canvas/poll')
+    stopCanvasPoll()
+  } catch (e: unknown) {
+    console.error('canvas poll stop failed:', e)
+  }
   try {
     const { stopSyncWorker } = await import('@/lib/sync/worker')
     stopSyncWorker()
