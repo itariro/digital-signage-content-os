@@ -237,21 +237,17 @@ describe('getCanvasStatus', () => {
     const { layoutId } = await seed()
     await deployCanvas({ layoutId, actor: 'op' })
     const status = await getCanvasStatus({ layoutId })
-    expect(status).toHaveLength(1)
+    expect(status).toHaveLength(3)
     expect(status[0]).toMatchObject({
-      layoutId,
-      phase: 'scheduled',
-      revision: 1,
-    })
-    expect(status[0].members).toHaveLength(3)
-    expect(status[0].members[0]).toMatchObject({
+      canvasId: layoutId,
       slotId: 's1',
       frameId: 'fa',
-      marker: 1,
-      deliveredRevision: 1,
-      reportedRevision: null,
-      reportedAt: null,
+      state: 'scheduled',
+      reportedAtMs: null,
+      revision: 1,
+      deploymentRevision: 1,
     })
-    expect(status[0].members[0].problems).toContain('No report yet')
+    const { canvasProblems, STATUS_POLL_MS } = await import('@/lib/canvas/problems')
+    expect(canvasProblems(status[0], Date.now(), STATUS_POLL_MS)).toContain('No report yet')
   })
 })
