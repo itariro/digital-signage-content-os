@@ -1,3 +1,5 @@
+import type { CatalogSceneConfig, CatalogSceneType } from '@/lib/canvas/catalog-kit'
+
 export const FRAME_WIDTH = 1080
 export const FRAME_HEIGHT = 1920
 
@@ -240,6 +242,7 @@ export type CanvasSlot = {
   label?: string
   offset: { x: number; y: number }
   scale: number
+  rotation?: 0 | 90 | 180 | 270
 }
 
 export type CanvasConfig = {
@@ -253,9 +256,13 @@ export type CanvasConfig = {
   notifications: 'suppress' | 'show'
   nightMode: 'inherit' | 'ignore'
   maxFps: 15 | 24 | 30 | 60
+  bezelMode?: 'show' | 'hide' | 'collapse'
+  unitMode?: 'pixels' | 'physical'
+  screenWidthMm?: number
+  screenHeightMm?: number
 }
 
-export type CanvasSceneType = 'marquee' | 'bounce' | 'pong' | 'sync-test'
+export type CanvasSceneType = 'marquee' | 'bounce' | 'pong' | 'sync-test' | CatalogSceneType
 
 export type MarqueeStrip = {
   lengthPx: number
@@ -291,7 +298,8 @@ export type BounceConfig = {
   startMode: 'seed' | 'center'
   tint: { mode: 'cycle' | 'fixed' | 'none'; colors: string[]; fixed: string }
   cornerCelebration: boolean
-  trail: { enabled: boolean; length: number; spacingMs: number }
+  trail: { enabled: boolean; length: number; spacingMs: number; finish?: boolean }
+  guaranteedCorner?: boolean
 }
 
 export type PongConfig = {
@@ -327,6 +335,7 @@ export type CanvasScene =
   | (CanvasSceneBase & { type: 'bounce'; config: BounceConfig })
   | (CanvasSceneBase & { type: 'pong'; config: PongConfig })
   | (CanvasSceneBase & { type: 'sync-test'; config: SyncTestConfig })
+  | (CanvasSceneBase & { type: CatalogSceneType; config: CatalogSceneConfig })
 
 export type DeploymentAlbum = {
   id: string
@@ -345,6 +354,7 @@ export type CanvasDeployment = {
   slotId: string
   config: CanvasConfig
   album: DeploymentAlbum | null
+  frameSizes?: Array<{ id: string; screenWidthMm?: number | null; screenHeightMm?: number | null }>
 }
 
 export type CanvasIdentify = {

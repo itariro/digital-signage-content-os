@@ -1,5 +1,5 @@
 import type { CanvasState, CanvasDeployment } from '@/lib/types'
-import { resolveGeometry, type ResolvedGeometry, type ResolvedSlot } from './geometry'
+import { resolveGeometry, type FrameScreenSize, type ResolvedGeometry, type ResolvedSlot } from './geometry'
 
 export type CanvasTakeover = {
   deployment: CanvasDeployment
@@ -11,7 +11,7 @@ export type CanvasTakeover = {
  * A canvas takeover overrides the frame's own layout and schedule while it is
  * live. It never mutates the frame document, so releasing needs no restore.
  */
-export function resolveCanvasTakeover(state: CanvasState | null, nowMs: number): CanvasTakeover | null {
+export function resolveCanvasTakeover(state: CanvasState | null, nowMs: number, frames: FrameScreenSize[] = []): CanvasTakeover | null {
   if (!state) return null
 
   const candidate =
@@ -20,7 +20,7 @@ export function resolveCanvasTakeover(state: CanvasState | null, nowMs: number):
   if (nowMs < candidate.effectiveAt) return null
   if (candidate.releaseAt !== null && nowMs >= candidate.releaseAt) return null
 
-  const geometry = resolveGeometry(candidate.config)
+  const geometry = resolveGeometry(candidate.config, frames)
   const slot = geometry.slots.find((entry) => entry.slotId === candidate.slotId)
   if (!slot) return null
 

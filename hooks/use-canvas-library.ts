@@ -21,6 +21,8 @@ export type CanvasFrame = {
   id: string
   name: string
   lastSeenAt: string | null
+  screenWidthMm?: number | null
+  screenHeightMm?: number | null
   inCanvas: { canvasId: string; name: string; state: 'scheduled' | 'live' } | null
 }
 

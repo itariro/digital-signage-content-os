@@ -10,9 +10,24 @@ export type ResolvedSlot = {
   w: number
   h: number
   scale: number
+  rotation?: 0 | 90 | 180 | 270
 }
 
 export type GapRect = { x: number; y: number; w: number; h: number }
+
+export function rotatedSlotStyle(slot: ResolvedSlot, scale = 1): {
+  transform: string | undefined
+  transformOrigin: string
+} {
+  const rotation = slot.rotation ?? 0
+  if (rotation === 0) return { transform: undefined, transformOrigin: 'top left' }
+  const cx = (slot.w * scale) / 2
+  const cy = (slot.h * scale) / 2
+  return {
+    transform: `translate(${cx}px, ${cy}px) rotate(${rotation}deg) translate(${-cx}px, ${-cy}px)`,
+    transformOrigin: 'top left',
+  }
+}
 
 export type ResolvedGeometry = {
   width: number
@@ -35,15 +50,58 @@ function crossOffset(align: 'start' | 'center' | 'end', outer: number, inner: nu
   return (outer - inner) / 2
 }
 
+export function canvasGapPx(config: CanvasConfig): number {
+  if (config.bezelMode === 'collapse') return 0
+  if (config.unitMode !== 'physical' || !config.screenWidthMm) return config.gap
+  return Math.min(600, Math.max(0, (config.gap / config.screenWidthMm) * FRAME_WIDTH))
+}
+
+export type FrameScreenSize = {
+  id: string
+  screenWidthMm?: number | null
+  screenHeightMm?: number | null
+}
+
+/** Canvas pixels per millimetre, normalised to the config's reference screen. */
+export function canvasSlotScale(
+  config: CanvasConfig,
+  frames: FrameScreenSize[],
+  slot: CanvasConfig['slots'][number],
+): number {
+  if (config.unitMode !== 'physical') return slot.scale
+  const frame = frames.find((item) => item.id === slot.frameId)
+  const widthMm = frame?.screenWidthMm
+  const heightMm = frame?.screenHeightMm
+  if (!widthMm || !heightMm || !config.screenWidthMm || !config.screenHeightMm) return slot.scale
+  const ratio = Math.min(widthMm / config.screenWidthMm, heightMm / config.screenHeightMm)
+  return slot.scale * Math.min(4, Math.max(0.25, ratio))
+}
+
+/** Console-side deploy blocker: every enrolled frame needs both dimensions. */
+export function canvasPhysicalIssues(config: CanvasConfig, frames: FrameScreenSize[]): string[] {
+  if (config.unitMode !== 'physical') return []
+  return frames
+    .filter((frame) => !frame.screenWidthMm || !frame.screenHeightMm)
+    .map((frame) => frame.id)
+}
+
 /**
  * Place slots on the canvas. Pure and deterministic: the same config always
  * produces the same geometry. Coordinates are canvas px with the minimum
  * corner re-based to (0, 0).
  */
-export function resolveGeometry(config: CanvasConfig): ResolvedGeometry {
+export function resolveGeometry(config: CanvasConfig, frames: FrameScreenSize[] = []): ResolvedGeometry {
   if (config.slots.length === 0) return { width: 0, height: 0, slots: [], gaps: [] }
 
-  const sizes = config.slots.map((slot) => ({ w: FRAME_WIDTH * slot.scale, h: FRAME_HEIGHT * slot.scale }))
+  const scales = config.slots.map((slot) => canvasSlotScale(config, frames, slot))
+  const sizes = config.slots.map((slot, index) => {
+    const rotated = slot.rotation === 90 || slot.rotation === 270
+    return {
+      w: (rotated ? FRAME_HEIGHT : FRAME_WIDTH) * scales[index],
+      h: (rotated ? FRAME_WIDTH : FRAME_HEIGHT) * scales[index],
+    }
+  })
+  const gap = canvasGapPx(config)
   const raw: { x: number; y: number; w: number; h: number }[] = []
 
   if (config.arrangement === 'row') {
@@ -51,14 +109,14 @@ export function resolveGeometry(config: CanvasConfig): ResolvedGeometry {
     let x = 0
     sizes.forEach((size) => {
       raw.push({ x, y: crossOffset(config.align, height, size.h), w: size.w, h: size.h })
-      x += size.w + config.gap
+      x += size.w + gap
     })
   } else if (config.arrangement === 'column') {
     const width = Math.max(...sizes.map((size) => size.w))
     let y = 0
     sizes.forEach((size) => {
       raw.push({ x: crossOffset(config.align, width, size.w), y, w: size.w, h: size.h })
-      y += size.h + config.gap
+      y += size.h + gap
     })
   } else {
     const columns = Math.min(8, Math.max(1, config.gridColumns ?? Math.ceil(Math.sqrt(config.slots.length))))
@@ -67,8 +125,8 @@ export function resolveGeometry(config: CanvasConfig): ResolvedGeometry {
     sizes.forEach((size, index) => {
       const column = index % columns
       const row = Math.floor(index / columns)
-      const cellX = column * (cellW + config.gap)
-      const cellY = row * (cellH + config.gap)
+      const cellX = column * (cellW + gap)
+      const cellY = row * (cellH + gap)
       raw.push({
         x: cellX + crossOffset(config.align, cellW, size.w),
         y: cellY + crossOffset(config.align, cellH, size.h),
@@ -94,7 +152,8 @@ export function resolveGeometry(config: CanvasConfig): ResolvedGeometry {
     y: rect.y - minY,
     w: rect.w,
     h: rect.h,
-    scale: config.slots[index].scale,
+    scale: scales[index],
+    rotation: config.slots[index].rotation ?? 0,
   }))
 
   const width = Math.max(...slots.map((slot) => slot.x + slot.w))

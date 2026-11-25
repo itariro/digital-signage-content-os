@@ -69,6 +69,20 @@ export interface PullResponse {
   canvas?: PullCanvas
 }
 
+export interface CanvasAssetPayload {
+  hash: string
+  mime: string
+  dataBase64: string
+}
+
+export interface SyncPullOptions {
+  caHave?: string[]
+  canvasAssetRefs?: string[]
+  /** Preserved from the Phase 3 canvas pull contract. */
+  cvRev?: number
+  report?: import('@/lib/canvas/state-store').MemberReport
+}
+
 export interface SyncStatus {
   queueDepth: number
   lastSyncAt: string | null

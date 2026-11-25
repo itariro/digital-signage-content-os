@@ -5,6 +5,7 @@ import type { NightMode } from '@/lib/types'
 import type { CanvasClock } from '@/lib/canvas/clock'
 import type { CanvasRenderModel } from '@/lib/canvas/render-model'
 import { canvasLoopKey, fitScale } from '@/lib/canvas/stage'
+import { rotatedSlotStyle } from '@/lib/canvas/geometry'
 import { sceneAt } from '@/lib/canvas/scheduler'
 import { seedFromString } from '@/lib/canvas/prng'
 import { sceneStateAt } from '@/lib/canvas/scenes/registry'
@@ -119,6 +120,7 @@ export function CanvasStage({
 
   const { deployment, geometry, slot } = takeover
   const scale = fitScale(slot.w, slot.h, viewport.width, viewport.height)
+  const rotationStyle = rotatedSlotStyle(slot, scale)
   if (scale <= 0) return null
 
   const config = deployment.config
@@ -149,7 +151,12 @@ export function CanvasStage({
     >
       <div
         className="absolute left-0 top-0 origin-top-left overflow-hidden"
-        style={{ width: slot.w, height: slot.h, transform: `scale(${scale})` }}
+        style={{
+          width: slot.w,
+          height: slot.h,
+          transform: `${rotationStyle.transform ? `${rotationStyle.transform} ` : ''}scale(${scale})`,
+          transformOrigin: rotationStyle.transformOrigin,
+        }}
       >
         <div
           style={{
