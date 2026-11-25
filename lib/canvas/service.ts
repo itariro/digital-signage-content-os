@@ -266,7 +266,7 @@ async function deployCanvasNow(input: {
   const album = {
     ...sourceAlbum,
     scenes,
-    layers: sourceAlbum.layers?.map((layer) => ({ ...layer, scenes: layer.scenes.filter((scene) => scene.enabled) })),
+    layers: sourceAlbum.layers?.map((layer) => ({ ...layer, scenes: layer.scenes.filter((scene) => scene.enabled) })).filter((layer) => layer.scenes.length > 0),
   } as CanvasAlbum
   const deploymentAlbum = deploymentAlbumFrom(album as CanvasAlbum)
 
