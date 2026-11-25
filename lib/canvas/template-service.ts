@@ -42,10 +42,10 @@ async function write(url: string, method: 'POST' | 'PUT', body: Record<string, u
 
 export function consoleTemplateWriteClient(): TemplateWriteClient {
   return {
-    createAlbum: (body) => write('/api/albums', 'POST', body),
+    createAlbum: (body) => write('/api/albums?frame=canvas-library', 'POST', body),
     updateAlbum: async (id, body) => {
-      await write(`/api/albums/${id}`, 'PUT', body)
+      await write(`/api/albums/${id}?frame=canvas-library`, 'PUT', body)
     },
-    createLayout: (body) => write('/api/layouts', 'POST', body),
+    createLayout: (body) => write('/api/layouts?frame=canvas-library', 'POST', body),
   }
 }

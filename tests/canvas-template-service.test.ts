@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { createCanvasTemplate } from '@/lib/canvas/template-service'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { consoleTemplateWriteClient, createCanvasTemplate } from '@/lib/canvas/template-service'
 
 describe('createCanvasTemplate', () => {
   it('writes the album before the layout and points the layout at the album', async () => {
@@ -40,4 +40,27 @@ describe('createCanvasTemplate', () => {
     const { templateDocuments } = await import('@/lib/canvas/templates')
     expect(templateDocuments('wall-clock').layout.settings.albumId).toBeNull()
   })
+
+  it('consoleTemplateWriteClient targets the canvas library frame', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'album-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'album-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'layout-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = consoleTemplateWriteClient()
+    await client.createAlbum({ name: 'Hello', theme: 'canvas' })
+    await client.updateAlbum('album-1', { name: 'Hello' })
+    await client.createLayout({ name: 'Layout' })
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      '/api/albums?frame=canvas-library',
+      '/api/albums/album-1?frame=canvas-library',
+      '/api/layouts?frame=canvas-library',
+    ])
+  })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
