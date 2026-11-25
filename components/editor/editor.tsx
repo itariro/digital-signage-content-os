@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { mutate as mutateCache } from 'swr'
-import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
+import { Bell, CalendarClock, Frame, GalleryVerticalEnd, Grid2X2, Layers, LayoutTemplate, MonitorPlay, SlidersHorizontal, Sparkles, Type, X } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import type { Album, AlbumTheme, DisplayDecision, Experiences, FrameSchedule, FrameStore, Layout, Widget } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
@@ -31,6 +31,7 @@ import { LiveDataContext } from './widget-preview'
 import { cn } from '@/lib/utils'
 import { LibraryPanel } from './library-panel'
 import { FrameAdminPanel } from './frame-admin-panel'
+import { CanvasAdminPanel } from './canvas-admin/canvas-admin-panel'
 import { IconButton } from './controls'
 
 const PANELS = [
@@ -44,7 +45,7 @@ const PANELS = [
 ] as const
 
 type PanelId = 'widgets' | 'frames' | (typeof PANELS)[number]['id']
-type DrawerId = PanelId | 'properties'
+type DrawerId = PanelId | 'canvas' | 'properties'
 
 function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : 'Something went wrong'
@@ -453,9 +454,9 @@ export function Editor({
       ? 'Widgets'
       : activeDrawer === 'frames'
         ? 'Frame administration'
-        : activeDrawer === 'properties'
-          ? 'Properties'
-          : PANELS.find((panel) => panel.id === activeDrawer)?.label ?? 'Editor panel'
+        : activeDrawer === 'canvas' ? 'Canvas'
+          : activeDrawer === 'properties' ? 'Properties'
+            : PANELS.find((panel) => panel.id === activeDrawer)?.label ?? 'Editor panel'
 
   return (
     <LiveDataContext value={liveData}>
@@ -498,6 +499,18 @@ export function Editor({
                 className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'frames' && 'bg-primary/10 text-primary')}
               >
                 <Frame className="size-[18px]" aria-hidden />
+              </button>
+            )}
+            {canManageFrames && !singleFrame && (
+              <button
+                type="button"
+                aria-label="Canvas"
+                aria-expanded={activeDrawer === 'canvas'}
+                aria-controls="editor-drawer"
+                onClick={(event) => toggleDrawer('canvas', event.currentTarget)}
+                className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'canvas' && 'bg-primary/10 text-primary')}
+              >
+                <MonitorPlay className="size-[18px]" aria-hidden />
               </button>
             )}
             {PANELS.map((panel) => {
@@ -564,6 +577,7 @@ export function Editor({
               </header>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {canManageFrames && activeDrawer === 'frames' && <FrameAdminPanel />}
+                {canManageFrames && !singleFrame && activeDrawer === 'canvas' && <CanvasAdminPanel />}
                 {activeDrawer === 'widgets' && (
                   <LibraryPanel
                     presets={store.presets}

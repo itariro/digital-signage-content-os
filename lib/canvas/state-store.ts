@@ -95,6 +95,31 @@ export async function listCanvasStates(): Promise<CanvasStateRow[]> {
   return rows.map((row) => toRow(row as Record<string, unknown>))
 }
 
+/** Deployment revisions live under their own keys: state writes must not advance them. */
+function deploymentRevisionKey(layoutId: string): string {
+  return `canvas-deploy-rev:${layoutId}`
+}
+
+export async function canvasDeploymentFloor(layoutId: string): Promise<number> {
+  const db = getDb()
+  const { syncCheckpoints } = getTables()
+  const [row] = await db.select().from(syncCheckpoints).where(eq(syncCheckpoints.id, deploymentRevisionKey(layoutId)))
+  const value = Number(row?.cursor)
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
+}
+
+export async function rememberDeploymentRevision(layoutId: string, revision: number): Promise<void> {
+  if (revision <= await canvasDeploymentFloor(layoutId)) return
+  const db = getDb()
+  const { syncCheckpoints } = getTables()
+  const cursor = String(revision)
+  const now = new Date()
+  await db
+    .insert(syncCheckpoints)
+    .values({ id: deploymentRevisionKey(layoutId), scope: 'canvas-deploy-revision', cursor, updatedAt: now })
+    .onConflictDoUpdate({ target: syncCheckpoints.id, set: { cursor, updatedAt: now } })
+}
+
 export async function putCanvasState(instanceId: string, data: CanvasState): Promise<number> {
   const db = getDb()
   const [existing, highWater] = await Promise.all([getCanvasState(instanceId), highWaterRevision(instanceId)])

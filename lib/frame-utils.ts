@@ -135,3 +135,40 @@ export async function downscaleImage(file: File, maxW = 1080, maxH = 1920): Prom
     URL.revokeObjectURL(url)
   }
 }
+
+export type LogoMime = 'image/png' | 'image/webp' | 'image/jpeg'
+
+export const MAX_LOGO_DATA_URI_BYTES = 200 * 1024
+
+const LOGO_MIMES: LogoMime[] = ['image/png', 'image/webp', 'image/jpeg']
+
+/**
+ * Browser-only: re-encode an uploaded canvas logo on its long side while
+ * preserving alpha. Unlike downscaleImage, this never forces JPEG.
+ */
+export async function downscaleToDataUri(file: File, maxDim = 512, mime: LogoMime = 'image/png'): Promise<string> {
+  if (!LOGO_MIMES.includes(mime)) throw new Error('Use PNG, WebP or JPEG')
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file')
+  const url = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    img.src = url
+    await img.decode()
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+    const width = Math.max(1, Math.round(img.width * scale))
+    const height = Math.max(1, Math.round(img.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas unavailable')
+    ctx.drawImage(img, 0, 0, width, height)
+    const dataUri = canvas.toDataURL(mime, mime === 'image/jpeg' ? 0.82 : 0.92)
+    const base64 = dataUri.slice(dataUri.indexOf(',') + 1)
+    const bytes = Math.floor((base64.replace(/\s+/g, '').length * 3) / 4)
+    if (bytes > MAX_LOGO_DATA_URI_BYTES) throw new Error('Logo is too large after downscale')
+    return dataUri
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}

@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { readStore } from '@/lib/store'
 import { tickBobEngine } from '@/lib/bob-bridge'
 import { frameIdParam } from '@/lib/frames/request'
+import { isLibraryFrame } from '@/lib/canvas/library'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,13 +13,13 @@ export async function GET(request: Request) {
   }
   const store = await readStore(frameId)
   if (!store) return NextResponse.json({ error: 'Frame not found' }, { status: 404 })
-  // Drive the Bob engine after the response is sent; it publishes winning
-  // speech as a frame notification which this frame picks up on its next
-  // poll. `after` keeps the background work running past the response on both
-  // the Node server and serverless runtimes.
-  after(async () => {
-    await tickBobEngine(frameId)
-  })
+  // The library is an authoring document, not a display. Driving Bob would
+  // publish a notification the library can never show.
+  if (!isLibraryFrame(frameId)) {
+    after(async () => {
+      await tickBobEngine(frameId)
+    })
+  }
   return NextResponse.json(store, {
     headers: {
       'Cache-Control': 'no-store, max-age=0',
