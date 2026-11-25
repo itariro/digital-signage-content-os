@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import { readStore } from '@/lib/store'
 import { DEFAULT_SCHEDULE } from '@/lib/schedule'
+import { listCanvasStates, pruneCanvasState, type CanvasStateRow } from '@/lib/canvas/state-store'
 import type { FrameStore } from '@/lib/types'
 import { CANVAS_LIBRARY_ID, isLibraryFrame } from '@/lib/canvas/ids'
 
@@ -37,4 +38,32 @@ export async function ensureCanvasLibrary(): Promise<FrameStore> {
     updatedAt: now,
   }).onConflictDoNothing({ target: tables.frameDocuments.identifier })
   return (await readStore(CANVAS_LIBRARY_ID)) ?? data
+}
+
+export type CanvasLayoutPhase = 'draft' | 'scheduled' | 'live' | 'released'
+
+export function canvasLayoutPhaseFromRows(
+  layoutId: string,
+  rows: CanvasStateRow[],
+  nowMs = Date.now(),
+): CanvasLayoutPhase {
+  let scheduled = false
+  let live = false
+  let released = false
+  for (const row of rows) {
+    if (row.data.pending?.canvasId === layoutId) scheduled = true
+    const active = row.data.active
+    if (active?.canvasId !== layoutId) continue
+    if (active.releaseAt === null || active.releaseAt > nowMs) live = true
+    else released = true
+  }
+  if (scheduled) return 'scheduled'
+  if (live) return 'live'
+  if (released) return 'released'
+  return 'draft'
+}
+
+export async function getCanvasLayoutPhase(layoutId: string): Promise<CanvasLayoutPhase> {
+  await pruneCanvasState()
+  return canvasLayoutPhaseFromRows(layoutId, await listCanvasStates())
 }

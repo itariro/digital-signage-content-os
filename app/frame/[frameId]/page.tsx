@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { readStore } from '@/lib/store'
 import { FrameDisplay } from '@/components/frame/frame-display'
+import { isLibraryFrame } from '@/lib/canvas/library'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function FramePage({ params }: { params: Promise<{ frameId: string }> }) {
   const { frameId } = await params
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(frameId)) notFound()
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(frameId) || isLibraryFrame(frameId)) notFound()
   const store = await readStore(frameId)
   if (!store) notFound()
   return <FrameDisplay initialStore={store} frameId={frameId} />

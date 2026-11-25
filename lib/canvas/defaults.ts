@@ -2,7 +2,7 @@ import type { CanvasConfig, CanvasScene, LayoutSettings } from '@/lib/types'
 
 export const EMPTY_CANVAS_SETTINGS: LayoutSettings = {
   resolution: '1080x1920',
-  background: '#000000',
+  background: '',
   dim: 0,
   locationName: '',
   lat: 0,
