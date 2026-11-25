@@ -21,3 +21,21 @@ describe('canvas template editor wiring', () => {
     expect(picker).toContain('CANVAS_TEMPLATES')
   })
 })
+
+const options = readFileSync(path.join(root, 'components/editor/canvas-admin/canvas-album-options.tsx'), 'utf8')
+const editor = readFileSync(path.join(root, 'components/editor/canvas-admin/album-editor.tsx'), 'utf8')
+
+describe('canvas composition options', () => {
+  it('exposes layer, transition and palette controls', () => {
+    expect(options).toContain('CANVAS_PALETTES')
+    expect(options).toContain('CANVAS_TRANSITION_KINDS')
+    expect(options).toContain('Add layer')
+    expect(options).toContain('syncCanvasAlbumLayers(')
+  })
+
+  it('routes album edits through the layer mirror', () => {
+    expect(editor).toContain('syncCanvasAlbumLayers(')
+    expect(editor).toContain('<CanvasAlbumOptions')
+    expect(editor).not.toContain('onChange({ ...album')
+  })
+})
