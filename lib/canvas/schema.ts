@@ -1,7 +1,18 @@
 import { z } from 'zod'
-import { hex, widgetStyleSchema } from '@/lib/widget-style-schema'
+import { widgetStyleSchema as baseWidgetStyleSchema } from '@/lib/widget-style-schema'
+import { CANVAS_PALETTE_IDS, CANVAS_TRANSITION_KINDS } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH, type CanvasState } from '@/lib/types'
 import { CATALOG_TYPES, catalogConfigSchema } from '@/lib/canvas/catalog-kit'
+
+const hexLiteral = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+const paletteColor = z.string().regex(/^palette:(primary|secondary|accent|background|text)$/)
+const hex: z.ZodType<string> = z.union([hexLiteral, paletteColor])
+const widgetStyleSchema = baseWidgetStyleSchema.extend({
+  color: hex,
+  accent: hex,
+  bg: hex,
+  stroke: hex,
+})
 
 const MAX_LOGO_BYTES = 200 * 1024
 
@@ -142,7 +153,7 @@ export const canvasConfigSchema = z
     gap: z.number().min(0).max(600).default(0),
     align: z.enum(['start', 'center', 'end']).default('center'),
     slots: z.array(canvasSlotSchema).min(1).max(16),
-    background: hex.default('#000000'),
+    background: hexLiteral.default('#000000'),
     markers: z.enum(['identify', 'always', 'never']).default('identify'),
     notifications: z.enum(['suppress', 'show']).default('suppress'),
     nightMode: z.enum(['inherit', 'ignore']).default('inherit'),
@@ -184,12 +195,42 @@ export const canvasSceneSchema = z.discriminatedUnion('type', [
   z.object({ ...sceneBaseShape, type: z.enum(CATALOG_TYPES), config: catalogConfigSchema }),
 ])
 
+export const canvasLayerSchema = z.object({
+  id: z.string().min(1).max(40),
+  name: z.string().min(1).max(60),
+  enabled: z.boolean(),
+  scenes: z.array(canvasSceneSchema).min(1).max(50),
+  order: z.enum(['sequence', 'shuffle']),
+  crossfadeMs: z.number().int().min(0).max(3000),
+})
+
+export const canvasWallTransitionSchema = z.object({
+  kind: z.enum(CANVAS_TRANSITION_KINDS),
+  durationMs: z.number().int().min(0).max(10_000),
+  direction: z.enum(['left', 'right', 'up', 'down']),
+})
+
+export const canvasPaletteSchema = z.object({
+  id: z.enum(CANVAS_PALETTE_IDS),
+  name: z.string().min(1).max(40),
+  colors: z.object({
+    primary: hexLiteral,
+    secondary: hexLiteral,
+    accent: hexLiteral,
+    background: hexLiteral,
+    text: hexLiteral,
+  }),
+})
+
 export const deploymentAlbumSchema = z.object({
   id: z.string().min(1).max(40),
   name: z.string().min(1).max(80),
   scenes: z.array(canvasSceneSchema).max(50),
   order: z.enum(['sequence', 'shuffle']),
   crossfadeMs: z.number().int().min(0).max(3000),
+  layers: z.array(canvasLayerSchema).min(1).max(3).optional(),
+  transition: canvasWallTransitionSchema.optional(),
+  palette: canvasPaletteSchema.optional(),
 })
 
 export const canvasDeploymentSchema = z.object({

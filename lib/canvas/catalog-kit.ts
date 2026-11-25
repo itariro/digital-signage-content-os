@@ -44,13 +44,14 @@ export const CATALOG_TYPES = [
 export type CatalogSceneType = (typeof CATALOG_TYPES)[number]
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+const catalogColor = z.union([hex, z.string().regex(/^palette:(primary|secondary|accent|background|text)$/)])
 const assetRef = z.string().regex(/^canvas-asset:[a-f0-9]{64}$/)
 
 export const catalogConfigSchema = z.object({
   text: z.string().max(200).optional(),
   lines: z.array(z.string().max(120)).max(12).optional(),
   images: z.array(assetRef).max(40).optional(),
-  colors: z.array(hex).max(12).optional(),
+  colors: z.array(catalogColor).max(12).optional(),
   speed: z.number().min(0).max(4000).optional(),
   density: z.number().min(1).max(400).optional(),
   scale: z.number().min(0.1).max(10).optional(),
