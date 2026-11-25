@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       revision: row?.revision ?? 0,
       state: row?.data ?? null,
       clock,
-      frame: frame ? { screenWidthMm: frame.screenWidthMm ?? null, screenHeightMm: frame.screenHeightMm ?? null } : null,
+      frame: frame ? { id: frame.identifier, screenWidthMm: frame.screenWidthMm ?? null, screenHeightMm: frame.screenHeightMm ?? null } : null,
       frames,
     },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } },
