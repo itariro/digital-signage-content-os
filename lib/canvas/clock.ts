@@ -59,3 +59,19 @@ export function slewOffset(applied: number, target: number, dtMs: number, maxRat
   if (Math.abs(delta) <= maxStep) return target
   return applied + Math.sign(delta) * maxStep
 }
+
+export type CanvasClock = {
+  offsetMs: number
+  uncertaintyMs: number
+  quality: ClockQuality
+  source: 'console' | 'system'
+  sampledAt: number | null
+}
+
+export const SYSTEM_CLOCK: CanvasClock = {
+  offsetMs: 0,
+  uncertaintyMs: 0,
+  quality: 'poor',
+  source: 'system',
+  sampledAt: null,
+}
