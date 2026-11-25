@@ -296,7 +296,8 @@ export type BounceConfig = {
   startMode: 'seed' | 'center'
   tint: { mode: 'cycle' | 'fixed' | 'none'; colors: string[]; fixed: string }
   cornerCelebration: boolean
-  trail: { enabled: boolean; length: number; spacingMs: number }
+  trail: { enabled: boolean; length: number; spacingMs: number; finish?: boolean }
+  guaranteedCorner?: boolean
 }
 
 export type PongConfig = {

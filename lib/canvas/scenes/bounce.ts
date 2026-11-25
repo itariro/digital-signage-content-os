@@ -24,6 +24,7 @@ export type BounceState = {
   color: string | null
   cornerAgeMs: number | null
   trail: { x: number; y: number }[]
+  trailFinished: boolean
 }
 
 function motion(speed: number, u0: number, range: number, seconds: number) {
@@ -41,13 +42,17 @@ export function bouncePosition(config: BounceConfig, bounds: { width: number; he
   const h = config.logo.h
   const rx = Math.max(1, bounds.width - w)
   const ry = Math.max(1, bounds.height - h)
-  const angle = ((config.angleDeg ?? 20 + hash01(seed, 1) * 50) * Math.PI) / 180
-  const sx = hash01(seed, 2) < 0.5 ? -1 : 1
-  const sy = hash01(seed, 3) < 0.5 ? -1 : 1
-  const vx = Math.abs(config.speed * Math.cos(angle))
-  const vy = Math.abs(config.speed * Math.sin(angle))
-  const startX = config.startMode === 'center' ? rx / 2 : hash01(seed, 4) * rx
-  const startY = config.startMode === 'center' ? ry / 2 : hash01(seed, 5) * ry
+  const cornerMode = config.guaranteedCorner === true
+  const angleDeg = cornerMode
+    ? (Math.atan2(ry, rx) * 180) / Math.PI
+    : (config.angleDeg ?? 20 + hash01(seed, 1) * 50)
+  const radians = (angleDeg * Math.PI) / 180
+  const sx = cornerMode ? 1 : hash01(seed, 2) < 0.5 ? -1 : 1
+  const sy = cornerMode ? 1 : hash01(seed, 3) < 0.5 ? -1 : 1
+  const vx = Math.abs(config.speed * Math.cos(radians))
+  const vy = Math.abs(config.speed * Math.sin(radians))
+  const startX = cornerMode ? 0 : config.startMode === 'center' ? rx / 2 : hash01(seed, 4) * rx
+  const startY = cornerMode ? 0 : config.startMode === 'center' ? ry / 2 : hash01(seed, 5) * ry
   const u0x = sx > 0 ? startX : 2 * rx - startX
   const u0y = sy > 0 ? startY : 2 * ry - startY
   const mx = motion(vx, u0x, rx, tSec)
@@ -66,8 +71,8 @@ export function bouncePosition(config: BounceConfig, bounds: { width: number; he
   }
 }
 
-function lastHitSeconds(u: number, u0: number, range: number, speed: number): number | null {
-  const hit = Math.floor(u / range)
+function lastHitSeconds(u: number, u0: number, range: number, speed: number, tolerance = 0): number | null {
+  const hit = Math.floor((u + tolerance) / range)
   if (hit < 1) return null
   return (hit * range - u0) / speed
 }
@@ -86,11 +91,18 @@ export function bounceState(config: BounceConfig, ctx: SceneStateContext): Bounc
 
   const rx = Math.max(1, ctx.bounds.width - config.logo.w)
   const ry = Math.max(1, ctx.bounds.height - config.logo.h)
-  const angle = ((config.angleDeg ?? 20 + hash01(ctx.seed, 1) * 50) * Math.PI) / 180
-  const vx = Math.abs(config.speed * Math.cos(angle))
-  const vy = Math.abs(config.speed * Math.sin(angle))
-  const tx = lastHitSeconds(position.ux, position.left, rx, vx)
-  const ty = lastHitSeconds(position.uy, position.top, ry, vy)
+  const cornerMode = config.guaranteedCorner === true
+  const angleDeg = cornerMode
+    ? (Math.atan2(ry, rx) * 180) / Math.PI
+    : (config.angleDeg ?? 20 + hash01(ctx.seed, 1) * 50)
+  const radians = (angleDeg * Math.PI) / 180
+  const vx = Math.abs(config.speed * Math.cos(radians))
+  const vy = Math.abs(config.speed * Math.sin(radians))
+  // The guaranteed corner time is analytic; floating point can land one ulp
+  // short of the boundary, so count a hit within a sub-millisecond tolerance.
+  const tolerance = cornerMode ? 0.001 : 0
+  const tx = lastHitSeconds(position.ux, position.left, rx, vx, tolerance)
+  const ty = lastHitSeconds(position.uy, position.top, ry, vy, tolerance)
   let cornerAgeMs: number | null = null
   if (tx !== null && ty !== null) {
     const hitAt = Math.max(tx, ty)
@@ -105,5 +117,15 @@ export function bounceState(config: BounceConfig, ctx: SceneStateContext): Bounc
       })
     : []
 
-  return { x: position.x, y: position.y, w: config.logo.w, h: config.logo.h, bounces: position.bounces, color, cornerAgeMs, trail }
+  return {
+    x: position.x,
+    y: position.y,
+    w: config.logo.w,
+    h: config.logo.h,
+    bounces: position.bounces,
+    color,
+    cornerAgeMs,
+    trail,
+    trailFinished: config.trail.enabled && config.trail.finish !== false,
+  }
 }

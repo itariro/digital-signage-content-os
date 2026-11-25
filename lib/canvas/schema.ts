@@ -93,8 +93,9 @@ export const bounceConfigSchema = z.object({
     .default({ mode: 'none', colors: ['#e11d48', '#f59e0b', '#22c55e', '#3b82f6'], fixed: '#ffffff' }),
   cornerCelebration: z.boolean().default(true),
   trail: z
-    .object({ enabled: z.boolean().default(false), length: z.number().int().min(0).max(12).default(0), spacingMs: z.number().int().min(16).max(1000).default(80) })
-    .default({ enabled: false, length: 0, spacingMs: 80 }),
+    .object({ enabled: z.boolean().default(false), length: z.number().int().min(0).max(12).default(0), spacingMs: z.number().int().min(16).max(1000).default(80), finish: z.boolean().default(true) })
+    .default({ enabled: false, length: 0, spacingMs: 80, finish: true }),
+  guaranteedCorner: z.boolean().default(false),
 })
 
 export const pongConfigSchema = z.object({
