@@ -108,7 +108,7 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {albums.map((album) => {
+            {albums.filter((album) => album.theme !== 'canvas').map((album) => {
               const meta = THEME_META[album.theme]
               const live = layoutAlbumId === album.id
               return (
