@@ -24,6 +24,8 @@ export async function GET(request: Request) {
       id: card.id,
       name: card.frame?.name ?? card.id,
       lastSeenAt: card.lastSeenAt ? new Date(card.lastSeenAt).toISOString() : null,
+      screenWidthMm: card.frame?.screenWidthMm ?? null,
+      screenHeightMm: card.frame?.screenHeightMm ?? null,
       inCanvas: owner ? {
         canvasId: owner.canvasId,
         name: canvasNames.get(owner.canvasId) ?? owner.canvasId,

@@ -1,5 +1,5 @@
 import type { CanvasIdentify, CanvasState } from '@/lib/types'
-import { resolveGeometry } from './geometry'
+import { resolveGeometry, type FrameScreenSize } from './geometry'
 import { resolveCanvasTakeover, type CanvasTakeover } from './takeover'
 import { sceneAt, type ScenePlan } from './scheduler'
 import { computeSceneState, type SceneRenderState } from './scenes/registry'
@@ -18,12 +18,12 @@ export type CanvasRenderModel = {
  * render model can show the pre-roll background and marker. Takeover itself
  * stays null until go-live; this only supplies the framing for pre-roll.
  */
-function preRollTakeover(state: CanvasState, synced: number): CanvasTakeover | null {
+function preRollTakeover(state: CanvasState, synced: number, frames: FrameScreenSize[]): CanvasTakeover | null {
   const deployment = state.active
   if (!deployment || synced >= deployment.effectiveAt) return null
   if (deployment.releaseAt !== null && synced >= deployment.releaseAt) return null
 
-  const geometry = resolveGeometry(deployment.config)
+  const geometry = resolveGeometry(deployment.config, frames)
   const slot = geometry.slots.find((entry) => entry.slotId === deployment.slotId)
   return slot ? { deployment, geometry, slot } : null
 }
@@ -52,11 +52,12 @@ export function canvasRenderModel(
   state: CanvasState | null,
   nowMs: number,
   clockOffsetMs = 0,
+  frames: FrameScreenSize[] = [],
 ): CanvasRenderModel | null {
   if (!state) return null
   const synced = nowMs + clockOffsetMs
   const identify = state.identify && state.identify.until > synced ? state.identify : null
-  const takeover = resolveCanvasTakeover(state, synced) ?? preRollTakeover(state, synced)
+  const takeover = resolveCanvasTakeover(state, synced, frames) ?? preRollTakeover(state, synced, frames)
   if (!takeover && !identify) return null
 
   let plan: ScenePlan | null = null

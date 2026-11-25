@@ -3,15 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ToggleField } from '@/components/editor/controls'
 import type { CanvasConfig, CanvasScene, DeploymentAlbum, Layout } from '@/lib/types'
-import { resolveGeometry } from '@/lib/canvas/geometry'
+import { resolveGeometry, type FrameScreenSize } from '@/lib/canvas/geometry'
 import { seedFromString } from '@/lib/canvas/prng'
 import { sceneAt } from '@/lib/canvas/scheduler'
 import { computeSceneState } from '@/lib/canvas/scenes/registry'
 import { CanvasFrameScene, paintScene, type CanvasElementRefs } from '@/components/frame/canvas/canvas-frame-scene'
 
-export function WallPreview({ layout, album }: { layout: Layout; album: DeploymentAlbum | null }) {
+export function WallPreview({ layout, album, frames = [] }: { layout: Layout; album: DeploymentAlbum | null; frames?: FrameScreenSize[] }) {
   const config = layout.canvas as CanvasConfig
-  const geometry = useMemo(() => resolveGeometry(config), [config])
+  const geometry = useMemo(() => resolveGeometry(config, frames), [config, frames])
   const [showBezels, setShowBezels] = useState(true)
   const [consoleStart, setConsoleStart] = useState<number | null>(null)
   const [localEpoch, setLocalEpoch] = useState<number | null>(null)
