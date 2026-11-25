@@ -50,7 +50,7 @@ function replaceToken(value: string, palette: CanvasPalette): string {
   const match = TOKEN_PATTERN.exec(value)
   if (!match) return value
   const token = match[1] as keyof CanvasPalette['colors']
-  return token in palette.colors ? palette.colors[token] : value
+  return Object.hasOwn(palette.colors, token) ? palette.colors[token] : value
 }
 
 function resolveValue(value: unknown, palette: CanvasPalette): unknown {

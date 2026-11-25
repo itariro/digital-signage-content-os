@@ -106,4 +106,16 @@ describe('resolveSceneColors', () => {
     expect(resolved.config.style.color).toBe('palette:unknown')
     expect(resolved.config.style.accent).toBe('#123456')
   })
+
+  it('does not resolve inherited object properties as colour tokens', () => {
+    const scene = marquee()
+    if (scene.type !== 'marquee') throw new Error('wrong scene')
+    const palette = getCanvasPalette('mono')
+    scene.config.style.color = 'palette:constructor'
+    scene.config.style.accent = 'palette:accent'
+    const resolved = resolveSceneColors(scene, palette)
+    if (resolved.type !== 'marquee') throw new Error('wrong scene')
+    expect(resolved.config.style.color).toBe('palette:constructor')
+    expect(resolved.config.style.accent).toBe(palette.colors.accent)
+  })
 })
