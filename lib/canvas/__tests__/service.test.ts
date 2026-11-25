@@ -237,21 +237,47 @@ describe('getCanvasStatus', () => {
     const { layoutId } = await seed()
     await deployCanvas({ layoutId, actor: 'op' })
     const status = await getCanvasStatus({ layoutId })
-    expect(status).toHaveLength(1)
+    expect(status).toHaveLength(3)
     expect(status[0]).toMatchObject({
-      layoutId,
-      phase: 'scheduled',
-      revision: 1,
-    })
-    expect(status[0].members).toHaveLength(3)
-    expect(status[0].members[0]).toMatchObject({
+      canvasId: layoutId,
       slotId: 's1',
       frameId: 'fa',
-      marker: 1,
-      deliveredRevision: 1,
-      reportedRevision: null,
-      reportedAt: null,
+      state: 'scheduled',
+      reportedAtMs: null,
+      revision: 1,
+      deploymentRevision: 1,
     })
-    expect(status[0].members[0].problems).toContain('No report yet')
+    const { canvasProblems, STATUS_POLL_MS } = await import('@/lib/canvas/problems')
+    expect(canvasProblems(status[0], Date.now(), STATUS_POLL_MS)).toContain('No report yet')
+  })
+
+  it('keeps the unpublished warning when a slot points at a frame with no state row', async () => {
+    const { store, layoutId } = await seed()
+    const deployed = await deployCanvas({ layoutId, actor: 'op' })
+    expect(deployed.ok).toBe(true)
+    const config = store.layouts.find((entry) => entry.id === layoutId)?.canvas
+    if (!config) throw new Error('missing canvas config')
+    config.slots[0].frameId = 'fd'
+
+    const status = await getCanvasStatus({ layoutId })
+    expect(status).toHaveLength(3)
+    expect(status[0]).toMatchObject({ slotId: 's1', frameId: 'fd', frameExists: false })
+    expect(status.every((entry) => entry.unpublishedChanges)).toBe(true)
+  })
+
+  it('does not mark a just deployed canvas unpublished with disabled scenes', async () => {
+    const { store, layoutId } = await seed()
+    const album = store.albums[0]
+    if (!album) throw new Error('missing canvas album')
+    const { emptySyncTestScene } = await import('@/lib/canvas/defaults')
+    album.scenes = [...(album.scenes ?? []), { ...emptySyncTestScene(nanoid(8)), enabled: false }]
+    album.slideshow.canvas = undefined
+
+    const deployed = await deployCanvas({ layoutId, actor: 'op' })
+    expect(deployed.ok).toBe(true)
+
+    const status = await getCanvasStatus({ layoutId })
+    expect(status).toHaveLength(3)
+    expect(status.every((entry) => entry.unpublishedChanges === false)).toBe(true)
   })
 })

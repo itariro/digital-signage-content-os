@@ -3,23 +3,20 @@ import { audit } from '@/lib/audit'
 import { getDb } from '@/lib/db'
 import { getDatabaseMode } from '@/lib/db/mode'
 import { getTables } from '@/lib/db/tables'
-import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import type {
   Album,
   CanvasConfig,
   CanvasDeployment,
   CanvasIdentify,
-  CanvasScene,
   CanvasState,
-  DeploymentAlbum,
   FrameStore,
   Layout,
 } from '@/lib/types'
+import { deploymentAlbumFromLibrary } from '@/lib/canvas/deployment-album'
 import { canvasSceneSchema } from '@/lib/canvas/schema'
 import { resolveGeometry, validateGeometry } from '@/lib/canvas/geometry'
-import { canvasLayoutPhaseFromRows, ensureCanvasLibrary, type CanvasLayoutPhase } from '@/lib/canvas/library'
+import { ensureCanvasLibrary } from '@/lib/canvas/library'
 import { leadMs } from '@/lib/canvas/lead'
-import { pollDelayMs } from '@/lib/canvas/poll'
 import {
   canvasDeploymentFloor,
   listCanvasStates,
@@ -28,6 +25,9 @@ import {
   rememberDeploymentRevision,
 } from '@/lib/canvas/state-store'
 import type { CanvasStateRow } from '@/lib/canvas/state-store'
+
+export { getCanvasStatus } from './status'
+export type { CanvasStatus, CanvasStatusRowWithState, CanvasStatusState } from './status'
 
 export type CanvasErrorCode =
   | 'E_NO_SLOTS'
@@ -81,32 +81,6 @@ export type IdentifyResult = CanvasFailure | {
   skipped: SkippedMember[]
 }
 
-export type CanvasStatusMember = {
-  slotId: string
-  frameId: string
-  name: string
-  marker: number
-  deliveredRevision: number
-  reportedRevision: number | null
-  reportedAt: string | null
-  clockOffsetMs: number | null
-  clockUncertaintyMs: number | null
-  clockQuality: 'good' | 'fair' | 'poor'
-  viewportW: number | null
-  viewportH: number | null
-  fpsAvg: number | null
-  problems: string[]
-}
-
-export type CanvasStatus = {
-  layoutId: string
-  name: string
-  phase: CanvasLayoutPhase
-  revision: number
-  members: CanvasStatusMember[]
-  skipped: SkippedMember[]
-}
-
 type Loaded = {
   store: FrameStore
   layout: Layout
@@ -128,12 +102,6 @@ async function enrolledIds(): Promise<Set<string>> {
   const tables = getTables()
   const rows = await getDb().select({ id: tables.instances.id }).from(tables.instances)
   return new Set(rows.map((row) => row.id))
-}
-
-async function frameNames(): Promise<Map<string, string>> {
-  const tables = getTables()
-  const rows = await getDb().select({ id: tables.frameDocuments.identifier, name: tables.frameDocuments.name }).from(tables.frameDocuments)
-  return new Map(rows.map((row) => [row.id, row.name]))
 }
 
 async function writeStates(updates: { instanceId: string; state: CanvasState }[]): Promise<void> {
@@ -260,13 +228,7 @@ async function deployCanvasNow(input: {
   }
   const deploymentRevision = await deploymentRevisionOf(rows, input.layoutId) + 1
   await rememberDeploymentRevision(input.layoutId, deploymentRevision)
-  const deploymentAlbum: DeploymentAlbum = {
-    id: album.id,
-    name: album.name,
-    scenes: scenes as CanvasScene[],
-    order: album.slideshow.order,
-    crossfadeMs: album.slideshow.canvas?.crossfadeMs ?? 400,
-  }
+  const deploymentAlbum = deploymentAlbumFromLibrary(album)
 
   const members: DeployMember[] = []
   const updates: { instanceId: string; state: CanvasState }[] = []
@@ -431,68 +393,4 @@ export async function identifyCanvas(input: {
     members: members.map((member) => member.frameId),
   })
   return { ok: true, until, members, skipped }
-}
-
-export async function getCanvasStatus(input: { layoutId?: string } = {}): Promise<CanvasStatus[]> {
-  const store = await ensureCanvasLibrary()
-  const now = Date.now()
-  await pruneCanvasState(now)
-  const rows = await listCanvasStates()
-  const names = await frameNames()
-  const layouts = input.layoutId
-    ? store.layouts.filter((layout) => layout.id === input.layoutId && layout.kind === 'canvas')
-    : store.layouts.filter((layout) => layout.kind === 'canvas')
-
-  return Promise.all(layouts.map(async (layout): Promise<CanvasStatus> => {
-    const config = layout.canvas ?? { arrangement: 'row', gap: 0, align: 'center', slots: [], background: '#000000', markers: 'never', notifications: 'suppress', nightMode: 'inherit', maxFps: 30 }
-    const geometry = resolveGeometry(config)
-    const revision = await deploymentRevisionOf(rows, layout.id)
-    const skipped: SkippedMember[] = []
-    const members = config.slots.map((slot, index): CanvasStatusMember => {
-      const row = rows.find((entry) => entry.instanceId === slot.frameId)
-      const marker = geometry.slots.find((resolved) => resolved.slotId === slot.id)?.marker ?? index + 1
-      const uncertainty = row?.clockUncertaintyMs ?? null
-      const clockQuality = uncertainty === null ? 'poor' : uncertainty < 20 ? 'good' : uncertainty < 50 ? 'fair' : 'poor'
-      const problems: string[] = []
-      if (!row?.reportedAt) problems.push('No report yet')
-      else if (now - row.reportedAt.getTime() > 3 * pollDelayMs(Boolean(row.data.active || row.data.pending))) problems.push('Offline')
-      const effectiveAt = row?.data.pending?.effectiveAt ?? row?.data.active?.effectiveAt ?? 0
-      if (row && row.reportedRevision !== null && row.revision > row.reportedRevision && now >= effectiveAt) {
-        problems.push('Out of date')
-      }
-      if (clockQuality === 'poor' || (uncertainty ?? 0) > 50) problems.push('Clock drift risk')
-      if (row?.viewportW && row.viewportH) {
-        const ratio = row.viewportW / row.viewportH
-        const expected = FRAME_WIDTH / FRAME_HEIGHT
-        if (Math.abs(ratio - expected) / expected > 0.01) problems.push('Wrong aspect ratio')
-      }
-      if (!slot.frameId) {
-        skipped.push({ frameId: slot.frameId, slotId: slot.id, reason: 'unassigned' })
-      }
-      return {
-        slotId: slot.id,
-        frameId: slot.frameId ?? '',
-        name: slot.frameId ? names.get(slot.frameId) ?? slot.frameId : 'Empty slot',
-        marker,
-        deliveredRevision: row?.revision ?? 0,
-        reportedRevision: row?.reportedRevision ?? null,
-        reportedAt: row?.reportedAt ? row.reportedAt.toISOString() : null,
-        clockOffsetMs: row?.clockOffsetMs ?? null,
-        clockUncertaintyMs: uncertainty,
-        clockQuality,
-        viewportW: row?.viewportW ?? null,
-        viewportH: row?.viewportH ?? null,
-        fpsAvg: row?.fpsAvg ?? null,
-        problems,
-      }
-    })
-    return {
-      layoutId: layout.id,
-      name: layout.name,
-      phase: canvasLayoutPhaseFromRows(layout.id, rows, now),
-      revision,
-      members,
-      skipped,
-    }
-  }))
 }

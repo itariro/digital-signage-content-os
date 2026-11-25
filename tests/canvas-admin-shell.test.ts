@@ -6,13 +6,14 @@ const root = path.resolve(__dirname, '..')
 const read = (relative: string) => readFileSync(path.join(root, relative), 'utf8')
 
 describe('canvas admin shell', () => {
-  it('exposes only Layouts and Albums tabs', () => {
+  it('exposes Layouts, Albums and Status tabs', () => {
     const panel = read('components/editor/canvas-admin/canvas-admin-panel.tsx')
-    expect(panel).not.toContain('Status')
     expect(panel).toContain("id: 'layouts'")
     expect(panel).toContain("id: 'albums'")
+    expect(panel).toContain("id: 'status'")
     expect(panel).toContain('<LayoutsTab')
     expect(panel).toContain('<AlbumsTab')
+    expect(panel).toContain('<StatusTab')
   })
 
   it('wires deploy release identify and saving into the layouts tab', () => {
