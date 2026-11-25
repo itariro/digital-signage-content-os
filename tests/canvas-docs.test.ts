@@ -48,4 +48,16 @@ describe('canvas operator documentation', () => {
   it('uses plain prose in the canvas guide', () => {
     expect(canvasGuide).not.toContain('—')
   })
+
+  it('does not promise a fixed lead time for the first deploy', () => {
+    expect(canvasGuide).not.toContain('waits about 15 seconds')
+  })
+
+  it('does not promise a clock sample before the first report', () => {
+    expect(canvasGuide).not.toContain('reports poor clock quality')
+  })
+
+  it('does not promise a missing slot row after revoke', () => {
+    expect(operations).not.toContain('marks the slot as missing')
+  })
 })

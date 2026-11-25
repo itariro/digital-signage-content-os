@@ -13,7 +13,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   }
   const { id } = await params
   await revokeInstance(id)
-  await deleteCanvasState(id)
+  try {
+    await deleteCanvasState(id)
+  } catch (error) {
+    console.error('canvas state cleanup failed for instance', id, error)
+  }
   await audit(outcome.actor, 'revoke_instance', 'instance', id, {})
   return NextResponse.json({ ok: true })
 }

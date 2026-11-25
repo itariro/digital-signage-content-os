@@ -58,11 +58,12 @@ export function canvasProblems(row: CanvasStatusRow, nowMs: number, pollMs: numb
     problems.push('Offline')
   }
 
+  const deliveredRevision = row.deploymentRevision ?? row.revision
   if (
     row.effectiveAtMs !== null &&
     nowMs >= row.effectiveAtMs &&
     row.reportedRevision !== null &&
-    row.reportedRevision < row.revision
+    row.reportedRevision < deliveredRevision
   ) {
     problems.push('Out of date')
   }

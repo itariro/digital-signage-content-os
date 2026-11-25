@@ -78,6 +78,11 @@ describe('canvas problem labels', () => {
     expect(canvasProblems(value, now, STATUS_POLL_MS)).toEqual(['Out of date'])
   })
 
+  it('does not flag an identify-only revision bump', () => {
+    const value = row({ revision: 3, deploymentRevision: 2, reportedRevision: 2, effectiveAtMs: 100_000 })
+    expect(canvasProblems(value, now, STATUS_POLL_MS)).toEqual([])
+  })
+
   it('flags poor clock quality', () => {
     const value = row({ clockQuality: 'poor' })
     expect(canvasProblems(value, now, STATUS_POLL_MS)).toEqual(['Clock drift risk'])

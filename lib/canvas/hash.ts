@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { deploymentAlbumFromLibrary } from '@/lib/canvas/deployment-album'
 import type { Album, CanvasConfig, CanvasDeployment, Layout } from '@/lib/types'
 
 type HashAlbum = {
@@ -49,15 +50,7 @@ export function canvasContentHash(layout: Layout, album: Album | null | undefine
       canvas: layout.canvas ?? null,
       albumId: layout.settings.albumId ?? null,
     },
-    album
-      ? {
-          id: album.id,
-          name: album.name,
-          scenes: album.scenes ?? [],
-          order: album.slideshow.order,
-          crossfadeMs: album.slideshow.canvas?.crossfadeMs ?? 0,
-        }
-      : null,
+    album ? deploymentAlbumFromLibrary(album) : null,
   )
 }
 

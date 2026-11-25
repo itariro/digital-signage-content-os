@@ -250,4 +250,20 @@ describe('getCanvasStatus', () => {
     const { canvasProblems, STATUS_POLL_MS } = await import('@/lib/canvas/problems')
     expect(canvasProblems(status[0], Date.now(), STATUS_POLL_MS)).toContain('No report yet')
   })
+
+  it('does not mark a just deployed canvas unpublished with disabled scenes', async () => {
+    const { store, layoutId } = await seed()
+    const album = store.albums[0]
+    if (!album) throw new Error('missing canvas album')
+    const { emptySyncTestScene } = await import('@/lib/canvas/defaults')
+    album.scenes = [...(album.scenes ?? []), { ...emptySyncTestScene(nanoid(8)), enabled: false }]
+    album.slideshow.canvas = undefined
+
+    const deployed = await deployCanvas({ layoutId, actor: 'op' })
+    expect(deployed.ok).toBe(true)
+
+    const status = await getCanvasStatus({ layoutId })
+    expect(status).toHaveLength(3)
+    expect(status.every((entry) => entry.unpublishedChanges === false)).toBe(true)
+  })
 })

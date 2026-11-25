@@ -8,12 +8,11 @@ import type {
   CanvasConfig,
   CanvasDeployment,
   CanvasIdentify,
-  CanvasScene,
   CanvasState,
-  DeploymentAlbum,
   FrameStore,
   Layout,
 } from '@/lib/types'
+import { deploymentAlbumFromLibrary } from '@/lib/canvas/deployment-album'
 import { canvasSceneSchema } from '@/lib/canvas/schema'
 import { resolveGeometry, validateGeometry } from '@/lib/canvas/geometry'
 import { ensureCanvasLibrary } from '@/lib/canvas/library'
@@ -229,13 +228,7 @@ async function deployCanvasNow(input: {
   }
   const deploymentRevision = await deploymentRevisionOf(rows, input.layoutId) + 1
   await rememberDeploymentRevision(input.layoutId, deploymentRevision)
-  const deploymentAlbum: DeploymentAlbum = {
-    id: album.id,
-    name: album.name,
-    scenes: scenes as CanvasScene[],
-    order: album.slideshow.order,
-    crossfadeMs: album.slideshow.canvas?.crossfadeMs ?? 400,
-  }
+  const deploymentAlbum = deploymentAlbumFromLibrary(album)
 
   const members: DeployMember[] = []
   const updates: { instanceId: string; state: CanvasState }[] = []

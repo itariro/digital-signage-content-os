@@ -19,8 +19,8 @@ own content. Nothing needs restoring.
 5. Select the album in the layout. Check Problems before deploying.
 6. Click "Identify". Confirm that the screens show markers 1, 2 and 3 in the
    order you expect.
-7. Click "Deploy". The console waits about 15 seconds so every frame can pull
-   the deployment. Frames switch at the same instant.
+7. Click "Deploy". The console chooses a shared start time far enough ahead for
+   the slowest frame to pull the deployment. Frames switch at that time.
 8. Open the Status tab. Confirm that each slot has a recent report, the same
    delivered and rendering revision, a clock quality of good or fair, and no
    problem labels.
@@ -50,8 +50,8 @@ and the Status tab are the practical checks. A kiosk with a flat battery needs a
 board battery replacement if its clock resets on every power loss.
 
 The app drops clock samples with a round trip above 3 seconds. A frame that has
-never reached the console falls back to its system clock and reports poor clock
-quality until it gets a sample.
+never reached the console falls back to its system clock. The Status tab shows
+No sample in the Clock column until the first report arrives.
 
 ## Calibration
 

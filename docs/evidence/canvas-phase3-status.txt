@@ -16,6 +16,6 @@ Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
 
 
  Test Files  2 passed (2)
-      Tests  20 passed (20)
-   Start at  20:30:00
-   Duration  700ms (tests 95%, import 2%, transform 2%, worker 1%)
+      Tests  21 passed (21)
+   Start at  20:44:15
+   Duration  669ms (tests 96%, import 2%, worker 1%, transform 1%)

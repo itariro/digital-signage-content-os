@@ -74,7 +74,7 @@ export function StatusTab({ layoutId }: { layoutId?: string }) {
   if (error instanceof Error) return <p className="text-sm text-destructive">{error.message}</p>
   if (isLoading || !data) return <p className="text-sm text-muted-foreground">Loading canvas status.</p>
 
-  const now = Date.now()
+  const now = data.serverNow
   const groups = groupRows(data.rows)
 
   if (groups.length === 0) {

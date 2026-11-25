@@ -24,6 +24,11 @@ describe('canvas status tab wiring', () => {
     expect(statusSource).toContain('canvasProblems(row, now, STATUS_POLL_MS)')
   })
 
+  it('judges freshness against the server clock', () => {
+    expect(statusSource).toContain('data.serverNow')
+    expect(statusSource).not.toContain('Date.now()')
+  })
+
   it('renders every required column', () => {
     for (const heading of ['Marker', 'Frame', 'Last seen', 'Delivered', 'Rendering', 'Clock', 'Viewport', 'FPS', 'Problems']) {
       expect(statusSource).toContain(`>${heading}</th>`)
