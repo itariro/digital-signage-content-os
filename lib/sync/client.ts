@@ -2,6 +2,7 @@ import { getDatabaseMode } from '@/lib/db/mode'
 import { getPending, markInflight, markDone, markFailed, markConflict, conflictCount, pendingCount } from './queue'
 import { API_VERSION } from './compat'
 import { localFrameId } from './ids'
+import type { CanvasAssetPayload, SyncPullOptions } from './types'
 
 export interface SyncConfig {
   endpoint: string
@@ -79,7 +80,7 @@ export async function pushPending(config: SyncConfig) {
   }
 }
 
-export async function pullRemote(config: SyncConfig, since?: string, retried = false) {
+export async function pullRemote(config: SyncConfig, since?: string, retried = false, options: SyncPullOptions = {}) {
   const { getCanvasState } = await import('@/lib/canvas/state-store')
   const { getDisplayReport } = await import('@/lib/canvas/reporter')
   const { getCanvasClock, recordClockSample } = await import('@/lib/canvas/clock-service')
@@ -94,6 +95,10 @@ export async function pullRemote(config: SyncConfig, since?: string, retried = f
   if (since) url.searchParams.set('since', since)
   url.searchParams.set('apiVersion', API_VERSION)
   url.searchParams.set('cvRev', String(local?.revision ?? 0))
+  if (options.caHave?.length) url.searchParams.set('caHave', options.caHave.join(','))
+  if (options.canvasAssetRefs?.length) {
+    url.searchParams.set('canvasAssetRefs', options.canvasAssetRefs.join(','))
+  }
   if (report?.appliedRevision !== null && report?.appliedRevision !== undefined) url.searchParams.set('cvApplied', String(report.appliedRevision))
   if (report?.viewportW !== null && report?.viewportW !== undefined) url.searchParams.set('vw', String(report.viewportW))
   if (report?.viewportH !== null && report?.viewportH !== undefined) url.searchParams.set('vh', String(report.viewportH))
@@ -107,10 +112,15 @@ export async function pullRemote(config: SyncConfig, since?: string, retried = f
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${config.token}` } })
   const t1 = Date.now()
   if (res.status === 410 && !retried) {
-    return pullRemote(config, undefined, true)
+    return pullRemote(config, undefined, true, options)
   }
   if (!res.ok) throw new Error(`pull failed: ${res.status}`)
   const data = await res.json()
+
+  for (const asset of (data.canvasAssets ?? []) as CanvasAssetPayload[]) {
+    const { putCanvasAsset } = await import('@/lib/canvas/assets')
+    await putCanvasAsset({ hash: asset.hash, mime: asset.mime, bytes: Buffer.from(asset.dataBase64, 'base64') })
+  }
 
   if (typeof data.serverTime === 'number') {
     const sample = sampleFrom(t0, t1, data.serverTime)
@@ -137,13 +147,25 @@ export async function pullRemote(config: SyncConfig, since?: string, retried = f
   return data.cursor as string
 }
 
+async function canvasPullOptions(instanceId: string): Promise<SyncPullOptions> {
+  const { listCanvasAssets, collectCanvasAssetRefs } = await import('@/lib/canvas/assets')
+  const { getCanvasState } = await import('@/lib/canvas/state-store')
+  const caHave = (await listCanvasAssets()).map((record) => record.hash)
+  const state = await getCanvasState(instanceId)
+  const activeConfig = state?.data.active?.config
+  const canvasAssetRefs = activeConfig
+    ? Array.from(collectCanvasAssetRefs(activeConfig)).map((hash) => `canvas-asset:${hash}`)
+    : []
+  return { caHave, canvasAssetRefs }
+}
+
 export async function runSyncCycle(config: SyncConfig, checkpoint?: string) {
   if (running) return
   running = true
   try {
     await pushPending(config)
     const since = checkpoint ?? await loadCheckpoint(config.instanceId)
-    const cursor = await pullRemote(config, since)
+    const cursor = await pullRemote(config, since, false, await canvasPullOptions(config.instanceId))
     if (cursor) await saveCheckpoint(config.instanceId, cursor)
     lastSyncAt = new Date().toISOString()
     lastError = null

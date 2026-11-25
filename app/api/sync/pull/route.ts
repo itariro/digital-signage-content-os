@@ -17,6 +17,8 @@ const querySchema = z.object({
   vw: z.coerce.number().int().optional(),
   vh: z.coerce.number().int().optional(),
   fps: z.coerce.number().optional(),
+  caHave: z.string().max(8000).optional(),
+  canvasAssetRefs: z.string().max(16000).optional(),
 })
 
 export const dynamic = 'force-dynamic'
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams))
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'invalid query' }, { status: 400 })
 
-  const { since, apiVersion, cvRev, cvApplied, cvOff, cvUnc, vw, vh, fps } = parsed.data
+  const { since, apiVersion, cvRev, cvApplied, cvOff, cvUnc, vw, vh, fps, caHave, canvasAssetRefs } = parsed.data
   if (!checkCompatibility(apiVersion, API_VERSION)) {
     return NextResponse.json({ error: 'incompatible api version' }, { status: 426 })
   }
@@ -46,6 +48,8 @@ export async function GET(request: NextRequest) {
           fpsAvg: fps ?? null,
         }
       : undefined,
+    caHave: caHave ? caHave.split(',').filter(Boolean) : [],
+    canvasAssetRefs: canvasAssetRefs ? canvasAssetRefs.split(',').filter(Boolean) : [],
   })
 
   const body = {
@@ -54,6 +58,7 @@ export async function GET(request: NextRequest) {
     resolvedConflicts: outcome.resolvedConflicts,
     serverTime: outcome.serverTime,
     ...(outcome.canvas ? { canvas: outcome.canvas } : {}),
+    ...(outcome.canvasAssets ? { canvasAssets: outcome.canvasAssets } : {}),
   }
   if (outcome.expired) return NextResponse.json({ ...body, changes: [], reset: true }, { status: 410 })
   return NextResponse.json(body)

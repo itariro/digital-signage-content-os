@@ -2,8 +2,10 @@ import { and, eq, gt } from 'drizzle-orm'
 import { getDb, type Database } from '@/lib/db'
 import { getDatabaseMode } from '@/lib/db/mode'
 import { getTables } from '@/lib/db/tables'
-import { getCanvasState, recordCanvasReport, type MemberReport } from '@/lib/canvas/state-store'
+import { getCanvasState, recordCanvasReport } from '@/lib/canvas/state-store'
+import { collectCanvasAssetRefs, getCanvasAsset, listCanvasAssets } from '@/lib/canvas/assets'
 import { recordConflict } from './conflicts'
+import type { SyncPullOptions } from './types'
 
 export interface PushChange {
   idempotencyKey: string
@@ -27,6 +29,7 @@ export interface PullOutcome {
   resolvedConflicts: Array<{ entityId: string; resolution: string }>
   serverTime: number
   canvas?: { revision: number; state: import('@/lib/types').CanvasState | null }
+  canvasAssets?: Array<{ hash: string; mime: string; dataBase64: string }>
 }
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
@@ -159,7 +162,7 @@ export async function handlePush(authedInstanceId: string, changes: PushChange[]
 export async function handlePull(
   authedInstanceId: string,
   since?: string,
-  options: { cvRev?: number; report?: MemberReport } = {},
+  options: SyncPullOptions = {},
 ): Promise<PullOutcome> {
   const db = getDb()
   const tables = getTables()
@@ -222,5 +225,32 @@ export async function handlePull(
     console.error('canvas state read failed:', e)
   }
 
-  return { changes, cursor, resolvedConflicts, serverTime: Date.now(), ...(canvas ? { canvas } : {}) }
+  const have = new Set(options.caHave ?? [])
+  const wanted = new Set<string>()
+  const refs = options.canvasAssetRefs?.length
+    ? options.canvasAssetRefs.map((ref) => ref)
+    : Array.from(collectCanvasAssetRefs(changes.map((change) => change.payload)))
+  for (const ref of refs) {
+    const hash = ref.startsWith('canvas-asset:') ? ref.slice('canvas-asset:'.length) : ref
+    if (/^[a-f0-9]{64}$/.test(hash) && !have.has(hash)) wanted.add(hash)
+  }
+  let canvasAssets: PullOutcome['canvasAssets']
+  if (wanted.size > 0) {
+    const records = await listCanvasAssets()
+    canvasAssets = records
+      .filter((record) => wanted.has(record.hash))
+      .map((record) => {
+        const bytes = getCanvasAsset(record.hash)
+        if (!bytes) return null
+        return { hash: record.hash, mime: record.mime, dataBase64: bytes.toString('base64') }
+      })
+      .filter((item): item is { hash: string; mime: string; dataBase64: string } => item !== null)
+    if (canvasAssets.length === 0) canvasAssets = undefined
+  }
+
+  return {
+    changes, cursor, resolvedConflicts, serverTime: Date.now(),
+    ...(canvas ? { canvas } : {}),
+    ...(canvasAssets ? { canvasAssets } : {}),
+  }
 }
