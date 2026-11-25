@@ -22,6 +22,8 @@ const CATALOG_FIELDS: SceneField[] = [
   { key: 'periodSec', label: 'Period (seconds)', kind: 'number', min: 0.5, max: 3600, step: 0.5 },
   { key: 'epochMs', label: 'Clock epoch (ms)', kind: 'number', min: 0, max: 8640000000000000, step: 1000 },
   { key: 'remainingMs', label: 'Countdown (ms)', kind: 'number', min: 0, max: 8640000000000000, step: 1000 },
+  { key: 'fontFamily', label: 'Font', kind: 'text', maxLength: 40 },
+  { key: 'fontSize', label: 'Font size', kind: 'number', min: 8, max: 500, step: 4 },
   { key: 'opacity', label: 'Opacity', kind: 'number', min: 0.05, max: 1, step: 0.05 },
 ]
 
