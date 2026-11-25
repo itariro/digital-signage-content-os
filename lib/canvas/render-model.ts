@@ -11,6 +11,8 @@ export type CanvasRenderModel = {
   render: SceneRenderState | null
   identify: CanvasIdentify | null
   slotRect: string | null
+  bezelMode: 'show' | 'hide' | 'collapse'
+  gaps: Array<{ x: number; y: number; w: number; h: number }>
 }
 
 /**
@@ -82,5 +84,8 @@ export function canvasRenderModel(
     }
   }
 
-  return { takeover, plan, render, identify, slotRect }
+  const bezelMode = takeover?.deployment.config.bezelMode ?? 'show'
+  const gaps = bezelMode === 'collapse' ? [] : (takeover?.geometry.gaps ?? [])
+
+  return { takeover, plan, render, identify, slotRect, bezelMode, gaps }
 }

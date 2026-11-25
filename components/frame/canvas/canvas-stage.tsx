@@ -5,6 +5,7 @@ import type { NightMode } from '@/lib/types'
 import type { CanvasClock } from '@/lib/canvas/clock'
 import type { CanvasRenderModel } from '@/lib/canvas/render-model'
 import { canvasLoopKey, fitScale } from '@/lib/canvas/stage'
+import { rotatedSlotStyle } from '@/lib/canvas/geometry'
 import { sceneAt } from '@/lib/canvas/scheduler'
 import { seedFromString } from '@/lib/canvas/prng'
 import { sceneStateAt } from '@/lib/canvas/scenes/registry'
@@ -13,6 +14,7 @@ import { NightOverlay } from '@/components/frame/frame-scene'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { CanvasFrameScene, paintScene, type CanvasElementRefs } from './canvas-frame-scene'
 import { IdentifyOverlay } from './identify-overlay'
+import { CanvasBezelOverlay } from './canvas-bezel-overlay'
 
 function subscribeViewport(callback: () => void) {
   window.addEventListener('resize', callback)
@@ -119,6 +121,7 @@ export function CanvasStage({
 
   const { deployment, geometry, slot } = takeover
   const scale = fitScale(slot.w, slot.h, viewport.width, viewport.height)
+  const rotationStyle = rotatedSlotStyle(slot)
   if (scale <= 0) return null
 
   const config = deployment.config
@@ -149,7 +152,12 @@ export function CanvasStage({
     >
       <div
         className="absolute left-0 top-0 origin-top-left overflow-hidden"
-        style={{ width: slot.w, height: slot.h, transform: `scale(${scale})` }}
+        style={{
+          width: slot.w,
+          height: slot.h,
+          transform: `${rotationStyle.transform ? `${rotationStyle.transform} ` : ''}scale(${scale})`,
+          transformOrigin: rotationStyle.transformOrigin,
+        }}
       >
         <div
           style={{
@@ -195,6 +203,7 @@ export function CanvasStage({
         {night && <NightOverlay night={night} />}
         {config.notifications === 'show' && <FrameNoticeLayer />}
       </div>
+      <CanvasBezelOverlay mode={model.bezelMode} gaps={model.gaps} />
     </div>
   )
 }

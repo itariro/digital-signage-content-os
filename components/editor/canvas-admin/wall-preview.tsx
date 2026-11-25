@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ToggleField } from '@/components/editor/controls'
 import type { CanvasConfig, CanvasScene, DeploymentAlbum, Layout } from '@/lib/types'
-import { resolveGeometry, type FrameScreenSize } from '@/lib/canvas/geometry'
+import { resolveGeometry, rotatedSlotStyle, type FrameScreenSize } from '@/lib/canvas/geometry'
 import { seedFromString } from '@/lib/canvas/prng'
 import { sceneAt } from '@/lib/canvas/scheduler'
 import { computeSceneState } from '@/lib/canvas/scenes/registry'
 import { CanvasFrameScene, paintScene, type CanvasElementRefs } from '@/components/frame/canvas/canvas-frame-scene'
+import { CanvasBezelOverlay } from '@/components/frame/canvas/canvas-bezel-overlay'
 
 export function WallPreview({ layout, album, frames = [] }: { layout: Layout; album: DeploymentAlbum | null; frames?: FrameScreenSize[] }) {
   const config = layout.canvas as CanvasConfig
   const geometry = useMemo(() => resolveGeometry(config, frames), [config, frames])
+  const bezelMode = config.bezelMode ?? 'show'
+  const bezel = { mode: bezelMode, gaps: bezelMode === 'collapse' ? [] : geometry.gaps }
   const [showBezels, setShowBezels] = useState(true)
   const [consoleStart, setConsoleStart] = useState<number | null>(null)
   const [localEpoch, setLocalEpoch] = useState<number | null>(null)
@@ -85,13 +88,21 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
           {geometry.slots.map((slot) => {
             const assigned = config.slots.find((entry) => entry.id === slot.slotId)?.frameId ?? null
             const refs = refsBySlot.current.get(slot.slotId) ?? new Map<string, HTMLElement | null>()
+            const rotationStyle = rotatedSlotStyle(slot)
             return (
               <div
                 key={slot.slotId}
                 className="absolute overflow-hidden"
                 style={{ left: slot.x, top: slot.y, width: slot.w, height: slot.h, outline: showBezels ? '2px solid rgba(255,255,255,.35)' : 'none' }}
               >
-                <div style={{ transform: `scale(${slot.scale})`, transformOrigin: 'top left', width: slot.w / slot.scale, height: slot.h / slot.scale }}>
+                <div
+                  style={{
+                    transform: `${rotationStyle.transform ? `${rotationStyle.transform} ` : ''}scale(${slot.scale})`,
+                    transformOrigin: rotationStyle.transformOrigin,
+                    width: slot.w / slot.scale,
+                    height: slot.h / slot.scale,
+                  }}
+                >
                   {model && <CanvasFrameScene model={model} geometry={geometry} slot={slot} refs={refs} />}
                 </div>
                 <span className="absolute bottom-1 left-1 bg-black/60 px-1 text-[24px] leading-tight text-white">
@@ -100,6 +111,7 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
               </div>
             )
           })}
+          <CanvasBezelOverlay mode={bezel.mode} gaps={bezel.gaps} />
         </div>
       </div>
       <p className="text-[11px] text-muted-foreground">
