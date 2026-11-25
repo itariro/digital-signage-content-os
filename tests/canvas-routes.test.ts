@@ -45,7 +45,30 @@ describe('GET /api/canvas/state', () => {
       revision: 0,
       state: null,
       clock: { offsetMs: 0, uncertaintyMs: 0, quality: 'poor', source: 'system', sampledAt: null },
+      frame: null,
     })
+  })
+
+  it('returns enrolled frame screen dimensions', async () => {
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const db = getDb()
+    const tables = getTables()
+    await db.insert(tables.frameDocuments).values({
+      id: nanoid(10),
+      identifier: 'frame-a',
+      name: 'Frame A',
+      data: { activeId: null, layouts: [], presets: [], customFonts: [], schedule: { enabled: false, rules: [], night: { enabled: false } }, albums: [], experiences: { enabled: false, rules: [], settings: { schoolHolidays: [] } } },
+      screenWidthMm: 344,
+      screenHeightMm: 193,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    const { GET } = await import('@/app/api/canvas/state/route')
+    const { NextRequest } = await import('next/server')
+    const res = await GET(new NextRequest('http://localhost/api/canvas/state?frame=frame-a'))
+    const body = await res.json()
+    expect(body.frame).toEqual({ screenWidthMm: 344, screenHeightMm: 193 })
   })
 
   it('reads the local row for the requested frame', async () => {

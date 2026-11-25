@@ -37,7 +37,7 @@ function trimCache(): void {
  * Replay small self-playing games from the start of the current 600-tick
  * round. The round start is a pure function of `(key, seed, round)`, so call
  * history never changes the result and a call never replays more than one
- * round. `step` receives a seeded random source instead of Math.random.
+ * round. `step` receives a seeded random source instead of ambient randomness.
  */
 export function gameStateAt<S>(params: GameParams<S>): GameStep<S> {
   const stepMs = Math.max(1, params.stepMs)
