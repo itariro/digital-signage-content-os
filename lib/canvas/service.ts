@@ -14,7 +14,7 @@ import type {
 } from '@/lib/types'
 import { deploymentAlbumFromLibrary } from '@/lib/canvas/deployment-album'
 import { canvasSceneSchema } from '@/lib/canvas/schema'
-import { resolveGeometry, validateGeometry } from '@/lib/canvas/geometry'
+import { resolveGeometry, validateGeometry, canvasPhysicalIssues, type FrameScreenSize } from '@/lib/canvas/geometry'
 import { ensureCanvasLibrary } from '@/lib/canvas/library'
 import { leadMs } from '@/lib/canvas/lead'
 import {
@@ -104,6 +104,31 @@ async function enrolledIds(): Promise<Set<string>> {
   return new Set(rows.map((row) => row.id))
 }
 
+export function assertCanvasDeployable(config: CanvasConfig, frames: FrameScreenSize[]): void {
+  const missing = canvasPhysicalIssues(config, frames)
+  if (missing.length > 0) {
+    throw new Error(`missing physical screen dimensions: ${missing.join(', ')}`)
+  }
+}
+
+async function frameScreenSizes(ids: Set<string>): Promise<FrameScreenSize[]> {
+  const tables = getTables()
+  const rows = await getDb()
+    .select({
+      id: tables.frameDocuments.identifier,
+      screenWidthMm: tables.frameDocuments.screenWidthMm,
+      screenHeightMm: tables.frameDocuments.screenHeightMm,
+    })
+    .from(tables.frameDocuments)
+  return rows
+    .filter((row) => ids.has(row.id))
+    .map((row) => ({
+      id: row.id,
+      screenWidthMm: row.screenWidthMm,
+      screenHeightMm: row.screenHeightMm,
+    }))
+}
+
 async function writeStates(updates: { instanceId: string; state: CanvasState }[]): Promise<void> {
   if (updates.length === 0) return
   if (getDatabaseMode() === 'postgres') {
@@ -179,6 +204,7 @@ async function deployCanvasNow(input: {
     return fail('E_UNASSIGNED_SLOT', 'Every slot needs a frame before going live')
   }
   const enrolled = await enrolledIds()
+  assertCanvasDeployable(config, await frameScreenSizes(enrolled))
   for (const slot of config.slots) {
     if (slot.frameId && !enrolled.has(slot.frameId)) {
       return fail('E_UNKNOWN_FRAME', 'A slot names a frame that is not enrolled', { frameId: slot.frameId })

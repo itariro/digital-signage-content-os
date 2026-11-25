@@ -8,6 +8,7 @@ import { nanoid } from 'nanoid'
 import type { Album, CanvasConfig, CanvasSlot, FrameStore, Layout } from '@/lib/types'
 import type { CanvasFrame } from '@/hooks/use-canvas-library'
 import { WallPreview } from './wall-preview'
+import { CanvasExtrasPanel } from './canvas-extras-panel'
 
 const ALIGN_OPTIONS = [
   { value: 'start', label: 'Start' },
@@ -96,6 +97,7 @@ export function ArrangementEditor({
         <SliderField label="Grid columns" value={config.gridColumns ?? 2} min={1} max={8} step={1} onChange={(v) => updateConfig({ ...config, gridColumns: v })} />
       )}
       <SliderField label="Gap" value={config.gap} min={0} max={600} step={2} suffix="px" onChange={(v) => updateConfig({ ...config, gap: v })} />
+      <CanvasExtrasPanel config={config} frames={frameSizes} onChange={updateConfig} />
       <SelectField label="Alignment" value={config.align} options={ALIGN_OPTIONS} onChange={(v) => updateConfig({ ...config, align: v as CanvasConfig['align'] })} />
 
       <section aria-label="Frames" className="flex flex-col gap-2">
