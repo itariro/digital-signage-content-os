@@ -60,6 +60,8 @@ export function CanvasStage({
   clockRef.current = clock.offsetMs
   const sceneRef = useRef(scene)
   sceneRef.current = scene
+  const modelRef = useRef(model)
+  modelRef.current = model
   const loopKey = canvasLoopKey(takeover, clock.offsetMs)
 
   useEffect(() => {
@@ -68,6 +70,12 @@ export function CanvasStage({
     const { deployment, geometry, slot } = current
     const album = deployment.album
     const seed = album ? seedFromString(album.id) : 0
+    const initialModel = modelRef.current
+    const initialLayers = initialModel.layers
+    layerKeyRef.current = layerChangeKey(initialLayers)
+    setLayers(initialLayers)
+    sceneRef.current = initialModel.plan?.scene ?? null
+    setScene(initialModel.plan?.scene ?? null)
     let handle = 0
     let last = 0
     let frames = 0

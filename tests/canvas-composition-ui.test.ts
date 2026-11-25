@@ -39,3 +39,25 @@ describe('canvas composition options', () => {
     expect(editor).not.toContain('onChange({ ...album')
   })
 })
+
+describe('canvas PR61 fixes', () => {
+  const hook = readFileSync(path.join(root, 'hooks/use-canvas-library.ts'), 'utf8')
+  const stage = readFileSync(path.join(root, 'components/frame/canvas/canvas-stage.tsx'), 'utf8')
+  const templateService = readFileSync(path.join(root, 'lib/canvas/template-service.ts'), 'utf8')
+
+  it('saves composition fields and syncs playback settings to layer zero', () => {
+    expect(hook).toContain('layers: album.layers')
+    expect(hook).toContain('transition: album.transition')
+    expect(hook).toContain('paletteId: album.paletteId')
+    expect(editor).toContain('order, crossfadeMs')
+  })
+
+  it('refreshes render models on redeploy and guards template creation', () => {
+    expect(stage).toContain('modelRef.current = model')
+    expect(stage).toContain('layerKeyRef.current = layerChangeKey(initialLayers)')
+    expect(albums).toContain('templateBusyRef.current')
+    expect(albums).toContain('disabled={templateBusy}')
+    expect(picker).toContain('disabled={disabled}')
+    expect(templateService).toContain('deleteAlbum?.(album.id)')
+  })
+})

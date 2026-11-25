@@ -70,9 +70,13 @@ export function AlbumEditor({
 
   function changeAlbum(next: Album) {
     const canvas = next as CanvasAlbum
+    const order = canvas.slideshow.order
+    const crossfadeMs = canvas.slideshow.canvas?.crossfadeMs ?? 400
     const layers = canvas.layers?.length
-      ? canvas.layers.map((layer, index) => index === 0 ? { ...layer, scenes: canvas.scenes } : layer)
-      : undefined
+      ? canvas.layers.map((layer, index) =>
+          index === 0 ? { ...layer, scenes: canvas.scenes, order, crossfadeMs } : layer,
+        )
+      : [{ id: 'base', name: 'Base', enabled: true, scenes: canvas.scenes ?? [], order, crossfadeMs }]
     onChange(syncCanvasAlbumLayers({ ...canvas, layers }) as Album)
   }
 

@@ -6,9 +6,11 @@ import { CANVAS_TEMPLATES } from '@/lib/canvas/templates'
 export function TemplatePicker({
   onPick,
   onClose,
+  disabled = false,
 }: {
   onPick: (id: CanvasTemplateId) => void
   onClose: () => void
+  disabled?: boolean
 }) {
   return (
     <div className="mt-3 rounded-md border border-border bg-card p-3" role="group" aria-label="Starter shows">
@@ -23,7 +25,8 @@ export function TemplatePicker({
           <li key={template.id}>
             <button
               type="button"
-              className="w-full rounded border border-border px-3 py-2 text-left text-sm hover:bg-muted"
+              className="w-full rounded border border-border px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={disabled}
               onClick={() => onPick(template.id)}
             >
               <span className="block font-medium">{template.name}</span>

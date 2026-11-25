@@ -93,7 +93,7 @@ export function layerRendersAt(
       ...planned,
       render,
       mask,
-      clipPath: transitionClipPath(kind, mask, direction),
+      clipPath: transitionClipPath(kind, mask, direction, slot, geometry),
     }
   })
 }

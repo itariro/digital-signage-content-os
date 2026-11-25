@@ -112,17 +112,38 @@ describe('transitionMaskAt', () => {
 })
 
 describe('transitionClipPath', () => {
-  it('clips in the direction of travel', () => {
-    // One slot keeps coverage equal to progress: two slots spread the wall
-    // front over 2160 px, so p=0.25 would cover half of the left frame.
+  it('clips in wall coordinates for a single slot', () => {
     const single = resolveGeometry(config(0, 1))
-    const mask = transitionMaskAt('wipe', 0.25, single.slots[0], single)
-    expect(transitionClipPath('none', mask, 'left')).toBe('none')
-    expect(transitionClipPath('wipe', mask, 'left')).toBe('inset(0 75% 0 0)')
-    expect(transitionClipPath('wipe', mask, 'right')).toBe('inset(0 0 0 75%)')
-    expect(transitionClipPath('wipe', mask, 'up')).toBe('inset(0 0 75% 0)')
-    expect(transitionClipPath('wipe', mask, 'down')).toBe('inset(75% 0 0 0)')
-    expect(transitionClipPath('chase', mask, 'left')).toBe('inset(0 75% 0 0)')
-    expect(transitionClipPath('iris', mask, 'left')).toMatch(/^circle\(37\.5% at 50% 50%\)$/)
+    const slot = single.slots[0]
+    expect(transitionClipPath('none', transitionMaskAt('wipe', 0.25, slot, single, 'left'), 'left', slot, single)).toBe('none')
+    expect(transitionClipPath('wipe', transitionMaskAt('wipe', 0.25, slot, single, 'left'), 'left', slot, single)).toBe('inset(0 75% 0 0)')
+    expect(transitionClipPath('wipe', transitionMaskAt('wipe', 0.25, slot, single, 'right'), 'right', slot, single)).toBe('inset(0 0 0 75%)')
+    expect(transitionClipPath('wipe', transitionMaskAt('wipe', 0.25, slot, single, 'up'), 'up', slot, single)).toBe('inset(0 0 75% 0)')
+    expect(transitionClipPath('wipe', transitionMaskAt('wipe', 0.25, slot, single, 'down'), 'down', slot, single)).toBe('inset(75% 0 0 0)')
+    expect(transitionClipPath('chase', transitionMaskAt('chase', 0.25, slot, single, 'left'), 'left', slot, single)).toBe('inset(0 75% 0 0)')
+    const irisMask = transitionMaskAt('iris', 0.25, slot, single, 'left')
+    expect(transitionClipPath('iris', irisMask, 'left', slot, single)).toBe(
+      `circle(${irisMask.radius}px at ${single.width / 2}px ${single.height / 2}px)`,
+    )
+  })
+
+  it('keeps a wipe wall-relative across two frames', () => {
+    const two = resolveGeometry(config(0, 2))
+    const [left, right] = two.slots
+    const maskLeft = transitionMaskAt('wipe', 0.25, left, two, 'left')
+    const maskRight = transitionMaskAt('wipe', 0.25, right, two, 'left')
+    expect(transitionClipPath('wipe', maskLeft, 'left', left, two)).toBe('inset(0 75% 0 0)')
+    expect(transitionClipPath('wipe', maskRight, 'left', right, two)).toBe('inset(0 75% 0 0)')
+  })
+
+  it('opens an iris from wall center even when slot corners are equidistant', () => {
+    const single = resolveGeometry(config(0, 1))
+    const slot = single.slots[0]
+    const mid = transitionMaskAt('iris', 0.5, slot, single)
+    expect(mid.coverage).toBeGreaterThan(0)
+    expect(mid.coverage).toBeLessThan(1)
+    expect(transitionClipPath('iris', mid, 'left', slot, single)).toBe(
+      `circle(${mid.radius}px at ${single.width / 2}px ${single.height / 2}px)`,
+    )
   })
 })

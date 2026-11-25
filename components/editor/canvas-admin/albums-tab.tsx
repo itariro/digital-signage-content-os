@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { mutate as revalidateAll } from 'swr'
 import { toast } from 'sonner'
 import { EditorButton } from '@/components/editor/controls'
@@ -23,10 +23,15 @@ export function AlbumsTab() {
   const [busy, setBusy] = useState(false)
   const [templateOpen, setTemplateOpen] = useState(false)
   const [templateError, setTemplateError] = useState<string | null>(null)
+  const [templateBusy, setTemplateBusy] = useState(false)
+  const templateBusyRef = useRef(false)
   const visibleAlbums = useMemo(() => store.albums.filter((album) => album.theme === 'canvas'), [store.albums])
   const geometry = useMemo(() => resolveGeometry(emptyCanvasConfig()), [])
 
   const pickTemplate = async (id: CanvasTemplateId) => {
+    if (templateBusyRef.current) return
+    templateBusyRef.current = true
+    setTemplateBusy(true)
     setTemplateError(null)
     try {
       await createCanvasTemplate(id, consoleTemplateWriteClient())
@@ -34,6 +39,9 @@ export function AlbumsTab() {
       await revalidateAll(() => true)
     } catch (error) {
       setTemplateError(error instanceof Error ? error.message : 'Could not create the starter show')
+    } finally {
+      templateBusyRef.current = false
+      setTemplateBusy(false)
     }
   }
 
@@ -101,7 +109,7 @@ export function AlbumsTab() {
         <EditorButton type="button" variant="secondary" onClick={() => void create()} disabled={busy}>New album</EditorButton>
       </div>
       {templateOpen && (
-        <TemplatePicker onPick={(id) => void pickTemplate(id)} onClose={() => setTemplateOpen(false)} />
+        <TemplatePicker disabled={templateBusy} onPick={(id) => void pickTemplate(id)} onClose={() => setTemplateOpen(false)} />
       )}
       {templateError && <p className="mt-2 text-sm text-red-500">{templateError}</p>}
       <ul className="flex flex-col gap-2">

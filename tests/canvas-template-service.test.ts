@@ -41,6 +41,29 @@ describe('createCanvasTemplate', () => {
     expect(templateDocuments('wall-clock').layout.settings.albumId).toBeNull()
   })
 
+  it('deletes the created album when template creation fails', async () => {
+    const calls: string[] = []
+    const client = {
+      createAlbum: async () => {
+        calls.push('album:create')
+        return { id: 'album-1' }
+      },
+      updateAlbum: async () => {
+        calls.push('album:update')
+      },
+      createLayout: async () => {
+        calls.push('layout:create')
+        throw new Error('layout limit')
+      },
+      deleteAlbum: async (id: string) => {
+        calls.push(`album:delete:${id}`)
+      },
+    }
+
+    await expect(createCanvasTemplate('hello-wall', client)).rejects.toThrow('layout limit')
+    expect(calls).toEqual(['album:create', 'album:update', 'layout:create', 'album:delete:album-1'])
+  })
+
   it('consoleTemplateWriteClient targets the canvas library frame', async () => {
     const fetchMock = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'album-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
