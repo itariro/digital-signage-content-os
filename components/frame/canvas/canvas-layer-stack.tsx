@@ -14,6 +14,18 @@ export function refsForLayer(
   return refs
 }
 
+/** Animated wrapper opacity, including the layer's own configured multiplier. */
+export function layerOpacity(layer: LayerRender): number {
+  return layer.opacity * (layer.plan?.fade ?? 1)
+}
+
+/** Change key for the mounted layer set: ids and scenes, not fade or mask. */
+export function layerChangeKey(layers: LayerRender[]): string {
+  return layers
+    .map((layer) => JSON.stringify([layer.layerId, layer.plan?.scene.id ?? '']))
+    .join('|')
+}
+
 export function CanvasLayerStack({
   layers,
   geometry,
@@ -42,7 +54,7 @@ export function CanvasLayerStack({
             style={{
               position: 'absolute',
               inset: 0,
-              opacity: layer.opacity * (layer.plan?.fade ?? 1),
+              opacity: layerOpacity(layer),
               clipPath: layer.clipPath,
             }}
           >

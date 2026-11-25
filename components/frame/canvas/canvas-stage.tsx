@@ -13,7 +13,7 @@ import { fontStack } from '@/lib/fonts'
 import { NightOverlay } from '@/components/frame/frame-scene'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { paintScene, type CanvasElementRefs } from './canvas-frame-scene'
-import { CanvasLayerStack, refsForLayer } from './canvas-layer-stack'
+import { CanvasLayerStack, layerChangeKey, layerOpacity, refsForLayer } from './canvas-layer-stack'
 import { IdentifyOverlay } from './identify-overlay'
 
 function subscribeViewport(callback: () => void) {
@@ -52,7 +52,7 @@ export function CanvasStage({
   const sceneOpacityRef = useRef<HTMLDivElement | null>(null)
   const [scene, setScene] = useState(() => model.plan?.scene ?? null)
   const [layers, setLayers] = useState(() => model.layers)
-  const layerSceneIdsRef = useRef(model.layers.map((layer) => layer.plan?.scene.id ?? ''))
+  const layerKeyRef = useRef(layerChangeKey(model.layers))
   const takeover = model.takeover
   const takeoverRef = useRef(takeover)
   takeoverRef.current = takeover
@@ -83,15 +83,14 @@ export function CanvasStage({
       const t = Date.now() + clockRef.current - deployment.effectiveAt
       const plan = album && t >= 0 ? sceneAt(album, seed, t, album.crossfadeMs) : null
       const plans = album && t >= 0 ? layerRendersAt(album, seed, Math.max(0, t), geometry, slot) : []
-      const sceneIds = plans.map((layer) => layer.plan?.scene.id ?? '')
+      const key = layerChangeKey(plans)
 
       if (plan && plan.scene.id !== sceneRef.current?.id) {
         sceneRef.current = plan.scene
         setScene(plan.scene)
       }
-      if (sceneIds.some((id, index) => id !== layerSceneIdsRef.current[index])) {
-        layerSceneIdsRef.current = sceneIds
-        refsByLayer.current.clear()
+      if (key !== layerKeyRef.current) {
+        layerKeyRef.current = key
         setLayers(plans)
       }
 
@@ -103,8 +102,7 @@ export function CanvasStage({
         const wrapper = layerOpacityRefs.current.get(layer.layerId)
         if (!wrapper) continue
         wrapper.style.clipPath = layer.clipPath
-        if (layer === plans[0]) continue
-        wrapper.style.opacity = String(layer.opacity * (layer.plan?.fade ?? 1))
+        wrapper.style.opacity = String(layerOpacity(layer))
       }
 
       const wall = Date.now()

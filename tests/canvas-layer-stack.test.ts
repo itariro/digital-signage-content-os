@@ -25,4 +25,17 @@ describe('canvas layer stack wiring', () => {
     expect(preview).toContain('refsByLayer={slotRefs}')
     expect(preview).toContain('layerRendersAt(')
   })
+
+  it('restyles every layer from its own plan after the legacy fade write', () => {
+    expect(stage).toContain('style.opacity = String(plan.fade)')
+    expect(stage).toContain('wrapper.style.opacity = String(layerOpacity(layer))')
+    expect(stage).not.toContain('if (layer === plans[0]) continue')
+    expect(stage.indexOf('style.opacity = String(plan.fade)'))
+      .toBeLessThan(stage.indexOf('wrapper.style.opacity = String(layerOpacity(layer))'))
+  })
+
+  it('tracks layer ids in the change key and keeps mounted refs', () => {
+    expect(stage).toContain('layerChangeKey(plans)')
+    expect(stage).not.toContain('refsByLayer.current.clear()')
+  })
 })
