@@ -44,6 +44,7 @@ describe('canvas PR61 fixes', () => {
   const hook = readFileSync(path.join(root, 'hooks/use-canvas-library.ts'), 'utf8')
   const stage = readFileSync(path.join(root, 'components/frame/canvas/canvas-stage.tsx'), 'utf8')
   const templateService = readFileSync(path.join(root, 'lib/canvas/template-service.ts'), 'utf8')
+  const wallPreview = readFileSync(path.join(root, 'components/editor/canvas-admin/wall-preview.tsx'), 'utf8')
 
   it('saves composition fields and syncs playback settings to layer zero', () => {
     expect(hook).toContain('layers: album.layers')
@@ -59,5 +60,12 @@ describe('canvas PR61 fixes', () => {
     expect(albums).toContain('disabled={templateBusy}')
     expect(picker).toContain('disabled={disabled}')
     expect(templateService).toContain('deleteAlbum?.(album.id)')
+  })
+
+  it('renders wall preview layers in a wall-sized translated container', () => {
+    expect(wallPreview).toContain('left: -slot.x')
+    expect(wallPreview).toContain('top: -slot.y')
+    expect(wallPreview).toContain('width: geometry.width')
+    expect(wallPreview).toContain('height: geometry.height')
   })
 })

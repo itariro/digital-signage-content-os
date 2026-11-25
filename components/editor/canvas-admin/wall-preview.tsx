@@ -111,15 +111,26 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
                     height: slot.h / slot.scale,
                   }}
                 >
-                  {/* CanvasLayerStack renders CanvasFrameScene once per enabled layer. */}
-                  {layers.length > 0 && (
-                    <CanvasLayerStack
-                      layers={layers}
-                      geometry={geometry}
-                      slot={slot}
-                      refsByLayer={slotRefs}
-                    />
-                  )}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: -slot.x,
+                      top: -slot.y,
+                      width: geometry.width,
+                      height: geometry.height,
+                      background: config.background,
+                    }}
+                  >
+                    {/* CanvasLayerStack renders CanvasFrameScene once per enabled layer. */}
+                    {layers.length > 0 && (
+                      <CanvasLayerStack
+                        layers={layers}
+                        geometry={geometry}
+                        slot={slot}
+                        refsByLayer={slotRefs}
+                      />
+                    )}
+                  </div>
                 </div>
                 <span className="absolute bottom-1 left-1 bg-black/60 px-1 text-[24px] leading-tight text-white">
                   {slot.marker} · {assigned ?? 'empty'}
