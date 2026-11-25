@@ -240,6 +240,7 @@ export type CanvasSlot = {
   label?: string
   offset: { x: number; y: number }
   scale: number
+  rotation?: 0 | 90 | 180 | 270
 }
 
 export type CanvasConfig = {
@@ -253,6 +254,10 @@ export type CanvasConfig = {
   notifications: 'suppress' | 'show'
   nightMode: 'inherit' | 'ignore'
   maxFps: 15 | 24 | 30 | 60
+  bezelMode?: 'show' | 'hide' | 'collapse'
+  unitMode?: 'pixels' | 'physical'
+  screenWidthMm?: number
+  screenHeightMm?: number
 }
 
 export type CanvasSceneType = 'marquee' | 'bounce' | 'pong' | 'sync-test'

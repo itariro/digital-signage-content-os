@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { hex, widgetStyleSchema } from '@/lib/widget-style-schema'
-import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
+import { FRAME_HEIGHT, FRAME_WIDTH, type CanvasState } from '@/lib/types'
+import { CATALOG_TYPES, catalogConfigSchema } from '@/lib/canvas/catalog-kit'
 
 const MAX_LOGO_BYTES = 200 * 1024
 
@@ -130,6 +131,7 @@ export const canvasSlotSchema = z.object({
   label: z.string().max(40).optional(),
   offset: z.object({ x: z.number().min(-8000).max(8000), y: z.number().min(-8000).max(8000) }).default({ x: 0, y: 0 }),
   scale: z.number().min(0.25).max(4).default(1),
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
 })
 
 export const canvasConfigSchema = z
@@ -144,6 +146,10 @@ export const canvasConfigSchema = z
     notifications: z.enum(['suppress', 'show']).default('suppress'),
     nightMode: z.enum(['inherit', 'ignore']).default('inherit'),
     maxFps: z.union([z.literal(15), z.literal(24), z.literal(30), z.literal(60)]).default(30),
+    bezelMode: z.enum(['show', 'hide', 'collapse']).default('show'),
+    unitMode: z.enum(['pixels', 'physical']).default('pixels'),
+    screenWidthMm: z.number().min(1).max(4000).optional(),
+    screenHeightMm: z.number().min(1).max(4000).optional(),
   })
   .superRefine((config, ctx) => {
     const ids = new Set<string>()
@@ -156,6 +162,9 @@ export const canvasConfigSchema = z
         frames.add(slot.frameId)
       }
     })
+    if (config.unitMode === 'physical' && (!config.screenWidthMm || !config.screenHeightMm)) {
+      ctx.addIssue({ code: 'custom', message: 'Physical units require screen dimensions', path: ['screenWidthMm'] })
+    }
   })
 
 const sceneBaseShape = {
@@ -171,6 +180,7 @@ export const canvasSceneSchema = z.discriminatedUnion('type', [
   z.object({ ...sceneBaseShape, type: z.literal('bounce'), config: bounceConfigSchema }),
   z.object({ ...sceneBaseShape, type: z.literal('pong'), config: pongConfigSchema }),
   z.object({ ...sceneBaseShape, type: z.literal('sync-test'), config: syncTestConfigSchema }),
+  z.object({ ...sceneBaseShape, type: z.enum(CATALOG_TYPES), config: catalogConfigSchema }),
 ])
 
 export const deploymentAlbumSchema = z.object({
@@ -205,11 +215,16 @@ export const canvasIdentifySchema = z.object({
   count: z.number().int().min(1).max(16),
 })
 
-export const canvasStateSchema = z.object({
+/**
+ * Task 21 widens `CanvasSceneType` once the registry can render catalog
+ * scenes. Until then the parsed value is typed as the existing CanvasState
+ * at this single boundary rather than at every consumer.
+ */
+export const canvasStateSchema: z.ZodType<CanvasState> = z.object({
   v: z.literal(1),
   active: canvasDeploymentSchema.nullable(),
   pending: canvasDeploymentSchema.nullable(),
   identify: canvasIdentifySchema.nullable(),
-})
+}) as unknown as z.ZodType<CanvasState>
 
 export const FRAME_CPX = { width: FRAME_WIDTH, height: FRAME_HEIGHT } as const
