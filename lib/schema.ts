@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ALBUM_THEMES, PRESENTATIONS, WIDGET_TYPES } from './types'
 import { hex, widgetStyleSchema } from './widget-style-schema'
+import { canvasConfigSchema, canvasSceneSchema } from './canvas/schema'
 export { widgetStyleSchema } from './widget-style-schema'
 
 const stickerLayerSchema = z.object({
@@ -105,6 +106,7 @@ export const slideshowSchema = z.object({
   backdropColor: hex,
   mosaic: mosaicSchema.optional(),
   reveal: revealSchema.optional(),
+  canvas: z.object({ crossfadeMs: z.number().int().min(0).max(3000) }).optional(),
 })
 
 const mapArtLocationSchema = z.object({
@@ -156,12 +158,40 @@ export const albumUpdateSchema = z.object({
   slideshow: slideshowSchema,
   mapArt: mapArtSettingsSchema.optional(),
   subject: subjectSchema.nullable().optional(),
+  scenes: z.array(canvasSceneSchema).max(50).optional(),
+}).superRefine((album, ctx) => {
+  const isCanvas = album.theme === 'canvas'
+  const presentationIsCanvas = album.slideshow.presentation === 'canvas'
+  const hasScenes = album.scenes !== undefined
+  if (isCanvas !== presentationIsCanvas) {
+    ctx.addIssue({ code: 'custom', message: 'Canvas albums use the canvas presentation', path: ['slideshow', 'presentation'] })
+  }
+  if (isCanvas !== hasScenes) {
+    ctx.addIssue({ code: 'custom', message: 'Canvas albums need scenes; other albums must not have them', path: ['scenes'] })
+  }
+  if (isCanvas) {
+    if (album.items.length > 0) ctx.addIssue({ code: 'custom', message: 'Canvas albums have no artwork items', path: ['items'] })
+    if (album.slideshow.transition !== 'none') ctx.addIssue({ code: 'custom', message: 'Canvas albums use transition none', path: ['slideshow', 'transition'] })
+  }
 })
 
 export const layoutInputSchema = z.object({
   name: z.string().trim().min(1).max(80),
   widgets: z.array(widgetSchema).max(60),
   settings: layoutSettingsSchema,
+  kind: z.enum(['frame', 'canvas']).optional(),
+  canvas: canvasConfigSchema.optional(),
+}).superRefine((layout, ctx) => {
+  const isCanvas = layout.kind === 'canvas'
+  if (isCanvas && !layout.canvas) {
+    ctx.addIssue({ code: 'custom', message: 'Canvas layouts need a canvas config', path: ['canvas'] })
+  }
+  if (!isCanvas && layout.canvas) {
+    ctx.addIssue({ code: 'custom', message: 'Only canvas layouts carry a canvas config', path: ['canvas'] })
+  }
+  if (isCanvas && layout.widgets.length > 0) {
+    ctx.addIssue({ code: 'custom', message: 'Canvas layouts have no widgets in phase 1', path: ['widgets'] })
+  }
 })
 
 export const presetInputSchema = z.object({
