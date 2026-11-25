@@ -47,10 +47,24 @@ type PendingDraw = {
 /** One Image per src for the whole page, so gallery loads survive scene changes. */
 const imageCache = new Map<string, HTMLImageElement>()
 const pendingBySrc = new Map<string, Map<CanvasRenderingContext2D, PendingDraw>>()
+const imageRetryCount = new Map<string, number>()
+const imageNextRetry = new Map<string, number>()
+const MAX_IMAGE_RETRIES = 3
 
 function cachedImage(src: string): HTMLImageElement {
   const existing = imageCache.get(src)
   if (existing) return existing
+  const retries = imageRetryCount.get(src) ?? 0
+  if (retries >= MAX_IMAGE_RETRIES) {
+    const failed = new Image()
+    imageCache.set(src, failed)
+    return failed
+  }
+  const nextRetryAt = imageNextRetry.get(src) ?? 0
+  if (Date.now() < nextRetryAt) {
+    const pending = new Image()
+    return pending
+  }
   const image = new Image()
   image.onload = () => {
     const pending = pendingBySrc.get(src)
@@ -59,6 +73,12 @@ function cachedImage(src: string): HTMLImageElement {
     for (const request of pending.values()) {
       executeDrawCommands(request.ctx, request.commands, request.options)
     }
+  }
+  image.onerror = () => {
+    imageCache.delete(src)
+    const next = (imageRetryCount.get(src) ?? 0) + 1
+    imageRetryCount.set(src, next)
+    imageNextRetry.set(src, Date.now() + 1000 * next)
   }
   image.src = src
   imageCache.set(src, image)
@@ -84,10 +104,8 @@ export function executeDrawCommands(
   const height = Math.max(1, Math.round(options.slot.h * dpr))
   if (ctx.canvas.width !== width) ctx.canvas.width = width
   if (ctx.canvas.height !== height) ctx.canvas.height = height
-  const tx = options.slot.x === 0 ? 0 : -options.slot.x * dpr
-  const ty = options.slot.y === 0 ? 0 : -options.slot.y * dpr
-  ctx.setTransform(dpr, 0, 0, dpr, tx, ty)
-  ctx.clearRect(options.slot.x, options.slot.y, options.slot.w, options.slot.h)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, options.slot.w, options.slot.h)
 
   for (const command of commands) {
     switch (command.kind) {
@@ -173,7 +191,18 @@ export function executeDrawCommands(
           w: command.w,
           h: command.h,
         }, command.fit ?? 'contain')
-        withOpacity(ctx, command.opacity, () => ctx.drawImage(image, box.x, box.y, box.w, box.h))
+        withOpacity(ctx, command.opacity, () => {
+          ctx.save()
+          ctx.beginPath()
+          ctx.moveTo(command.x, command.y)
+          ctx.lineTo(command.x + command.w, command.y)
+          ctx.lineTo(command.x + command.w, command.y + command.h)
+          ctx.lineTo(command.x, command.y + command.h)
+          ctx.closePath()
+          ctx.clip()
+          ctx.drawImage(image, box.x, box.y, box.w, box.h)
+          ctx.restore()
+        })
         break
       }
     }

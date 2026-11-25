@@ -3,6 +3,8 @@ import type { Align, BounceConfig, MarqueeConfig, PongConfig, SyncTestConfig } f
 import { CATALOG_TYPES, type CatalogSceneRenderState } from '@/lib/canvas/catalog-kit'
 import type { ResolvedGeometry, ResolvedSlot } from '@/lib/canvas/geometry'
 import type { SceneRenderState } from '@/lib/canvas/scenes/registry'
+import { catalogDraw } from '@/lib/canvas/catalog-draw'
+import { executeDrawCommands } from '@/lib/canvas/draw'
 import type { BounceState } from '@/lib/canvas/scenes/bounce'
 import type { MarqueeState } from '@/lib/canvas/scenes/marquee'
 import type { PongState } from '@/lib/canvas/scenes/pong'
@@ -294,8 +296,8 @@ function SyncTestView({ config, geometry, refs }: ViewProps<SyncTestConfig, Sync
   )
 }
 
-function catalogRenderer(model: CatalogSceneRenderState, slot: ResolvedSlot): ReactNode {
-  const props = { model, slot: { x: slot.x, y: slot.y, w: slot.w, h: slot.h, rotation: slot.rotation } }
+function catalogRenderer(model: CatalogSceneRenderState, slot: ResolvedSlot, refs?: CanvasElementRefs): ReactNode {
+  const props = { model, slot: { x: slot.x, y: slot.y, w: slot.w, h: slot.h, rotation: slot.rotation }, refs }
   switch (model.type) {
     case 'panorama': return <PanoramaRenderer {...props} />
     case 'gallery-wall': return <GalleryWallRenderer {...props} />
@@ -340,7 +342,7 @@ export function CanvasFrameScene({
   refs: CanvasElementRefs
 }): ReactNode {
   if ((CATALOG_TYPES as readonly string[]).includes(model.type)) {
-    return catalogRenderer(model as CatalogSceneRenderState, slot)
+    return catalogRenderer(model as CatalogSceneRenderState, slot, refs)
   }
 
   switch (model.type) {
@@ -365,7 +367,17 @@ export function paintScene(
   slot: ResolvedSlot,
   refs: CanvasElementRefs,
 ): void {
-  if ((CATALOG_TYPES as readonly string[]).includes(model.type)) return
+  if ((CATALOG_TYPES as readonly string[]).includes(model.type)) {
+    const canvas = refs.get('catalog:canvas') as HTMLCanvasElement | null
+    if (canvas) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        const reduced = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+        executeDrawCommands(ctx, catalogDraw(model as CatalogSceneRenderState), { slot: { x: slot.x, y: slot.y, w: slot.w, h: slot.h }, dpr: (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1, reducedMotion: reduced })
+      }
+    }
+    return
+  }
 
   if (model.type === 'marquee') {
     const { config, state } = model

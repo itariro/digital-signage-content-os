@@ -42,6 +42,7 @@ type CanvasSnapshot = {
   state: CanvasState | null
   clock: CanvasClock
   frame?: { screenWidthMm?: number | null; screenHeightMm?: number | null } | null
+  frames?: { id: string; screenWidthMm?: number | null; screenHeightMm?: number | null }[] | null
 }
 
 export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore: FrameStore; frameId?: string }) {
@@ -74,14 +75,13 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
   })
 
   const clockOffsetMs = canvasData?.clock.offsetMs ?? 0
+  const canvasFrames = canvasData?.frames?.length
+    ? canvasData.frames
+    : canvasData?.frame
+      ? [{ id: frameId, screenWidthMm: canvasData.frame.screenWidthMm ?? null, screenHeightMm: canvasData.frame.screenHeightMm ?? null }]
+      : [{ id: frameId, screenWidthMm: null, screenHeightMm: null }]
   const canvasModel = canvasData
-    ? canvasRenderModel(canvasData.state, Date.now(), clockOffsetMs, [
-        {
-          id: frameId,
-          screenWidthMm: canvasData.frame?.screenWidthMm ?? null,
-          screenHeightMm: canvasData.frame?.screenHeightMm ?? null,
-        },
-      ])
+    ? canvasRenderModel(canvasData.state, Date.now(), clockOffsetMs, canvasFrames)
     : null
   const nextDeadline = nextCanvasDeadlineMs(canvasData?.state ?? null, Date.now() + clockOffsetMs)
   const [, bumpCanvasDeadline] = useState(0)

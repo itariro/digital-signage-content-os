@@ -19,16 +19,10 @@ const CATALOG_FIELDS: SceneField[] = [
   { key: 'rows', label: 'Rows', kind: 'number', min: 1, max: 40, step: 1 },
   { key: 'gap', label: 'Gap', kind: 'number', min: 0, max: 2000, step: 2 },
   { key: 'size', label: 'Element size', kind: 'number', min: 4, max: 600, step: 4 },
-  { key: 'angle', label: 'Angle', kind: 'number', min: -360, max: 360, step: 5 },
   { key: 'periodSec', label: 'Period (seconds)', kind: 'number', min: 0.5, max: 3600, step: 0.5 },
-  { key: 'tileMs', label: 'Tile interval (ms)', kind: 'number', min: 100, max: 60000, step: 100 },
   { key: 'epochMs', label: 'Clock epoch (ms)', kind: 'number', min: 0, max: 8640000000000000, step: 1000 },
   { key: 'remainingMs', label: 'Countdown (ms)', kind: 'number', min: 0, max: 8640000000000000, step: 1000 },
-  { key: 'fontFamily', label: 'Font', kind: 'text', maxLength: 40 },
-  { key: 'fontSize', label: 'Font size', kind: 'number', min: 8, max: 500, step: 4 },
   { key: 'opacity', label: 'Opacity', kind: 'number', min: 0.05, max: 1, step: 0.05 },
-  { key: 'reversed', label: 'Reversed', kind: 'toggle' },
-  { key: 'trail', label: 'Trails', kind: 'toggle' },
 ]
 
 export const SCENE_FIELDS: Record<CanvasSceneType, SceneField[]> = {
@@ -42,7 +36,6 @@ export const SCENE_FIELDS: Record<CanvasSceneType, SceneField[]> = {
     { key: 'repeat', label: 'Repeat', kind: 'toggle' },
     { key: 'gap', label: 'Gap between copies', kind: 'number', min: 0, max: 4000, step: 20 },
     { key: 'lineHeight', label: 'Line height', kind: 'number', min: 20, max: 800, step: 10 },
-    { key: 'fontSize', label: 'Font size', kind: 'number', min: 20, max: 400, step: 10 },
     { key: 'align', label: 'Cross-axis align', kind: 'select', options: ALIGN },
     { key: 'crossOffset', label: 'Cross-axis offset', kind: 'number', min: -2000, max: 2000, step: 10 },
     { key: 'style.fontFamily', label: 'Font', kind: 'font' },

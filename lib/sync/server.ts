@@ -229,7 +229,13 @@ export async function handlePull(
   const wanted = new Set<string>()
   const refs = options.canvasAssetRefs?.length
     ? options.canvasAssetRefs.map((ref) => ref)
-    : Array.from(collectCanvasAssetRefs(changes.map((change) => change.payload)))
+    : [
+        ...Array.from(collectCanvasAssetRefs(changes.map((change) => change.payload))),
+        ...Array.from(collectCanvasAssetRefs(canvas?.state ?? null)),
+      ]
+  if (canvas?.state) {
+    for (const ref of collectCanvasAssetRefs(canvas.state)) refs.push(`canvas-asset:${ref}`)
+  }
   for (const ref of refs) {
     const hash = ref.startsWith('canvas-asset:') ? ref.slice('canvas-asset:'.length) : ref
     if (/^[a-f0-9]{64}$/.test(hash) && !have.has(hash)) wanted.add(hash)

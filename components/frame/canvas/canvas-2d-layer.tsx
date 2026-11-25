@@ -18,9 +18,13 @@ function getReducedMotion(): boolean {
 export function Canvas2DLayer({
   commands,
   slot,
+  refs,
+  refKey = 'catalog:canvas',
 }: {
   commands: readonly DrawCommand[]
   slot: { x: number; y: number; w: number; h: number }
+  refs?: Map<string, HTMLElement | null>
+  refKey?: string
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const reduced = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, () => false)
@@ -33,11 +37,17 @@ export function Canvas2DLayer({
     executeDrawCommands(ctx, commands, { slot, dpr: window.devicePixelRatio || 1, reducedMotion: reduced })
   }, [commands, slot.x, slot.y, slot.w, slot.h, reduced])
 
+  useEffect(() => {
+    if (!refs || !ref.current) return
+    refs.set(refKey, ref.current)
+    return () => { refs.delete(refKey) }
+  }, [refs, refKey])
+
   return (
     <canvas
       ref={ref}
       aria-hidden="true"
-      style={{ position: 'absolute', left: 0, top: 0, width: slot.w, height: slot.h }}
+      style={{ position: 'absolute', left: slot.x, top: slot.y, width: slot.w, height: slot.h }}
     />
   )
 }

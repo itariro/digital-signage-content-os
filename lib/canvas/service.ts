@@ -42,6 +42,7 @@ export type CanvasErrorCode =
   | 'E_NOT_FOUND'
   | 'E_RELEASE_AT'
   | 'E_IDENTIFY_SECONDS'
+  | 'E_MISSING_MEASUREMENTS'
 
 export type CanvasFailure = {
   ok: false
@@ -204,7 +205,12 @@ async function deployCanvasNow(input: {
     return fail('E_UNASSIGNED_SLOT', 'Every slot needs a frame before going live')
   }
   const enrolled = await enrolledIds()
-  assertCanvasDeployable(config, await frameScreenSizes(enrolled))
+  const assignedIds = new Set(config.slots.map((slot) => slot.frameId).filter((id): id is string => Boolean(id)))
+  const assignedSizes = await frameScreenSizes(assignedIds)
+  const missing = canvasPhysicalIssues(config, assignedSizes)
+  if (missing.length > 0) {
+    return fail('E_MISSING_MEASUREMENTS', `missing physical screen dimensions: ${missing.join(', ')}`, { frameIds: missing })
+  }
   for (const slot of config.slots) {
     if (slot.frameId && !enrolled.has(slot.frameId)) {
       return fail('E_UNKNOWN_FRAME', 'A slot names a frame that is not enrolled', { frameId: slot.frameId })
@@ -270,6 +276,7 @@ async function deployCanvasNow(input: {
       slotId: slot.id,
       config,
       album: deploymentAlbum,
+      frameSizes: assignedSizes,
     }
     const state = stateForRow(rows.find((row) => row.instanceId === slot.frameId))
     updates.push({ instanceId: slot.frameId, state: { ...state, pending: deployment } })

@@ -6,7 +6,6 @@ import { EditorButton } from '@/components/editor/controls'
 import { useCanvasLibrary } from '@/hooks/use-canvas-library'
 import { resolveGeometry } from '@/lib/canvas/geometry'
 import { emptyCanvasConfig } from '@/lib/canvas/defaults'
-import { CanvasExtrasPanel } from './canvas-extras-panel'
 import type { Album } from '@/lib/types'
 import { AlbumEditor } from './album-editor'
 
@@ -95,7 +94,6 @@ export function AlbumsTab() {
           <li className="rounded border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No canvas albums yet.</li>
         )}
       </ul>
-      <CanvasExtrasPanel config={emptyCanvasConfig()} frames={[]} onChange={() => {}} />
       {draft && (
         <div className="rounded-lg border border-border bg-card">
           <AlbumEditor

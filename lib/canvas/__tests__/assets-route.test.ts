@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const env = process.env as Record<string, string | undefined>
@@ -7,7 +9,7 @@ const managed = [
   'KIOSK_MGMT_PORT', 'PORT',
 ]
 const original: Record<string, string | undefined> = {}
-const dataDir = '/private/var/folders/3x/vty317751d9dtvqpsjpvygzc0000gn/T/opencode/canvas-assets-route'
+let dataDir = ''
 
 beforeEach(() => {
   for (const key of managed) original[key] = env[key]
@@ -15,8 +17,8 @@ beforeEach(() => {
   delete env.DATABASE_URL
   delete env.INSTANCE_ID
   env.FRAME_DB_PATH = ':memory:'
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-assets-'))
   env.FRAME_DATA_DIR = dataDir
-  fs.rmSync(dataDir, { recursive: true, force: true })
 })
 
 afterEach(() => {
@@ -24,6 +26,7 @@ afterEach(() => {
     if (original[key] === undefined) delete env[key]
     else env[key] = original[key]
   }
+  if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
 })
 
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])

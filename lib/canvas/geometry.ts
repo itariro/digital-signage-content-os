@@ -15,16 +15,16 @@ export type ResolvedSlot = {
 
 export type GapRect = { x: number; y: number; w: number; h: number }
 
-export function rotatedSlotStyle(slot: ResolvedSlot): {
+export function rotatedSlotStyle(slot: ResolvedSlot, scale = 1): {
   transform: string | undefined
   transformOrigin: string
 } {
   const rotation = slot.rotation ?? 0
-  // The translate/rotate/translate chain rotates around the slot centre, so the
-  // CSS origin must stay at the wrapper's top-left corner.
   if (rotation === 0) return { transform: undefined, transformOrigin: 'top left' }
+  const cx = (slot.w * scale) / 2
+  const cy = (slot.h * scale) / 2
   return {
-    transform: `translate(${slot.w / 2}px, ${slot.h / 2}px) rotate(${rotation}deg) translate(${-slot.w / 2}px, ${-slot.h / 2}px)`,
+    transform: `translate(${cx}px, ${cy}px) rotate(${rotation}deg) translate(${-cx}px, ${-cy}px)`,
     transformOrigin: 'top left',
   }
 }

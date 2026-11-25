@@ -9,10 +9,12 @@ export function moireState(config: CatalogSceneConfig, ctx: CatalogContext): Cat
   const step = Math.min(ctx.bounds.width, ctx.bounds.height) / 28
   state.cells = Array.from({ length: count }, (_, index) => {
     const radius = step * (index + 1)
+    const cx = ctx.bounds.width / 2 + Math.sin(state.phase * Math.PI * 2) * step
+    const cy = ctx.bounds.height / 2
     return {
       id: `moire:${index}`,
-      x: ctx.bounds.width / 2 + Math.sin(state.phase * Math.PI * 2) * step,
-      y: ctx.bounds.height / 2,
+      x: cx - radius,
+      y: cy - radius,
       w: radius * 2,
       h: radius * 2,
       value: index / count,

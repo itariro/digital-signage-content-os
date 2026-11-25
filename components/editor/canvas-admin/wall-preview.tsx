@@ -88,7 +88,7 @@ export function WallPreview({ layout, album, frames = [] }: { layout: Layout; al
           {geometry.slots.map((slot) => {
             const assigned = config.slots.find((entry) => entry.id === slot.slotId)?.frameId ?? null
             const refs = refsBySlot.current.get(slot.slotId) ?? new Map<string, HTMLElement | null>()
-            const rotationStyle = rotatedSlotStyle(slot)
+            const rotationStyle = rotatedSlotStyle(slot, scale)
             return (
               <div
                 key={slot.slotId}

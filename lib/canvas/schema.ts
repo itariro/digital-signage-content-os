@@ -201,6 +201,11 @@ export const canvasDeploymentSchema = z.object({
   slotId: z.string().min(1).max(40),
   config: canvasConfigSchema,
   album: deploymentAlbumSchema.nullable(),
+  frameSizes: z.array(z.object({
+    id: z.string().min(1).max(64),
+    screenWidthMm: z.number().min(1).max(4000).nullable().optional(),
+    screenHeightMm: z.number().min(1).max(4000).nullable().optional(),
+  })).optional(),
 }).superRefine((deployment, ctx) => {
   if (!deployment.config.slots.some((slot) => slot.id === deployment.slotId)) {
     ctx.addIssue({ code: 'custom', message: `Slot ${deployment.slotId} is not in config.slots`, path: ['slotId'] })

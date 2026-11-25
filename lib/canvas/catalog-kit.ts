@@ -164,9 +164,13 @@ export function wave01(seed: number, k: number, index: number): number {
  * elements, including its background and labels.
  */
 export function gridCells(ctx: CatalogContext, cols: number, rows: number, gap: number): CatalogCell[] {
-  const safeCols = Math.min(32, Math.max(1, Math.round(cols)))
-  const safeRows = Math.min(32, Math.max(1, Math.round(rows)))
-  const count = Math.min(32, safeCols * safeRows)
+  let safeCols = Math.max(1, Math.round(cols))
+  let safeRows = Math.max(1, Math.round(rows))
+  while (safeCols * safeRows > 32) {
+    if (safeCols >= safeRows) safeCols -= 1
+    else safeRows -= 1
+  }
+  const count = safeCols * safeRows
   const cellW = ctx.bounds.width / safeCols
   const cellH = ctx.bounds.height / safeRows
   const cells: CatalogCell[] = []
@@ -194,7 +198,7 @@ export function catalogGame(
 ): GameStep<CatalogGameState> {
   const fps = configNumber(config, 'speed', 30, 1, 120)
   return gameStateAt<CatalogGameState>({
-    key: `${name}:${ctx.seed}`,
+    key: `${name}:${ctx.seed}:${JSON.stringify(config)}:${ctx.bounds.width}x${ctx.bounds.height}`,
     seed: ctx.seed,
     stepMs: Math.round(1000 / fps),
     tMs: ctx.tMs,

@@ -152,10 +152,10 @@ async function canvasPullOptions(instanceId: string): Promise<SyncPullOptions> {
   const { getCanvasState } = await import('@/lib/canvas/state-store')
   const caHave = (await listCanvasAssets()).map((record) => record.hash)
   const state = await getCanvasState(instanceId)
-  const activeConfig = state?.data.active?.config
-  const canvasAssetRefs = activeConfig
-    ? Array.from(collectCanvasAssetRefs(activeConfig)).map((hash) => `canvas-asset:${hash}`)
-    : []
+  const refs = new Set<string>()
+  collectCanvasAssetRefs(state?.data.active, refs)
+  collectCanvasAssetRefs(state?.data.pending, refs)
+  const canvasAssetRefs = Array.from(refs).map((hash) => `canvas-asset:${hash}`)
   return { caHave, canvasAssetRefs }
 }
 

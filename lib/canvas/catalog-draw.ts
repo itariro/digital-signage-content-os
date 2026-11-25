@@ -20,7 +20,8 @@ function imageSrc(ref: string | undefined): string | null {
 }
 
 function rectCells(model: CatalogSceneRenderState, cells: CatalogCell[], useImages = false): DrawCommand[] {
-  return cells.map((cell, index) => {
+  return cells.flatMap((cell, index) => {
+    if (model.type === 'life' && cell.value <= 0) return []
     const src = useImages ? imageSrc(cell.image) : null
     if (src) {
       return { kind: 'image', src, x: cell.x, y: cell.y, w: cell.w, h: cell.h, fit: 'cover' }
@@ -33,11 +34,11 @@ function rectCells(model: CatalogSceneRenderState, cells: CatalogCell[], useImag
   })
 }
 
-function circleCells(model: CatalogSceneRenderState, cells: CatalogCell[]): DrawCommand[] {
+function circleCells(model: CatalogSceneRenderState, cells: CatalogCell[], centered = false): DrawCommand[] {
   return cells.map((cell, index) => ({
     kind: 'circle',
-    x: cell.x + cell.w / 2,
-    y: cell.y + cell.h / 2,
+    x: centered ? cell.x : cell.x + cell.w / 2,
+    y: centered ? cell.y : cell.y + cell.h / 2,
     r: Math.max(0, cell.w / 2),
     stroke: colorFor(model, cell, index),
     lineWidth: Math.max(1, Math.min(8, cell.w / 20)),
@@ -142,8 +143,10 @@ export function catalogDraw(model: CatalogSceneRenderState): DrawCommand[] {
       ]
       break
     case 'ripples':
-    case 'metaballs':
     case 'moire':
+      body = circleCells(model, cells, true)
+      break
+    case 'metaballs':
     case 'starfield':
     case 'fireworks':
     case 'bouncing-balls':
@@ -157,8 +160,10 @@ export function catalogDraw(model: CatalogSceneRenderState): DrawCommand[] {
     case 'breakout':
     case 'snake':
     case 'sprite-parade':
-    case 'life':
       body = rectCells(model, cells, model.type === 'sprite-parade')
+      break
+    case 'life':
+      body = rectCells(model, cells.filter((cell) => Boolean(cell.value)), false)
       break
     case 'calibration':
       body = [...rectCells(model, cells), ...labels(model)]

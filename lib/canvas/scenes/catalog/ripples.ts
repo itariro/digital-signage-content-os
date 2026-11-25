@@ -11,8 +11,8 @@ export function ripplesState(config: CatalogSceneConfig, ctx: CatalogContext): C
     const radius = value * maxRadius
     return {
       id: `ripple:${index}`,
-      x: ctx.bounds.width / 2,
-      y: ctx.bounds.height / 2,
+      x: ctx.bounds.width / 2 - radius,
+      y: ctx.bounds.height / 2 - radius,
       w: radius * 2,
       h: radius * 2,
       value,

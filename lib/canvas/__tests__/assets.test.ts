@@ -1,18 +1,19 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const env = process.env as Record<string, string | undefined>
 const managed = ['FRAME_DB_PATH', 'DATABASE_URL', 'FRAME_DATA_DIR']
 const original: Record<string, string | undefined> = {}
-const dataDir = '/private/var/folders/3x/vty317751d9dtvqpsjpvygzc0000gn/T/opencode/canvas-assets-test'
+let dataDir = ''
 
 beforeEach(() => {
   for (const key of managed) original[key] = env[key]
   env.FRAME_DB_PATH = ':memory:'
   delete env.DATABASE_URL
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-assets-'))
   env.FRAME_DATA_DIR = dataDir
-  fs.rmSync(dataDir, { recursive: true, force: true })
 })
 
 afterEach(() => {
@@ -20,6 +21,7 @@ afterEach(() => {
     if (original[key] === undefined) delete env[key]
     else env[key] = original[key]
   }
+  if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
 })
 
 describe('canvas asset references', () => {

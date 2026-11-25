@@ -10,9 +10,10 @@ export type CatalogSlot = { x: number; y: number; w: number; h: number; rotation
 export type CatalogRendererProps = {
   model: CatalogSceneRenderState
   slot: CatalogSlot
+  refs?: Map<string, HTMLElement | null>
 }
 
-export function CatalogScene({ model, slot }: CatalogRendererProps) {
+export function CatalogScene({ model, slot, refs }: CatalogRendererProps) {
   const commands = useMemo(() => catalogDraw(model), [model])
-  return <Canvas2DLayer commands={commands} slot={slot} />
+  return <Canvas2DLayer commands={commands} slot={slot} refs={refs} />
 }

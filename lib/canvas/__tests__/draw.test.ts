@@ -18,6 +18,8 @@ function ctxStub(width = 1080, height = 1920) {
     fillRect: vi.fn(),
     strokeRect: vi.fn(),
     beginPath: vi.fn(),
+    closePath: vi.fn(),
+    clip: vi.fn(),
     arc: vi.fn(),
     fill: vi.fn(),
     stroke: vi.fn(),
@@ -44,7 +46,7 @@ describe('executeDrawCommands', () => {
       slot: { x: 1080, y: 0, w: 1080, h: 1920 },
       dpr: 1,
     })
-    expect(setTransform).toHaveBeenCalledWith(1, 0, 0, 1, -1080, 0)
+    expect(setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0)
     expect(fillRect).toHaveBeenCalledWith(1100, 20, 50, 50)
   })
 

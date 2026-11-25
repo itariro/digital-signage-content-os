@@ -354,6 +354,7 @@ export type CanvasDeployment = {
   slotId: string
   config: CanvasConfig
   album: DeploymentAlbum | null
+  frameSizes?: Array<{ id: string; screenWidthMm?: number | null; screenHeightMm?: number | null }>
 }
 
 export type CanvasIdentify = {

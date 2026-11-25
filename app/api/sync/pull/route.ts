@@ -17,8 +17,8 @@ const querySchema = z.object({
   vw: z.coerce.number().int().optional(),
   vh: z.coerce.number().int().optional(),
   fps: z.coerce.number().optional(),
-  caHave: z.string().max(8000).optional(),
-  canvasAssetRefs: z.string().max(16000).optional(),
+  caHave: z.string().max(100000).optional(),
+  canvasAssetRefs: z.string().max(100000).optional(),
 })
 
 export const dynamic = 'force-dynamic'

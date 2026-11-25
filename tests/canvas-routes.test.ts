@@ -46,6 +46,7 @@ describe('GET /api/canvas/state', () => {
       state: null,
       clock: { offsetMs: 0, uncertaintyMs: 0, quality: 'poor', source: 'system', sampledAt: null },
       frame: null,
+      frames: [],
     })
   })
 
@@ -68,7 +69,7 @@ describe('GET /api/canvas/state', () => {
     const { NextRequest } = await import('next/server')
     const res = await GET(new NextRequest('http://localhost/api/canvas/state?frame=frame-a'))
     const body = await res.json()
-    expect(body.frame).toEqual({ screenWidthMm: 344, screenHeightMm: 193 })
+    expect(body.frame).toEqual({ id: 'frame-a', screenWidthMm: 344, screenHeightMm: 193 })
   })
 
   it('reads the local row for the requested frame', async () => {

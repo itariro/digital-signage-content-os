@@ -1,11 +1,12 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import type { SyncPullOptions } from '@/lib/sync/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const env = process.env as Record<string, string | undefined>
 const managed = ['FRAME_MODE', 'DATABASE_URL', 'INSTANCE_ID', 'FRAME_DB_PATH', 'FRAME_DATA_DIR']
 const original: Record<string, string | undefined> = {}
-const dataDir = '/private/var/folders/3x/vty317751d9dtvqpsjpvygzc0000gn/T/opencode/canvas-assets-sync'
+const dataDir = `${os.tmpdir()}/canvas-assets-sync-${process.pid}`
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9])
 
 beforeEach(() => {

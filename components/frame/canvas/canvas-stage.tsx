@@ -14,7 +14,6 @@ import { NightOverlay } from '@/components/frame/frame-scene'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { CanvasFrameScene, paintScene, type CanvasElementRefs } from './canvas-frame-scene'
 import { IdentifyOverlay } from './identify-overlay'
-import { CanvasBezelOverlay } from './canvas-bezel-overlay'
 
 function subscribeViewport(callback: () => void) {
   window.addEventListener('resize', callback)
@@ -121,7 +120,7 @@ export function CanvasStage({
 
   const { deployment, geometry, slot } = takeover
   const scale = fitScale(slot.w, slot.h, viewport.width, viewport.height)
-  const rotationStyle = rotatedSlotStyle(slot)
+  const rotationStyle = rotatedSlotStyle(slot, scale)
   if (scale <= 0) return null
 
   const config = deployment.config
@@ -203,7 +202,6 @@ export function CanvasStage({
         {night && <NightOverlay night={night} />}
         {config.notifications === 'show' && <FrameNoticeLayer />}
       </div>
-      <CanvasBezelOverlay mode={model.bezelMode} gaps={model.gaps} />
     </div>
   )
 }
