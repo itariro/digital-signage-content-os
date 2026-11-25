@@ -140,4 +140,15 @@ describe('canvasContentHash', () => {
     }
     expect(deployedCanvasContentHash(editedDeployment)).not.toBe(canvasContentHash(layout, album))
   })
+
+  it('changes when composition options change', () => {
+    const before = canvasContentHash(layout, album)
+    const layered = {
+      ...album,
+      layers: [{ id: 'base', name: 'Base', enabled: true, scenes: [scene], order: 'sequence' as const, crossfadeMs: 400 }],
+      transition: { kind: 'wipe' as const, durationMs: 600, direction: 'left' as const },
+      paletteId: 'aurora' as const,
+    }
+    expect(canvasContentHash(layout, layered)).not.toBe(before)
+  })
 })
