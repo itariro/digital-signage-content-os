@@ -1,11 +1,40 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { Align, BounceConfig, MarqueeConfig, PongConfig, SyncTestConfig } from '@/lib/types'
+import { CATALOG_TYPES, type CatalogSceneRenderState } from '@/lib/canvas/catalog-kit'
 import type { ResolvedGeometry, ResolvedSlot } from '@/lib/canvas/geometry'
 import type { SceneRenderState } from '@/lib/canvas/scenes/registry'
 import type { BounceState } from '@/lib/canvas/scenes/bounce'
 import type { MarqueeState } from '@/lib/canvas/scenes/marquee'
 import type { PongState } from '@/lib/canvas/scenes/pong'
 import type { SyncTestState } from '@/lib/canvas/scenes/sync-test'
+import { PanoramaRenderer } from '@/components/frame/canvas/scenes/panorama'
+import { GalleryWallRenderer } from '@/components/frame/canvas/scenes/gallery-wall'
+import { ExhibitRenderer } from '@/components/frame/canvas/scenes/exhibit'
+import { MosaicWallRenderer } from '@/components/frame/canvas/scenes/mosaic-wall'
+import { TileRevealRenderer } from '@/components/frame/canvas/scenes/tile-reveal'
+import { KineticTypeRenderer } from '@/components/frame/canvas/scenes/kinetic-type'
+import { SplitFlapRenderer } from '@/components/frame/canvas/scenes/split-flap'
+import { MultiLaneMarqueeRenderer } from '@/components/frame/canvas/scenes/multi-lane-marquee'
+import { WallClockRenderer } from '@/components/frame/canvas/scenes/wall-clock'
+import { CountdownRenderer } from '@/components/frame/canvas/scenes/countdown'
+import { GradientFlowRenderer } from '@/components/frame/canvas/scenes/gradient-flow'
+import { ColorFieldRenderer } from '@/components/frame/canvas/scenes/color-field'
+import { LightSweepRenderer } from '@/components/frame/canvas/scenes/light-sweep'
+import { RipplesRenderer } from '@/components/frame/canvas/scenes/ripples'
+import { MetaballsRenderer } from '@/components/frame/canvas/scenes/metaballs'
+import { LissajousRenderer } from '@/components/frame/canvas/scenes/lissajous'
+import { FlowLinesRenderer } from '@/components/frame/canvas/scenes/flow-lines'
+import { MoireRenderer } from '@/components/frame/canvas/scenes/moire'
+import { StarfieldRenderer } from '@/components/frame/canvas/scenes/starfield'
+import { MatrixRainRenderer } from '@/components/frame/canvas/scenes/matrix-rain'
+import { FireworksRenderer } from '@/components/frame/canvas/scenes/fireworks'
+import { BouncingBallsRenderer } from '@/components/frame/canvas/scenes/bouncing-balls'
+import { ChaseLightsRenderer } from '@/components/frame/canvas/scenes/chase-lights'
+import { BreakoutRenderer } from '@/components/frame/canvas/scenes/breakout'
+import { SnakeRenderer } from '@/components/frame/canvas/scenes/snake'
+import { SpriteParadeRenderer } from '@/components/frame/canvas/scenes/sprite-parade'
+import { LifeRenderer } from '@/components/frame/canvas/scenes/life'
+import { CalibrationRenderer } from '@/components/frame/canvas/scenes/calibration'
 import { copyPosition, marqueePoolSize, visibleCopies, visibleSegments } from '@/lib/canvas/scenes/marquee'
 import { pongBallRect, pongNetRect, pongPaddleRect, projectRect, type Rect } from '@/lib/canvas/project'
 import { fontStack } from '@/lib/fonts'
@@ -265,6 +294,40 @@ function SyncTestView({ config, geometry, refs }: ViewProps<SyncTestConfig, Sync
   )
 }
 
+function catalogRenderer(model: CatalogSceneRenderState, slot: ResolvedSlot): ReactNode {
+  const props = { model, slot: { x: slot.x, y: slot.y, w: slot.w, h: slot.h, rotation: slot.rotation } }
+  switch (model.type) {
+    case 'panorama': return <PanoramaRenderer {...props} />
+    case 'gallery-wall': return <GalleryWallRenderer {...props} />
+    case 'exhibit': return <ExhibitRenderer {...props} />
+    case 'mosaic-wall': return <MosaicWallRenderer {...props} />
+    case 'tile-reveal': return <TileRevealRenderer {...props} />
+    case 'kinetic-type': return <KineticTypeRenderer {...props} />
+    case 'split-flap': return <SplitFlapRenderer {...props} />
+    case 'multi-lane-marquee': return <MultiLaneMarqueeRenderer {...props} />
+    case 'wall-clock': return <WallClockRenderer {...props} />
+    case 'countdown': return <CountdownRenderer {...props} />
+    case 'gradient-flow': return <GradientFlowRenderer {...props} />
+    case 'color-field': return <ColorFieldRenderer {...props} />
+    case 'light-sweep': return <LightSweepRenderer {...props} />
+    case 'ripples': return <RipplesRenderer {...props} />
+    case 'metaballs': return <MetaballsRenderer {...props} />
+    case 'lissajous': return <LissajousRenderer {...props} />
+    case 'flow-lines': return <FlowLinesRenderer {...props} />
+    case 'moire': return <MoireRenderer {...props} />
+    case 'starfield': return <StarfieldRenderer {...props} />
+    case 'matrix-rain': return <MatrixRainRenderer {...props} />
+    case 'fireworks': return <FireworksRenderer {...props} />
+    case 'bouncing-balls': return <BouncingBallsRenderer {...props} />
+    case 'chase-lights': return <ChaseLightsRenderer {...props} />
+    case 'breakout': return <BreakoutRenderer {...props} />
+    case 'snake': return <SnakeRenderer {...props} />
+    case 'sprite-parade': return <SpriteParadeRenderer {...props} />
+    case 'life': return <LifeRenderer {...props} />
+    case 'calibration': return <CalibrationRenderer {...props} />
+  }
+}
+
 export function CanvasFrameScene({
   model,
   geometry,
@@ -276,6 +339,10 @@ export function CanvasFrameScene({
   slot: ResolvedSlot
   refs: CanvasElementRefs
 }): ReactNode {
+  if ((CATALOG_TYPES as readonly string[]).includes(model.type)) {
+    return catalogRenderer(model as CatalogSceneRenderState, slot)
+  }
+
   switch (model.type) {
     case 'marquee':
       return <MarqueeView config={model.config} state={model.state} geometry={geometry} slot={slot} refs={refs} />
@@ -298,6 +365,8 @@ export function paintScene(
   slot: ResolvedSlot,
   refs: CanvasElementRefs,
 ): void {
+  if ((CATALOG_TYPES as readonly string[]).includes(model.type)) return
+
   if (model.type === 'marquee') {
     const { config, state } = model
     const axisStart = state.axis === 'x' ? slot.x : slot.y
@@ -392,6 +461,8 @@ export function paintScene(
     }
     return
   }
+
+  if (model.type !== 'sync-test') return
 
   const bar: Rect =
     model.state.axis === 'x'

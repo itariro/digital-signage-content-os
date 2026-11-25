@@ -1,3 +1,5 @@
+import type { CatalogSceneConfig, CatalogSceneType } from '@/lib/canvas/catalog-kit'
+
 export const FRAME_WIDTH = 1080
 export const FRAME_HEIGHT = 1920
 
@@ -260,7 +262,7 @@ export type CanvasConfig = {
   screenHeightMm?: number
 }
 
-export type CanvasSceneType = 'marquee' | 'bounce' | 'pong' | 'sync-test'
+export type CanvasSceneType = 'marquee' | 'bounce' | 'pong' | 'sync-test' | CatalogSceneType
 
 export type MarqueeStrip = {
   lengthPx: number
@@ -333,6 +335,7 @@ export type CanvasScene =
   | (CanvasSceneBase & { type: 'bounce'; config: BounceConfig })
   | (CanvasSceneBase & { type: 'pong'; config: PongConfig })
   | (CanvasSceneBase & { type: 'sync-test'; config: SyncTestConfig })
+  | (CanvasSceneBase & { type: CatalogSceneType; config: CatalogSceneConfig })
 
 export type DeploymentAlbum = {
   id: string
