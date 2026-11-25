@@ -4,15 +4,16 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { NightMode } from '@/lib/types'
 import type { CanvasClock } from '@/lib/canvas/clock'
 import type { CanvasRenderModel } from '@/lib/canvas/render-model'
+import { layerRendersAt } from '@/lib/canvas/render-model'
 import { canvasLoopKey, fitScale } from '@/lib/canvas/stage'
 import { rotatedSlotStyle } from '@/lib/canvas/geometry'
 import { sceneAt } from '@/lib/canvas/scheduler'
 import { seedFromString } from '@/lib/canvas/prng'
-import { sceneStateAt } from '@/lib/canvas/scenes/registry'
 import { fontStack } from '@/lib/fonts'
 import { NightOverlay } from '@/components/frame/frame-scene'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
-import { CanvasFrameScene, paintScene, type CanvasElementRefs } from './canvas-frame-scene'
+import { paintScene, type CanvasElementRefs } from './canvas-frame-scene'
+import { CanvasLayerStack, refsForLayer } from './canvas-layer-stack'
 import { IdentifyOverlay } from './identify-overlay'
 
 function subscribeViewport(callback: () => void) {
@@ -46,9 +47,12 @@ export function CanvasStage({
   onFps?: (fpsAvg: number) => void
 }) {
   const viewport = useViewport()
-  const refs = useRef<CanvasElementRefs>(new Map())
+  const refsByLayer = useRef(new Map<string, CanvasElementRefs>())
+  const layerOpacityRefs = useRef(new Map<string, HTMLDivElement | null>())
   const sceneOpacityRef = useRef<HTMLDivElement | null>(null)
   const [scene, setScene] = useState(() => model.plan?.scene ?? null)
+  const [layers, setLayers] = useState(() => model.layers)
+  const layerSceneIdsRef = useRef(model.layers.map((layer) => layer.plan?.scene.id ?? ''))
   const takeover = model.takeover
   const takeoverRef = useRef(takeover)
   takeoverRef.current = takeover
@@ -78,22 +82,29 @@ export function CanvasStage({
 
       const t = Date.now() + clockRef.current - deployment.effectiveAt
       const plan = album && t >= 0 ? sceneAt(album, seed, t, album.crossfadeMs) : null
+      const plans = album && t >= 0 ? layerRendersAt(album, seed, Math.max(0, t), geometry, slot) : []
+      const sceneIds = plans.map((layer) => layer.plan?.scene.id ?? '')
+
       if (plan && plan.scene.id !== sceneRef.current?.id) {
-        refs.current.clear()
         sceneRef.current = plan.scene
         setScene(plan.scene)
       }
-      if (plan) {
-        if (sceneOpacityRef.current) sceneOpacityRef.current.style.opacity = String(plan.fade)
-        paintScene(sceneStateAt(plan.scene, {
-          bounds: { width: geometry.width, height: geometry.height },
-          geometry,
-          tMs: plan.sceneTimeMs,
-          seed: plan.seed,
-          slot,
-        }), geometry, slot, refs.current)
-      } else if (sceneOpacityRef.current) {
-        sceneOpacityRef.current.style.opacity = '1'
+      if (sceneIds.some((id, index) => id !== layerSceneIdsRef.current[index])) {
+        layerSceneIdsRef.current = sceneIds
+        refsByLayer.current.clear()
+        setLayers(plans)
+      }
+
+      // Layer wrappers are restyled every frame so fades and masks animate.
+      if (plan && sceneOpacityRef.current) sceneOpacityRef.current.style.opacity = String(plan.fade)
+      for (const layer of plans) {
+        if (!layer.render) continue
+        paintScene(layer.render, geometry, slot, refsForLayer(refsByLayer.current, layer.layerId))
+        const wrapper = layerOpacityRefs.current.get(layer.layerId)
+        if (!wrapper) continue
+        wrapper.style.clipPath = layer.clipPath
+        if (layer === plans[0]) continue
+        wrapper.style.opacity = String(layer.opacity * (layer.plan?.fade ?? 1))
       }
 
       const wall = Date.now()
@@ -124,23 +135,6 @@ export function CanvasStage({
   if (scale <= 0) return null
 
   const config = deployment.config
-  const sceneView = scene && deployment.album
-    ? (() => {
-        const album = deployment.album!
-        const t = Math.max(0, Date.now() + clock.offsetMs - deployment.effectiveAt)
-        const plan = sceneAt(album, seedFromString(album.id), t, album.crossfadeMs)
-        return plan ? {
-          fade: plan.fade,
-          render: sceneStateAt(plan.scene, {
-            bounds: { width: geometry.width, height: geometry.height },
-            geometry,
-            tMs: plan.sceneTimeMs,
-            seed: plan.seed,
-            slot,
-          }),
-        } : null
-      })()
-    : null
   const showMarker = !model.identify && (config.markers === 'always' || (!scene && config.markers !== 'never'))
 
   return (
@@ -168,10 +162,15 @@ export function CanvasStage({
             background: deployment.config.background,
           }}
         >
-          {sceneView && (
-            <div ref={sceneOpacityRef} style={{ position: 'absolute', inset: 0, opacity: sceneView.fade }}>
-              <CanvasFrameScene model={sceneView.render} geometry={geometry} slot={slot} refs={refs.current} />
-            </div>
+          {layers.length > 0 && (
+            <CanvasLayerStack
+              layers={layers}
+              geometry={geometry}
+              slot={slot}
+              refsByLayer={refsByLayer.current}
+              opacityRefs={layerOpacityRefs.current}
+              sceneOpacityRef={sceneOpacityRef}
+            />
           )}
         </div>
 
