@@ -138,3 +138,10 @@ export const canvasState = sqliteTable('canvas_state', {
   fpsAvg: real('fps_avg'),
   reportedAt: integer('reported_at', { mode: 'timestamp_ms' }),
 })
+
+export const canvasAssets = sqliteTable('canvas_assets', {
+  hash: text('hash').primaryKey(),
+  mime: text('mime').notNull(),
+  size: integer('size').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
