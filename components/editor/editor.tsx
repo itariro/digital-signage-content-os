@@ -563,7 +563,7 @@ export function Editor({
               aria-labelledby="editor-drawer-title"
               className={cn(
                 'editor-panel absolute inset-y-0 right-0 z-20 max-w-[calc(100%-1rem)] flex-col overflow-hidden border-l border-border shadow-xl',
-                activeDrawer === 'widgets' ? 'w-72' : 'w-80',
+                activeDrawer === 'widgets' ? 'w-72' : 'w-[420px]',
                 activeDrawer ? 'flex' : 'hidden',
               )}
             >

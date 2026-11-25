@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { EditorButton } from '../controls'
+import { Button } from '@/components/ui/button'
 import { AlbumsTab } from './albums-tab'
 import { LayoutsTab } from './layouts-tab'
 import { StatusTab } from './status-tab'
@@ -21,19 +21,20 @@ export function CanvasAdminPanel() {
     <div className="flex min-h-full flex-col">
       <div role="group" aria-label="Canvas administration sections" className="flex shrink-0 border-b border-border">
         {TABS.map((tab) => (
-          <EditorButton
+          <Button
             key={tab.id}
             type="button"
+            variant="ghost"
+            size="sm"
             aria-pressed={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            variant="quiet"
-            className="min-h-12 flex-1 shrink rounded-none border-b-2 border-transparent px-2 py-3 aria-pressed:border-primary aria-pressed:text-foreground"
+            className="flex-1 shrink rounded-none border-b-2 border-transparent px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground aria-pressed:border-primary aria-pressed:text-foreground"
           >
             {tab.label}
-          </EditorButton>
+          </Button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {activeTab === 'layouts' && <LayoutsTab />}
         {activeTab === 'albums' && <AlbumsTab />}
         {activeTab === 'status' && <StatusTab />}

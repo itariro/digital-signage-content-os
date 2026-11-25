@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { EditorButton } from '@/components/editor/controls'
+import { Button } from '@/components/ui/button'
 import { emptyCanvasConfig } from '@/lib/canvas/defaults'
 import { useCanvasLibrary } from '@/hooks/use-canvas-library'
 import type { Layout } from '@/lib/types'
@@ -80,12 +80,15 @@ export function LayoutsTab() {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="flex flex-col gap-4 p-1">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Canvas layouts</h2>
-        <EditorButton type="button" variant="secondary" onClick={() => void create()} disabled={busy}>
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">Canvas layouts</h2>
+          <p className="text-xs text-muted-foreground">Manage wall layouts and deployments.</p>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={() => void create()} disabled={busy}>
           New layout
-        </EditorButton>
+        </Button>
       </div>
 
       <ul className="flex flex-col gap-2">
@@ -94,33 +97,37 @@ export function LayoutsTab() {
           const scheduled = users.some((frame) => frame.inCanvas?.state === 'scheduled')
           const live = users.some((frame) => frame.inCanvas?.state === 'live')
           return (
-            <li key={layout.id} className="rounded-lg border border-border bg-card p-2">
+            <li key={layout.id} className="rounded-lg border border-border bg-card p-3">
               <div className="flex items-center justify-between gap-2">
-                <button type="button" onClick={() => setOpenId(layout.id)} className="min-w-0 flex-1 truncate text-left text-sm">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(layout.id)}
+                  className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground hover:underline"
+                >
                   {layout.name}
                 </button>
-                <EditorButton type="button" variant="destructive" aria-label={`Delete ${layout.name}`} onClick={() => void remove(layout)}>
+                <Button type="button" variant="destructive" size="sm" aria-label={`Delete ${layout.name}`} onClick={() => void remove(layout)}>
                   Delete
-                </EditorButton>
+                </Button>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {scheduled ? 'Scheduled' : live ? 'Live' : 'Draft'} · {users.length} frame{users.length === 1 ? '' : 's'}
               </p>
               {openId === layout.id && (
-                <div className="mt-2 flex flex-wrap gap-2 border-t border-border pt-2">
-                  <EditorButton type="button" variant="secondary" onClick={() => void save()} disabled={!dirty || busy}>Save</EditorButton>
-                  <EditorButton type="button" variant="secondary" onClick={() => void run(() => deploy(layout.id, { leadMs: leadSeconds * 1000 }), 'Canvas scheduled')} disabled={dirty || busy}>Deploy</EditorButton>
-                  <EditorButton type="button" variant="secondary" onClick={() => void run(() => release(layout.id), 'Canvas released')} disabled={dirty || busy}>Release</EditorButton>
-                  <EditorButton type="button" variant="quiet" onClick={() => void run(() => identify(layout.id, identifySeconds), 'Identification started')} disabled={dirty || busy}>Identify</EditorButton>
-                  <EditorButton type="button" variant="quiet" onClick={() => void run(() => identify(layout.id, 0), 'Identification cleared')} disabled={dirty || busy}>Clear markers</EditorButton>
-                  <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                  <Button type="button" variant="secondary" size="sm" onClick={() => void save()} disabled={!dirty || busy}>Save</Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => void run(() => deploy(layout.id, { leadMs: leadSeconds * 1000 }), 'Canvas scheduled')} disabled={dirty || busy}>Deploy</Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => void run(() => release(layout.id), 'Canvas released')} disabled={dirty || busy}>Release</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void run(() => identify(layout.id, identifySeconds), 'Identification started')} disabled={dirty || busy}>Identify</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void run(() => identify(layout.id, 0), 'Identification cleared')} disabled={dirty || busy}>Clear markers</Button>
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
                     Lead
-                    <input aria-label="Lead seconds" type="number" min={0} max={600} value={leadSeconds} onChange={(e) => setLeadSeconds(Number(e.target.value))} className="editor-control h-8 w-14 px-1" />
+                    <input aria-label="Lead seconds" type="number" min={0} max={600} value={leadSeconds} onChange={(e) => setLeadSeconds(Number(e.target.value))} className="h-8 w-14 rounded-md border border-input bg-background px-2 text-xs" />
                     s
                   </label>
-                  <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
                     Identify
-                    <input aria-label="Identify seconds" type="number" min={0} max={120} value={identifySeconds} onChange={(e) => setIdentifySeconds(Number(e.target.value))} className="editor-control h-8 w-14 px-1" />
+                    <input aria-label="Identify seconds" type="number" min={0} max={120} value={identifySeconds} onChange={(e) => setIdentifySeconds(Number(e.target.value))} className="h-8 w-14 rounded-md border border-input bg-background px-2 text-xs" />
                     s
                   </label>
                 </div>
@@ -129,7 +136,7 @@ export function LayoutsTab() {
           )
         })}
         {store.layouts.filter((layout) => layout.kind === 'canvas').length === 0 && (
-          <li className="rounded border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+          <li className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
             No canvas layouts yet. Create one to start a wall.
           </li>
         )}
@@ -147,8 +154,8 @@ export function LayoutsTab() {
         </div>
       )}
 
-      <p className="text-[11px] text-muted-foreground">
-        New layouts use the standard frame settings with no album selected. {SETTINGS.resolution} is the default canvas size.
+      <p className="text-xs text-muted-foreground">
+        New layouts use the default canvas settings. {SETTINGS.resolution} is the default size.
       </p>
     </div>
   )

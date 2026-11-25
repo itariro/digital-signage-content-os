@@ -18,12 +18,14 @@ export function emptyCanvasConfig(): CanvasConfig {
     arrangement: 'row',
     gap: 0,
     align: 'center',
-    slots: [],
+    slots: [{ id: 'slot-1', frameId: null, offset: { x: 0, y: 0 }, scale: 1 }],
     background: '#000000',
     markers: 'identify',
     notifications: 'suppress',
     nightMode: 'inherit',
     maxFps: 30,
+    bezelMode: 'show',
+    unitMode: 'pixels',
   }
 }
 
