@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import type { Album, AlbumTheme } from '@/lib/types'
-import { ALBUM_THEMES } from '@/lib/types'
-import { THEME_META } from '@/lib/albums'
+import { EDITOR_ALBUM_THEMES, THEME_META } from '@/lib/albums'
 import { AlbumDetail, type AlbumUpdater } from './album-detail'
 import { EditorButton, Section } from './controls'
 import { cn } from '@/lib/utils'
@@ -80,7 +79,7 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
           <fieldset className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
             <legend className="px-1 text-xs font-medium text-muted-foreground">Choose a theme</legend>
             <div className="grid grid-cols-2 gap-2">
-              {ALBUM_THEMES.map((theme) => {
+              {EDITOR_ALBUM_THEMES.map((theme) => {
                 const meta = THEME_META[theme]
                 return (
                   <EditorButton

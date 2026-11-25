@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeWidgetStyle, fillCss, shadowCss, strokeCss } from '@/lib/text-effects'
+import { normalizeWidgetStyle, fillCss, shadowCss, strokeCss, textEffectCss } from '@/lib/text-effects'
 import { createWidget } from '@/lib/widgets'
 import { BUILTIN_STICKERS, createStickerWidget } from '@/lib/text-stickers'
 import { widgetSchema } from '@/lib/schema'
@@ -64,6 +64,22 @@ describe('save/load round-trip through widgetSchema', () => {
     expect(result.data.layers![0].style.fill).toEqual(widget.layers![0].style.fill)
     expect(result.data.layers![0].style.textStrokeCfg).toEqual(widget.layers![0].style.textStrokeCfg)
     expect(result.data.layers![0].style.lightingShadow).toEqual(widget.layers![0].style.lightingShadow)
+  })
+})
+
+describe('textEffectCss', () => {
+  it('overrides a solid fill colour without losing stroke and shadow', () => {
+    const style = normalizeWidgetStyle({
+      ...createWidget('text').style,
+      color: '#111111',
+      fill: { kind: 'solid', color: '#111111' },
+      textStrokeCfg: { enabled: true, color: '#000000', thickness: 3, opacity: 80, align: 'outside' },
+      lightingShadow: { preset: 'drop', distance: 6, blur: 14, opacity: 35, angle: 90, color: '#000000' },
+    })
+    const css = textEffectCss(style, '#ff0000')
+    expect(css.color).toBe('#ff0000')
+    expect((css as any).WebkitTextStroke).toBe('3px rgba(0, 0, 0, 0.8)')
+    expect(css.textShadow).toContain('6px')
   })
 })
 

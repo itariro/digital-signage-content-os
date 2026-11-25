@@ -2,6 +2,7 @@ import { and, eq, gt } from 'drizzle-orm'
 import { getDb, type Database } from '@/lib/db'
 import { getDatabaseMode } from '@/lib/db/mode'
 import { getTables } from '@/lib/db/tables'
+import { getCanvasState, recordCanvasReport, type MemberReport } from '@/lib/canvas/state-store'
 import { recordConflict } from './conflicts'
 
 export interface PushChange {
@@ -24,6 +25,8 @@ export interface PullOutcome {
   cursor: string
   expired?: boolean
   resolvedConflicts: Array<{ entityId: string; resolution: string }>
+  serverTime: number
+  canvas?: { revision: number; state: import('@/lib/types').CanvasState | null }
 }
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
@@ -153,7 +156,11 @@ export async function handlePush(authedInstanceId: string, changes: PushChange[]
  * `since` is an ISO timestamp cursor; beyond 7 days the console can no longer
  * guarantee completeness and signals `expired` so the client does a full resync.
  */
-export async function handlePull(authedInstanceId: string, since?: string): Promise<PullOutcome> {
+export async function handlePull(
+  authedInstanceId: string,
+  since?: string,
+  options: { cvRev?: number; report?: MemberReport } = {},
+): Promise<PullOutcome> {
   const db = getDb()
   const tables = getTables()
 
@@ -162,7 +169,7 @@ export async function handlePull(authedInstanceId: string, since?: string): Prom
     const parsed = new Date(since)
     if (!Number.isNaN(parsed.getTime())) {
       if (Date.now() - parsed.getTime() > SEVEN_DAYS_MS) {
-        return { changes: [], cursor: new Date().toISOString(), expired: true, resolvedConflicts: [] }
+        return { changes: [], cursor: new Date().toISOString(), expired: true, resolvedConflicts: [], serverTime: Date.now() }
       }
       sinceDate = parsed
     }
@@ -197,5 +204,23 @@ export async function handlePull(authedInstanceId: string, since?: string): Prom
     console.error('resolved conflict scan failed:', e)
   }
 
-  return { changes, cursor, resolvedConflicts }
+  if (options.report && getDatabaseMode() === 'postgres') {
+    try {
+      await recordCanvasReport(authedInstanceId, options.report)
+    } catch (e: unknown) {
+      console.error('canvas report write failed:', e)
+    }
+  }
+
+  let canvas: PullOutcome['canvas']
+  try {
+    const row = await getCanvasState(authedInstanceId)
+    const cvRev = Math.max(0, Math.floor(options.cvRev ?? 0))
+    if (row && row.revision !== cvRev) canvas = { revision: row.revision, state: row.data }
+    else if (!row && cvRev > 0) canvas = { revision: 0, state: null }
+  } catch (e: unknown) {
+    console.error('canvas state read failed:', e)
+  }
+
+  return { changes, cursor, resolvedConflicts, serverTime: Date.now(), ...(canvas ? { canvas } : {}) }
 }

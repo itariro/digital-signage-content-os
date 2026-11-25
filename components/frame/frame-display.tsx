@@ -1,14 +1,17 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import useSWR from 'swr'
-import type { FrameStore } from '@/lib/types'
+import type { CanvasState, FrameStore } from '@/lib/types'
 import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { clockParts, resolveDisplay } from '@/lib/schedule'
 import { googleFontHref } from '@/lib/fonts'
+import { SYSTEM_CLOCK, type CanvasClock } from '@/lib/canvas/clock'
+import { canvasRenderModel, nextCanvasDeadlineMs } from '@/lib/canvas/render-model'
 import { useNow } from '@/hooks/use-now'
 import { useWeather } from '@/hooks/use-frame-store'
 import { FrameScene } from './frame-scene'
+import { CanvasStage } from './canvas/canvas-stage'
 import { FrameNoticeLayer } from '@/components/notifications/frame-notice-layer'
 import { NotificationProvider } from '@/components/notifications/notification-provider'
 
@@ -34,6 +37,12 @@ function useViewportScale() {
   )
 }
 
+type CanvasSnapshot = {
+  revision: number
+  state: CanvasState | null
+  clock: CanvasClock
+}
+
 export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore: FrameStore; frameId?: string }) {
   const { data } = useSWR<FrameStore>(`/api/store?frame=${encodeURIComponent(frameId)}`, fetcher, {
     fallbackData: initialStore,
@@ -56,14 +65,76 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
   const night = resolved.night
   const weather = useWeather(layout?.settings ?? { lat: 0, lon: 0, units: 'metric' })
 
+  const { data: canvasData } = useSWR<CanvasSnapshot>(`/api/canvas/state?frame=${encodeURIComponent(frameId)}`, fetcher, {
+    refreshInterval: 5_000,
+    dedupingInterval: 1_000,
+    revalidateOnFocus: false,
+    refreshWhenHidden: false,
+  })
+
+  const clockOffsetMs = canvasData?.clock.offsetMs ?? 0
+  const canvasModel = canvasData
+    ? canvasRenderModel(canvasData.state, Date.now(), clockOffsetMs)
+    : null
+  const nextDeadline = nextCanvasDeadlineMs(canvasData?.state ?? null, Date.now() + clockOffsetMs)
+  const [, bumpCanvasDeadline] = useState(0)
+  const revision = canvasData?.revision ?? null
+  const fpsRef = useRef(0)
+  const onCanvasFps = useCallback((fpsAvg: number) => { fpsRef.current = fpsAvg }, [])
+  const reportWindow = useRef({ at: Date.now() })
+  const hasCanvas = Boolean(canvasModel)
+
+  useEffect(() => {
+    if (nextDeadline === null) return
+    const delay = Math.max(0, nextDeadline - (Date.now() + clockOffsetMs))
+    const id = window.setTimeout(() => bumpCanvasDeadline((value) => value + 1), delay)
+    return () => window.clearTimeout(id)
+  }, [nextDeadline, clockOffsetMs])
+
+  useEffect(() => {
+    if (!hasCanvas) return
+    const id = window.setInterval(() => {
+      const now = Date.now()
+      reportWindow.current = { at: now }
+      void fetch(`/api/canvas/report?frame=${encodeURIComponent(frameId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appliedRevision: canvasModel ? revision : null,
+          viewportW: window.innerWidth,
+          viewportH: window.innerHeight,
+          fpsAvg: fpsRef.current,
+        }),
+        keepalive: true,
+      }).catch(() => {})
+    }, 10_000)
+    return () => window.clearInterval(id)
+  }, [hasCanvas, revision, frameId])
+
+  const canvasNight = canvasModel?.takeover?.deployment.config.nightMode === 'inherit'
+    ? (night ? store.schedule.night : null)
+    : null
+
   return (
     <NotificationProvider notifications={store.notifications}>
       <main className="flex h-dvh w-screen cursor-none items-center justify-center overflow-hidden bg-background">
-        <h1 className="sr-only">{layout ? `Frame showing ${layout.name}` : 'Frame display'}</h1>
+        <h1 className="sr-only">
+          {canvasModel
+            ? `Canvas showing ${canvasModel.takeover?.deployment.name ?? canvasModel.identify?.canvasName ?? 'identify'}`
+            : layout ? `Frame showing ${layout.name}` : 'Frame display'}
+        </h1>
         {store.customFonts.map((family) => (
           <link key={family} rel="stylesheet" href={googleFontHref(family)} precedence="default" />
         ))}
-        {layout && scale > 0 ? (
+        {canvasModel ? (
+          <CanvasStage
+            model={canvasModel}
+            clock={canvasData?.clock ?? SYSTEM_CLOCK}
+            night={canvasNight}
+            frameId={frameId}
+            onFps={onCanvasFps}
+          />
+        ) : layout && scale > 0 ? (
           <FrameScene
             widgets={layout.widgets}
             settings={layout.settings}

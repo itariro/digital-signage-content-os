@@ -124,3 +124,17 @@ export const auditLog = sqliteTable('audit_log', {
   details: text('details', { mode: 'json' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+export const canvasState = sqliteTable('canvas_state', {
+  instanceId: text('instance_id').primaryKey(),
+  revision: integer('revision').notNull().default(0),
+  data: text('data', { mode: 'json' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  reportedRevision: integer('reported_revision'),
+  clockOffsetMs: real('clock_offset_ms'),
+  clockUncertaintyMs: real('clock_uncertainty_ms'),
+  viewportW: integer('viewport_w'),
+  viewportH: integer('viewport_h'),
+  fpsAvg: real('fps_avg'),
+  reportedAt: integer('reported_at', { mode: 'timestamp_ms' }),
+})

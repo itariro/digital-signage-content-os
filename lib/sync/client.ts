@@ -80,16 +80,49 @@ export async function pushPending(config: SyncConfig) {
 }
 
 export async function pullRemote(config: SyncConfig, since?: string, retried = false) {
+  const { getCanvasState } = await import('@/lib/canvas/state-store')
+  const { getDisplayReport } = await import('@/lib/canvas/reporter')
+  const { getCanvasClock, recordClockSample } = await import('@/lib/canvas/clock-service')
+  const { sampleFrom } = await import('@/lib/canvas/clock')
+
+  const local = await getCanvasState(config.instanceId)
+  const report = getDisplayReport(config.instanceId)
+  const clock = getCanvasClock()
+
   const url = new URL(`${config.endpoint.replace(/\/$/, '')}/api/sync/pull`)
   url.searchParams.set('instanceId', config.instanceId)
   if (since) url.searchParams.set('since', since)
   url.searchParams.set('apiVersion', API_VERSION)
+  url.searchParams.set('cvRev', String(local?.revision ?? 0))
+  if (report?.appliedRevision !== null && report?.appliedRevision !== undefined) url.searchParams.set('cvApplied', String(report.appliedRevision))
+  if (report?.viewportW !== null && report?.viewportW !== undefined) url.searchParams.set('vw', String(report.viewportW))
+  if (report?.viewportH !== null && report?.viewportH !== undefined) url.searchParams.set('vh', String(report.viewportH))
+  if (report?.fpsAvg !== null && report?.fpsAvg !== undefined) url.searchParams.set('fps', String(report.fpsAvg))
+  if (clock.source === 'console') {
+    url.searchParams.set('cvOff', String(clock.offsetMs))
+    url.searchParams.set('cvUnc', String(clock.uncertaintyMs))
+  }
+
+  const t0 = Date.now()
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${config.token}` } })
+  const t1 = Date.now()
   if (res.status === 410 && !retried) {
     return pullRemote(config, undefined, true)
   }
   if (!res.ok) throw new Error(`pull failed: ${res.status}`)
   const data = await res.json()
+
+  if (typeof data.serverTime === 'number') {
+    const sample = sampleFrom(t0, t1, data.serverTime)
+    recordClockSample(sample)
+  }
+  if (data.canvas && typeof data.canvas.revision === 'number') {
+    const { canvasStateSchema } = await import('@/lib/canvas/schema')
+    const { applyRemoteCanvasState } = await import('@/lib/canvas/state-store')
+    const remoteState = data.canvas.state === null ? null : canvasStateSchema.parse(data.canvas.state ?? null)
+    await applyRemoteCanvasState(config.instanceId, data.canvas.revision, remoteState)
+  }
+
   const { mutateStore } = await import('@/lib/store')
   for (const c of data.changes ?? []) {
     if (c.entityType === 'frame_document' && c.operation === 'upsert') {

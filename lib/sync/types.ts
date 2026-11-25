@@ -1,3 +1,5 @@
+import type { CanvasState } from '@/lib/types'
+
 export interface SyncChange {
   idempotencyKey: string
   entityType: string
@@ -44,11 +46,27 @@ export interface PullChange {
   updatedAt: string
 }
 
+export interface PullReport {
+  appliedRevision: number | null
+  clockOffsetMs: number | null
+  clockUncertaintyMs: number | null
+  viewportW: number | null
+  viewportH: number | null
+  fpsAvg: number | null
+}
+
+export interface PullCanvas {
+  revision: number
+  state: CanvasState | null
+}
+
 export interface PullResponse {
   changes: PullChange[]
   cursor: string
   reset?: boolean
   resolvedConflicts?: Array<{ entityId: string; resolution: string }>
+  serverTime?: number
+  canvas?: PullCanvas
 }
 
 export interface SyncStatus {

@@ -204,6 +204,21 @@ export function normalize(store: FrameStore): FrameStore {
     if (next.subject && (!next.subjects || next.subjects.length === 0)) {
       next.subjects = [next.subject]
     }
+    if (next.theme === 'canvas') {
+      const crossfadeMs = Math.round(clampLegacyNumber(show.canvas?.crossfadeMs, 0, 3000, 400))
+      return {
+        ...next,
+        items: [],
+        scenes: next.scenes ?? [],
+        slideshow: {
+          ...show,
+          presentation: 'canvas',
+          transition: 'none',
+          interval: Math.round(clampLegacyNumber(show.interval, 3, 3600, 30)),
+          canvas: { crossfadeMs },
+        } as Slideshow,
+      }
+    }
     const isMosaic = show.presentation === 'mosaic'
     const isReveal = show.presentation === 'reveal'
     if (!isMosaic && !isReveal) return next

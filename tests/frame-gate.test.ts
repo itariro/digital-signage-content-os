@@ -36,6 +36,15 @@ describe('decideRequest', () => {
     expect(decideRequest(req('127.0.0.1:3000', 'POST', '/api/frames'))).toEqual({ kind: 'not_found' })
   })
 
+  it('display port serves the canvas state feed and accepts display reports', () => {
+    env.KIOSK_MGMT_PORT = '8808'
+    expect(decideRequest(req('127.0.0.1:3000', 'GET', '/api/canvas/state?frame=home'))).toEqual({ kind: 'allow' })
+    expect(decideRequest(req('127.0.0.1:3000', 'POST', '/api/canvas/report?frame=home'))).toEqual({ kind: 'allow' })
+    expect(decideRequest(req('127.0.0.1:3000', 'POST', '/api/canvas/state?frame=home'))).toEqual({ kind: 'not_found' })
+    expect(decideRequest(req('127.0.0.1:3000', 'GET', '/api/canvas/report?frame=home'))).toEqual({ kind: 'not_found' })
+    expect(decideRequest(req('127.0.0.1:3000', 'POST', '/api/canvas/demo?frame=home'))).toEqual({ kind: 'not_found' })
+  })
+
   it('display port blocks display mutations', () => {
     env.KIOSK_MGMT_PORT = '8808'
     expect(decideRequest(req('127.0.0.1:3000', 'PUT', '/api/active'))).toEqual({ kind: 'not_found' })

@@ -5,8 +5,8 @@ import { nanoid } from 'nanoid'
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, ImagePlus, Loader2, Search, Trash2, UserRound, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Album, AlbumItem, RevealGroup, Slideshow, SubjectPortrait } from '@/lib/types'
-import { FRAME_HEIGHT, FRAME_WIDTH, PRESENTATIONS } from '@/lib/types'
-import { PRESENTATION_META, THEME_META, slideAt, defaultMosaicSlideshow, defaultReveal, defaultRevealSlideshow } from '@/lib/albums'
+import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
+import { EDITOR_PRESENTATIONS, PRESENTATION_META, THEME_META, slideAt, defaultMosaicSlideshow, defaultReveal, defaultRevealSlideshow } from '@/lib/albums'
 import { seedFromString, revealAt } from '@/lib/reveal'
 import { downscaleImage } from '@/lib/frame-utils'
 import { useArtworkSearch, usePortraitSearch, type ArtworkResult, type PortraitResult } from '@/hooks/use-frame-store'
@@ -127,7 +127,7 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
               setShow({ presentation: pres })
             }
           }}
-          options={PRESENTATIONS.map((p) => ({ value: p, label: PRESENTATION_META[p].label }))}
+          options={EDITOR_PRESENTATIONS.map((p) => ({ value: p, label: PRESENTATION_META[p].label }))}
         />
         <p className="-mt-1 text-xs text-muted-foreground">{PRESENTATION_META[show.presentation].description}</p>
         <SliderField

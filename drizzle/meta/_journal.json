@@ -36,6 +36,13 @@
       "when": 1792891188761,
       "tag": "0004_living_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795580013369,
+      "tag": "0005_canvas_state",
+      "breakpoints": true
     }
   ]
 }

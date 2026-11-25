@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { themeMeta, THEME_META } from '../albums'
+import { EDITOR_ALBUM_THEMES, EDITOR_PRESENTATIONS, PRESENTATION_META, defaultSlideshow, themeMeta, THEME_META } from '../albums'
 import { albumUpdateSchema } from '../schema'
 
 describe('themeMeta', () => {
@@ -61,5 +61,28 @@ describe('themeMeta', () => {
   it('falls back for unknown themes instead of throwing', () => {
     expect(themeMeta('podcasts' as never)).toBe(THEME_META.photos)
     expect(themeMeta(undefined as never)).toBe(THEME_META.photos)
+  })
+})
+
+describe('canvas album metadata', () => {
+  it('has theme and presentation metadata', () => {
+    expect(THEME_META.canvas.label).toBe('Canvas')
+    expect(THEME_META.canvas.searchable).toBe(false)
+    expect(PRESENTATION_META.canvas.label).toBe('Canvas')
+  })
+
+  it('defaults to the canvas presentation with no transition', () => {
+    const slide = defaultSlideshow('canvas')
+    expect(slide.presentation).toBe('canvas')
+    expect(slide.transition).toBe('none')
+    expect(slide.interval).toBe(30)
+    expect(slide.canvas).toEqual({ crossfadeMs: 400 })
+  })
+
+  it('hides deferred canvas choices from the existing album editor', () => {
+    expect(EDITOR_ALBUM_THEMES).toContain('photos')
+    expect(EDITOR_ALBUM_THEMES).not.toContain('canvas')
+    expect(EDITOR_PRESENTATIONS).toContain('fill')
+    expect(EDITOR_PRESENTATIONS).not.toContain('canvas')
   })
 })

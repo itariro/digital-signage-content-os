@@ -114,3 +114,17 @@ CREATE TABLE IF NOT EXISTS enrollment_codes (
   expires_at INTEGER NOT NULL,
   consumed_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS canvas_state (
+  instance_id TEXT PRIMARY KEY,
+  revision INTEGER NOT NULL DEFAULT 0,
+  data TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  reported_revision INTEGER,
+  clock_offset_ms REAL,
+  clock_uncertainty_ms REAL,
+  viewport_w INTEGER,
+  viewport_h INTEGER,
+  fps_avg REAL,
+  reported_at INTEGER
+);
