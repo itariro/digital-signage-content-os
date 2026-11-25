@@ -1,4 +1,4 @@
-import { BookOpen, Clapperboard, Disc3, Images, MapPin, Tv, type LucideIcon } from 'lucide-react'
+import { BookOpen, Clapperboard, Disc3, Images, MapPin, PanelsLeftRight, Tv, type LucideIcon } from 'lucide-react'
 import type { Album, AlbumItem, AlbumTheme, Presentation, Slideshow, SubjectPortrait } from './types'
 
 export type ThemeMeta = {
@@ -80,6 +80,17 @@ export const THEME_META: Record<AlbumTheme, ThemeMeta> = {
     placeholder: '',
     suggestions: [],
   },
+  canvas: {
+    label: 'Canvas',
+    noun: 'scene',
+    nowLabel: 'Canvas',
+    icon: PanelsLeftRight,
+    aspect: 9 / 16,
+    searchable: false,
+    source: 'Canvas scenes',
+    placeholder: '',
+    suggestions: [],
+  },
 }
 
 /** Safe lookup: legacy/imported albums may carry an unknown theme. */
@@ -95,6 +106,7 @@ export const PRESENTATION_META: Record<Presentation, { label: string; descriptio
   gallery: { label: 'Gallery mat', description: 'Matted print on a solid wall' },
   mosaic: { label: 'Mosaic', description: 'Full-screen grid of covers; one changes at a time' },
   reveal: { label: 'Portrait Reveal', description: 'Grayscale portrait behind a wall of covers; cells open over time' },
+  canvas: { label: 'Canvas', description: 'Scenes drawn across several frames as one surface' },
 }
 
 const THEME_PRESENTATION: Record<AlbumTheme, Presentation> = {
@@ -104,20 +116,22 @@ const THEME_PRESENTATION: Record<AlbumTheme, Presentation> = {
   music: 'vinyl',
   photos: 'fill',
   'map-art': 'gallery',
+  canvas: 'canvas',
 }
 
 export function defaultSlideshow(theme: AlbumTheme): Slideshow {
   const presentation = THEME_PRESENTATION[theme]
   return {
     presentation,
-    transition: presentation === 'fill' ? 'fade' : 'slide',
+    transition: presentation === 'canvas' ? 'none' : presentation === 'fill' ? 'fade' : 'slide',
     kenBurns: presentation === 'fill',
-    interval: presentation === 'fill' ? 20 : 30,
+    interval: presentation === 'canvas' ? 30 : presentation === 'fill' ? 20 : 30,
     order: 'sequence',
     artSize: presentation === 'vinyl' ? 68 : 74,
     artPosition: 'center',
     backdrop: 'blur',
     backdropColor: '#14161b',
+    ...(presentation === 'canvas' ? { canvas: { crossfadeMs: 400 } } : {}),
   }
 }
 
