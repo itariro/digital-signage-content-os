@@ -29,9 +29,11 @@ export function fillCss(fill: TextFill): React.CSSProperties {
         : `${scale}% auto`
   return { backgroundImage: `url("${fill.image.url}")`, backgroundSize: `${bgsize}`, backgroundPosition: `${fill.image.position}% center`, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } as React.CSSProperties
 }
-export function textEffectCss(style: WidgetStyle): React.CSSProperties {
+export function textEffectCss(style: WidgetStyle, colorOverride?: string): React.CSSProperties {
   const s = normalizeWidgetStyle({ ...style })
-  return { ...fillCss(s.fill!), ...strokeCss(s.textStrokeCfg!), ...shadowCss(s.lightingShadow!) }
+  const css = { ...fillCss(s.fill!), ...strokeCss(s.textStrokeCfg!), ...shadowCss(s.lightingShadow!) }
+  if (colorOverride !== undefined && s.fill!.kind === 'solid') return { ...css, color: colorOverride }
+  return css
 }
 export function strokeCss(cfg: TextStrokeCfg): React.CSSProperties {
   if (!cfg.enabled || cfg.thickness === 0) return {}

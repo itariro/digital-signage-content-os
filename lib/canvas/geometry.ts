@@ -108,8 +108,37 @@ export function resolveGeometry(config: CanvasConfig): ResolvedGeometry {
  * Two slots qualify when they have positive overlap on one axis and positive
  * separation on the other. O(n^2) with n <= 16 is deliberate and cheap.
  */
+function subtractSlot(rect: GapRect, slot: ResolvedSlot): GapRect[] {
+  const left = Math.max(rect.x, slot.x)
+  const top = Math.max(rect.y, slot.y)
+  const right = Math.min(rect.x + rect.w, slot.x + slot.w)
+  const bottom = Math.min(rect.y + rect.h, slot.y + slot.h)
+  if (right <= left || bottom <= top) return [rect]
+
+  const pieces: GapRect[] = []
+  if (top > rect.y) pieces.push({ x: rect.x, y: rect.y, w: rect.w, h: top - rect.y })
+  if (bottom < rect.y + rect.h) pieces.push({ x: rect.x, y: bottom, w: rect.w, h: rect.y + rect.h - bottom })
+  const stripH = bottom - top
+  if (left > rect.x) pieces.push({ x: rect.x, y: top, w: left - rect.x, h: stripH })
+  if (right < rect.x + rect.w) pieces.push({ x: right, y: top, w: rect.x + rect.w - right, h: stripH })
+  return pieces
+}
+
 function computeGaps(slots: ResolvedSlot[]): GapRect[] {
   const gaps: GapRect[] = []
+  const seen = new Set<string>()
+  const add = (candidate: GapRect) => {
+    let pieces = [candidate]
+    for (const slot of slots) pieces = pieces.flatMap((piece) => subtractSlot(piece, slot))
+    for (const piece of pieces) {
+      const key = `${piece.x},${piece.y},${piece.w},${piece.h}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        gaps.push(piece)
+      }
+    }
+  }
+
   for (let i = 0; i < slots.length; i++) {
     for (let j = i + 1; j < slots.length; j++) {
       const a = slots[i]
@@ -121,7 +150,7 @@ function computeGaps(slots: ResolvedSlot[]): GapRect[] {
         const yStart = Math.min(a.y + a.h, b.y + b.h)
         const yEnd = Math.max(a.y, b.y)
         if (yEnd > yStart) {
-          gaps.push({ x: Math.max(a.x, b.x), y: yStart, w: xOverlap, h: yEnd - yStart })
+          add({ x: Math.max(a.x, b.x), y: yStart, w: xOverlap, h: yEnd - yStart })
         }
       }
 
@@ -129,7 +158,7 @@ function computeGaps(slots: ResolvedSlot[]): GapRect[] {
         const xStart = Math.min(a.x + a.w, b.x + b.w)
         const xEnd = Math.max(a.x, b.x)
         if (xEnd > xStart) {
-          gaps.push({ x: xStart, y: Math.max(a.y, b.y), w: xEnd - xStart, h: yOverlap })
+          add({ x: xStart, y: Math.max(a.y, b.y), w: xEnd - xStart, h: yOverlap })
         }
       }
     }

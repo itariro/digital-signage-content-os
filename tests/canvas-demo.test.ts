@@ -42,6 +42,32 @@ describe('canvas demo route', () => {
     expect(row?.data.identify?.marker).toBe(1)
   })
 
+  it('shares one timeline and scene identity across both slots', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-11-25T18:00:00.000Z'))
+      const { POST } = await import('@/app/api/canvas/demo/route')
+      const { NextRequest } = await import('next/server')
+      await POST(new NextRequest('http://localhost/api/canvas/demo?frame=frame-a&slot=a', { method: 'POST' }))
+      vi.setSystemTime(new Date('2026-11-25T18:00:05.000Z'))
+      await POST(new NextRequest('http://localhost/api/canvas/demo?frame=frame-b&slot=b', { method: 'POST' }))
+
+      const { getCanvasState } = await import('@/lib/canvas/state-store')
+      const a = (await getCanvasState('frame-a'))?.data.active
+      const b = (await getCanvasState('frame-b'))?.data.active
+      expect(a?.slotId).toBe('a')
+      expect(b?.slotId).toBe('b')
+      expect(a?.effectiveAt).toBe(b?.effectiveAt)
+      expect(a?.releaseAt).toBe(b?.releaseAt)
+      expect(a?.config).toEqual(b?.config)
+      expect(a?.album?.scenes.map((scene) => [scene.id, scene.seed])).toEqual(
+        b?.album?.scenes.map((scene) => [scene.id, scene.seed]),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('defaults to the first slot without identify', async () => {
     const { POST } = await import('@/app/api/canvas/demo/route')
     const { NextRequest } = await import('next/server')

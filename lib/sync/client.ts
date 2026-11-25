@@ -117,8 +117,10 @@ export async function pullRemote(config: SyncConfig, since?: string, retried = f
     recordClockSample(sample)
   }
   if (data.canvas && typeof data.canvas.revision === 'number') {
+    const { canvasStateSchema } = await import('@/lib/canvas/schema')
     const { applyRemoteCanvasState } = await import('@/lib/canvas/state-store')
-    await applyRemoteCanvasState(config.instanceId, data.canvas.revision, data.canvas.state ?? null)
+    const remoteState = data.canvas.state === null ? null : canvasStateSchema.parse(data.canvas.state ?? null)
+    await applyRemoteCanvasState(config.instanceId, data.canvas.revision, remoteState)
   }
 
   const { mutateStore } = await import('@/lib/store')

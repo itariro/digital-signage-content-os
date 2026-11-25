@@ -27,7 +27,7 @@ export function coerceDirection(direction: MarqueeConfig['direction'], arrangeme
   return direction
 }
 
-function travelAxis(direction: MarqueeConfig['direction']): 'x' | 'y' {
+export function travelAxis(direction: MarqueeConfig['direction']): 'x' | 'y' {
   return direction === 'left' || direction === 'right' ? 'x' : 'y'
 }
 
@@ -67,8 +67,9 @@ export function copyPosition(config: MarqueeConfig, geometry: ResolvedGeometry, 
 }
 
 /**
- * Indices of strip copies that intersect this slot window. Only integer j >= 0
- * exist, so content enters from the canvas edge at scene start. Capped at 64.
+ * Indices of strip copies that intersect this slot window. Enumeration starts
+ * at the first copy that can intersect at this travel distance, so repeats keep
+ * running past copy 63. At most 64 copies are returned per slot.
  */
 export function visibleCopies(
   config: MarqueeConfig,
@@ -84,10 +85,17 @@ export function visibleCopies(
   const slotEnd = slotStart + (axis === 'x' ? slot.w : slot.h)
   const T = Math.max(1, strip.lengthPx)
   const approach = config.direction === 'left' || config.direction === 'up'
-  const copies: number[] = []
+  const P = Math.max(1, T + Math.max(0, config.gap))
+  const L = axis === 'x' ? geometry.width : geometry.height
+  const first = approach
+    ? Math.max(0, Math.floor((tauPx + slotStart - L - T) / P) + 1)
+    : Math.max(0, Math.floor((tauPx - T - slotEnd) / P) + 1)
+  if (!config.repeat && first > 0) return []
 
-  for (let j = 0; j < MAX_COPIES; j++) {
-    if (!config.repeat && j > 0) break
+  const copies: number[] = []
+  for (let n = 0; n < MAX_COPIES; n++) {
+    const j = first + n
+    if (!config.repeat && j > first) break
     const x = copyPosition(config, geometry, tauPx, j)
     if (x < slotEnd && x + T > slotStart) copies.push(j)
     if (approach && x >= slotEnd) break
@@ -95,6 +103,16 @@ export function visibleCopies(
   }
 
   return copies
+}
+
+/** Number of DOM copy slots needed to paint the most that can fit in `slot`. */
+export function marqueePoolSize(config: MarqueeConfig, geometry: ResolvedGeometry, slot: ResolvedSlot): number {
+  if (!config.repeat) return 1
+  const strip = ensureStrip(config, geometry)
+  const T = Math.max(1, strip?.lengthPx ?? 1)
+  const P = Math.max(1, T + Math.max(0, config.gap))
+  const S = travelAxis(config.direction) === 'x' ? slot.w : slot.h
+  return Math.min(MAX_COPIES, Math.ceil((S + T) / P))
 }
 
 export function visibleSegments(strip: MarqueeStrip, copyX: number, slotStart: number, slotEnd: number) {

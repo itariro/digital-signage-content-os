@@ -17,9 +17,20 @@ describe('sampleFrom', () => {
 })
 
 describe('estimate', () => {
-  it('returns null with no fresh samples', () => {
+  it('keeps the last offset after samples go stale', () => {
     expect(estimate([], 10_000)).toBeNull()
-    expect(estimate([sample(0, 10, 0)], 200_000)).toBeNull()
+    expect(estimate([sample(120, 10, 0)], 200_000)).toEqual({
+      offsetMs: 120,
+      uncertaintyMs: 200_000,
+      jitterMs: 0,
+      quality: 'poor',
+      sampledAt: 0,
+    })
+  })
+
+  it('ignores samples timestamped after now', () => {
+    expect(estimate([sample(999, 10, 2_000)], 1_000)).toBeNull()
+    expect(estimate([sample(9, 10, 500), sample(999, 10, 2_000)], 1_000)?.offsetMs).toBe(9)
   })
 
   it('chooses the minimum-RTT sample among the latest eight', () => {

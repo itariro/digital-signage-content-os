@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
 import type { CanvasState } from '@/lib/types'
@@ -31,6 +31,33 @@ const REPORT_THROTTLE_MS = 10_000
 
 function table() {
   return getTables().canvasState
+}
+
+// Revisions must keep climbing after a row is deleted. The sync checkpoint
+// table is already durable in both dialects, so it holds a per-instance
+// high-water mark under a key that cannot collide with pull checkpoints.
+function revisionKey(instanceId: string): string {
+  return `canvas-rev:${instanceId}`
+}
+
+async function highWaterRevision(instanceId: string): Promise<number> {
+  const db = getDb()
+  const { syncCheckpoints } = getTables()
+  const [row] = await db.select().from(syncCheckpoints).where(eq(syncCheckpoints.id, revisionKey(instanceId)))
+  const value = Number(row?.cursor)
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
+}
+
+async function rememberRevision(instanceId: string, revision: number): Promise<void> {
+  if (revision <= await highWaterRevision(instanceId)) return
+  const db = getDb()
+  const { syncCheckpoints } = getTables()
+  const cursor = String(revision)
+  const now = new Date()
+  await db
+    .insert(syncCheckpoints)
+    .values({ id: revisionKey(instanceId), scope: 'canvas-revision', cursor, updatedAt: now })
+    .onConflictDoUpdate({ target: syncCheckpoints.id, set: { cursor, updatedAt: now } })
 }
 
 function toDate(value: unknown): Date | null {
@@ -70,13 +97,14 @@ export async function listCanvasStates(): Promise<CanvasStateRow[]> {
 
 export async function putCanvasState(instanceId: string, data: CanvasState): Promise<number> {
   const db = getDb()
-  const existing = await getCanvasState(instanceId)
-  const revision = (existing?.revision ?? 0) + 1
+  const [existing, highWater] = await Promise.all([getCanvasState(instanceId), highWaterRevision(instanceId)])
+  const revision = Math.max(existing?.revision ?? 0, highWater) + 1
   const now = new Date()
   await db
     .insert(table())
     .values({ instanceId, revision, data, updatedAt: now })
     .onConflictDoUpdate({ target: table().instanceId, set: { revision, data, updatedAt: now } })
+  await rememberRevision(instanceId, revision)
   return revision
 }
 
@@ -92,6 +120,7 @@ export async function applyRemoteCanvasState(instanceId: string, revision: numbe
     .insert(table())
     .values({ instanceId, revision, data, updatedAt: now })
     .onConflictDoUpdate({ target: table().instanceId, set: { revision, data, updatedAt: now } })
+  await rememberRevision(instanceId, revision)
   return revision
 }
 
@@ -137,8 +166,11 @@ export async function recordCanvasReport(instanceId: string, report: MemberRepor
  * Deterministic and allocation-light: rows are read once, filtered in JS, then
  * deleted one by one (no SQL max/min, which the dialect note warns about).
  */
-export async function pruneCanvasState(nowMs = Date.now()): Promise<number> {
-  const rows = await listCanvasStates()
+export async function pruneCanvasState(
+  nowMs = Date.now(),
+  listRows: () => Promise<CanvasStateRow[]> = listCanvasStates,
+): Promise<number> {
+  const rows = await listRows()
   const expired = rows.filter((row) => {
     const { active, pending } = row.data ?? EMPTY_STATE
     if (pending) return false
@@ -147,6 +179,11 @@ export async function pruneCanvasState(nowMs = Date.now()): Promise<number> {
     if (active.releaseAt === null) return false
     return active.releaseAt <= nowMs
   })
-  for (const row of expired) await deleteCanvasState(row.instanceId)
+  const db = getDb()
+  for (const row of expired) {
+    await db
+      .delete(table())
+      .where(and(eq(table().instanceId, row.instanceId), eq(table().revision, row.revision)))
+  }
   return expired.length
 }

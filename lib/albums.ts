@@ -1,5 +1,5 @@
 import { BookOpen, Clapperboard, Disc3, Images, MapPin, PanelsLeftRight, Tv, type LucideIcon } from 'lucide-react'
-import type { Album, AlbumItem, AlbumTheme, Presentation, Slideshow, SubjectPortrait } from './types'
+import { ALBUM_THEMES, PRESENTATIONS, type Album, type AlbumItem, type AlbumTheme, type Presentation, type Slideshow, type SubjectPortrait } from './types'
 
 export type ThemeMeta = {
   label: string
@@ -12,6 +12,11 @@ export type ThemeMeta = {
   placeholder: string
   suggestions: string[]
 }
+
+// Canvas authoring arrives in phase 2. The current album editor cannot send
+// `scenes`, so hide both canvas choices until it can.
+export const EDITOR_ALBUM_THEMES = ALBUM_THEMES.filter((theme) => theme !== 'canvas')
+export const EDITOR_PRESENTATIONS = PRESENTATIONS.filter((presentation) => presentation !== 'canvas')
 
 export const THEME_META: Record<AlbumTheme, ThemeMeta> = {
   movies: {

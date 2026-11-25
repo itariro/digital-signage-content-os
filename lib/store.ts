@@ -205,7 +205,7 @@ export function normalize(store: FrameStore): FrameStore {
       next.subjects = [next.subject]
     }
     if (next.theme === 'canvas') {
-      const crossfadeMs = clampLegacyNumber(show.canvas?.crossfadeMs, 0, 3000, 400)
+      const crossfadeMs = Math.round(clampLegacyNumber(show.canvas?.crossfadeMs, 0, 3000, 400))
       return {
         ...next,
         items: [],
@@ -214,7 +214,7 @@ export function normalize(store: FrameStore): FrameStore {
           ...show,
           presentation: 'canvas',
           transition: 'none',
-          interval: clampLegacyNumber(show.interval, 3, 3600, 30),
+          interval: Math.round(clampLegacyNumber(show.interval, 3, 3600, 30)),
           canvas: { crossfadeMs },
         } as Slideshow,
       }

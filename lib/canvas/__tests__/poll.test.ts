@@ -51,6 +51,26 @@ describe('startCanvasPoll', () => {
     expect(calls).toBe(3)
   })
 
+  it('ignores a second start while a tick is awaiting the sync', async () => {
+    vi.useFakeTimers()
+    let release!: () => void
+    const first = vi.fn(() => new Promise<void>((resolve) => { release = resolve }))
+    const second = vi.fn(async () => {})
+
+    startCanvasPoll(config, { env, random: steady, isActive: () => true, run: first })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(first).toHaveBeenCalledTimes(1)
+
+    startCanvasPoll(config, { env, random: steady, isActive: () => true, run: second })
+    expect(second).not.toHaveBeenCalled()
+
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(second).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(first).toHaveBeenCalledTimes(2)
+  })
+
   it('backs off to 30 s then 60 s and ignores a second start', async () => {
     vi.useFakeTimers()
     vi.spyOn(console, 'error').mockImplementation(() => {})

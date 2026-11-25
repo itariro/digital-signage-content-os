@@ -28,6 +28,19 @@ function preRollTakeover(state: CanvasState, synced: number): CanvasTakeover | n
   return slot ? { deployment, geometry, slot } : null
 }
 
+/** Next canvas deadline after `syncedMs`, in console time. */
+export function nextCanvasDeadlineMs(state: CanvasState | null, syncedMs: number): number | null {
+  if (!state || !Number.isFinite(syncedMs)) return null
+  const candidates = [
+    state.active?.effectiveAt,
+    state.active?.releaseAt,
+    state.pending?.effectiveAt,
+    state.pending?.releaseAt,
+    state.identify?.until,
+  ].filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > syncedMs)
+  return candidates.length === 0 ? null : Math.min(...candidates)
+}
+
 /**
  * Everything one display needs for one instant. `nowMs` is local time;
  * `clockOffsetMs` converts it to console time, which is the time the

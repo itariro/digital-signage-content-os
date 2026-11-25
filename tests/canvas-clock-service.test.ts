@@ -19,6 +19,14 @@ describe('clock service', () => {
     recordClockSample(null)
     expect(getCanvasClock().source).toBe('system')
   })
+
+  it('keeps the last offset when samples become stale', () => {
+    recordClockSample({ at: 1_000, rttMs: 20, offsetMs: 500 })
+    const clock = getCanvasClock(200_000)
+    expect(clock.offsetMs).toBe(500)
+    expect(clock.quality).toBe('poor')
+    expect(clock.source).toBe('console')
+  })
 })
 
 describe('display reporter', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CanvasConfig, CanvasDeployment, CanvasState } from '@/lib/types'
 import { resolveGeometry } from '@/lib/canvas/geometry'
 import { defaultScene } from '@/lib/canvas/scenes/registry'
-import { canvasRenderModel } from '@/lib/canvas/render-model'
+import { canvasRenderModel, nextCanvasDeadlineMs } from '@/lib/canvas/render-model'
 
 const config: CanvasConfig = {
   arrangement: 'row', gap: 120, align: 'center',
@@ -82,5 +82,27 @@ describe('canvasRenderModel', () => {
 
   it('is deterministic', () => {
     expect(canvasRenderModel(state(), 12_345)).toEqual(canvasRenderModel(state(), 12_345))
+  })
+})
+
+describe('nextCanvasDeadlineMs', () => {
+  it('finds the earliest future canvas deadline', () => {
+    const identify = { until: 14_000, canvasName: 'Wall', frameId: 'fa', label: null, marker: 1, count: 2 }
+    expect(nextCanvasDeadlineMs(state({
+      active: deployment({ effectiveAt: 10_000, releaseAt: 16_000 }),
+      pending: deployment({ revision: 5, effectiveAt: 12_000, releaseAt: 18_000 }),
+      identify,
+    }), 11_000)).toBe(12_000)
+  })
+
+  it('includes pre-roll and release deadlines and ignores elapsed ones', () => {
+    expect(nextCanvasDeadlineMs(state({
+      active: deployment({ effectiveAt: 12_000, releaseAt: 13_000 }),
+    }), 11_000)).toBe(12_000)
+    expect(nextCanvasDeadlineMs(state({
+      active: deployment({ effectiveAt: 10_000, releaseAt: 13_000 }),
+    }), 11_000)).toBe(13_000)
+    expect(nextCanvasDeadlineMs(state(), 20_000)).toBeNull()
+    expect(nextCanvasDeadlineMs(null, 20_000)).toBeNull()
   })
 })

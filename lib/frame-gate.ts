@@ -15,7 +15,8 @@ export type GateDecision =
 // it polls /api/store and /api/display/state via SWR and /api/weather via
 // useWeather. /api/active, /api/assets, /api/health, /api/media, /api/fonts
 // are kept from the brief as defensive allow-list entries.
-const DISPLAY_GET_ONLY = ['/api/active', '/api/store', '/api/assets', '/api/health', '/api/media', '/api/fonts', '/api/display', '/api/weather', '/api/uploads']
+const DISPLAY_GET_ONLY = ['/api/active', '/api/store', '/api/assets', '/api/health', '/api/media', '/api/fonts', '/api/display', '/api/weather', '/api/uploads', '/api/canvas/state']
+const DISPLAY_POST_ONLY = ['/api/canvas/report']
 const FRAME_NEVER = ['/console', '/api/instances', '/api/enroll'] // console-only surfaces; never served by a frame
 const ADMIN_EXEMPT_MUTATIONS = ['/api/sync', '/api/admin/login']
 
@@ -71,5 +72,6 @@ export function decideRequest(input: GateInput): GateDecision {
   if (path.startsWith('/frame')) return { kind: 'allow' }
   if (path === '/sw.js') return { kind: 'allow' }
   if (!write && DISPLAY_GET_ONLY.some((p) => path === p || path.startsWith(`${p}/`))) return { kind: 'allow' }
+  if (method === 'POST' && DISPLAY_POST_ONLY.some((p) => path === p || path.startsWith(`${p}/`))) return { kind: 'allow' }
   return { kind: 'not_found' }
 }

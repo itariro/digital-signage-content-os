@@ -30,11 +30,21 @@ function standardDeviation(values: number[]): number {
 }
 
 export function estimate(samples: ClockSample[], now: number): ClockEstimate | null {
-  const fresh = samples
+  const usable = samples
     .filter((sample) => Number.isFinite(sample.at) && Number.isFinite(sample.rttMs) && Number.isFinite(sample.offsetMs))
-    .filter((sample) => now - sample.at <= FRESH_MS)
-    .slice(-MAX_SAMPLES)
-  if (fresh.length === 0) return null
+    .filter((sample) => now - sample.at >= 0)
+  const fresh = usable.filter((sample) => now - sample.at <= FRESH_MS).slice(-MAX_SAMPLES)
+  if (fresh.length === 0) {
+    const stale = usable[usable.length - 1]
+    if (!stale) return null
+    return {
+      offsetMs: stale.offsetMs,
+      uncertaintyMs: Math.max(stale.rttMs / 2, now - stale.at),
+      jitterMs: 0,
+      quality: 'poor',
+      sampledAt: stale.at,
+    }
+  }
 
   const recent = fresh.slice(-RECENT)
   const best = recent.reduce((winner, sample) => (sample.rttMs < winner.rttMs ? sample : winner), recent[0])

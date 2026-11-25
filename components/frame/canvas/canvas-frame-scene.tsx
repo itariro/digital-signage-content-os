@@ -6,14 +6,13 @@ import type { BounceState } from '@/lib/canvas/scenes/bounce'
 import type { MarqueeState } from '@/lib/canvas/scenes/marquee'
 import type { PongState } from '@/lib/canvas/scenes/pong'
 import type { SyncTestState } from '@/lib/canvas/scenes/sync-test'
-import { copyPosition, visibleCopies, visibleSegments } from '@/lib/canvas/scenes/marquee'
+import { copyPosition, marqueePoolSize, visibleCopies, visibleSegments } from '@/lib/canvas/scenes/marquee'
 import { pongBallRect, pongNetRect, pongPaddleRect, projectRect, type Rect } from '@/lib/canvas/project'
 import { fontStack } from '@/lib/fonts'
 import { textEffectCss } from '@/lib/text-effects'
 
 export type CanvasElementRefs = Map<string, HTMLElement | null>
 
-const MARQUEE_POOL = 4
 const TRAIL_POOL = 12
 
 type ViewProps<TConfig, TState> = {
@@ -39,9 +38,8 @@ function textStyle(style: MarqueeConfig['style'], color = style.color): CSSPrope
     fontFamily: fontStack(style.fontFamily),
     fontWeight: style.fontWeight,
     letterSpacing: `${style.letterSpacing / 100}em`,
-    color,
     opacity: style.opacity / 100,
-    ...textEffectCss(style),
+    ...textEffectCss(style, color),
   }
 }
 
@@ -61,14 +59,15 @@ function reducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-function MarqueeView({ config, state, refs }: ViewProps<MarqueeConfig, MarqueeState>) {
+function MarqueeView({ config, state, geometry, slot, refs }: ViewProps<MarqueeConfig, MarqueeState>) {
   const rotate = state.axis === 'y' && state.orientation === 'upright' ? (state.direction === 'up' ? -90 : 90) : 0
   const text = textStyle(state.style)
   const height = state.layout === 'block' ? state.lineHeight : state.strip.crossPx
+  const pool = marqueePoolSize(config, geometry, slot)
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {Array.from({ length: MARQUEE_POOL }, (_, j) =>
+      {Array.from({ length: pool }, (_, j) =>
         state.strip.segments.map((segment, index) => (
           <div
             key={`${j}:${index}`}
@@ -130,6 +129,7 @@ function BounceView({ config, state, refs }: ViewProps<BounceConfig, BounceState
       >
         {config.logo.kind === 'text' ? (
           <div
+            ref={ref('bounce:text', refs)}
             style={{
               ...textStyle(config.logo.style, color),
               ...logoShape(config.logo.shape),
@@ -304,7 +304,8 @@ export function paintScene(
     const axisEnd = axisStart + (state.axis === 'x' ? slot.w : slot.h)
     const copies = visibleCopies(config, geometry, slot, state.tauPx)
     const height = state.layout === 'block' ? state.lineHeight : state.strip.crossPx
-    for (let j = 0; j < MARQUEE_POOL; j++) {
+    const pool = marqueePoolSize(config, geometry, slot)
+    for (let j = 0; j < pool; j++) {
       for (let i = 0; i < state.strip.segments.length; i++) {
         const el = refs.get(`marquee:${j}:${i}`)
         if (!el) continue
@@ -339,6 +340,11 @@ export function paintScene(
     if (logo) {
       logo.style.transform = `translate3d(${state.x}px, ${state.y}px, 0)`
       logo.style.color = color
+    }
+    const tint = state.color
+    if (tint && config.logo.kind === 'text' && (!config.logo.style.fill || config.logo.style.fill.kind === 'solid')) {
+      const text = refs.get('bounce:text')
+      if (text) text.style.color = tint
     }
     for (let i = 0; i < TRAIL_POOL; i++) {
       const el = refs.get(`bounce:trail:${i}`)

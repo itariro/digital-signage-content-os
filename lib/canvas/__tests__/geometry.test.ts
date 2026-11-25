@@ -49,6 +49,19 @@ describe('resolveGeometry', () => {
     expect(g.slots[2].y).toBe(FRAME_HEIGHT + 10)
   })
 
+  it('does not report a gap that covers an occupied slot', () => {
+    const three = config({
+      slots: ['a', 'b', 'c'].map((id) => ({ id, frameId: id, offset: { x: 0, y: 0 }, scale: 1 })),
+    })
+    expect(resolveGeometry(three).gaps).toEqual([])
+
+    const column = config({
+      arrangement: 'column',
+      slots: ['a', 'b', 'c'].map((id) => ({ id, frameId: id, offset: { x: 0, y: 0 }, scale: 1 })),
+    })
+    expect(resolveGeometry(column).gaps).toEqual([])
+  })
+
   it('applies per-slot offsets and re-bases the bounding box', () => {
     const g = resolveGeometry(config({
       slots: [

@@ -46,6 +46,7 @@ export function CanvasStage({
 }) {
   const viewport = useViewport()
   const refs = useRef<CanvasElementRefs>(new Map())
+  const sceneOpacityRef = useRef<HTMLDivElement | null>(null)
   const [scene, setScene] = useState(() => model.plan?.scene ?? null)
   const takeover = model.takeover
   const takeoverRef = useRef(takeover)
@@ -82,6 +83,7 @@ export function CanvasStage({
         setScene(plan.scene)
       }
       if (plan) {
+        if (sceneOpacityRef.current) sceneOpacityRef.current.style.opacity = String(plan.fade)
         paintScene(sceneStateAt(plan.scene, {
           bounds: { width: geometry.width, height: geometry.height },
           geometry,
@@ -89,6 +91,8 @@ export function CanvasStage({
           seed: plan.seed,
           slot,
         }), geometry, slot, refs.current)
+      } else if (sceneOpacityRef.current) {
+        sceneOpacityRef.current.style.opacity = '1'
       }
 
       const wall = Date.now()
@@ -158,7 +162,7 @@ export function CanvasStage({
           }}
         >
           {sceneView && (
-            <div style={{ position: 'absolute', inset: 0, opacity: sceneView.fade }}>
+            <div ref={sceneOpacityRef} style={{ position: 'absolute', inset: 0, opacity: sceneView.fade }}>
               <CanvasFrameScene model={sceneView.render} geometry={geometry} slot={slot} refs={refs.current} />
             </div>
           )}

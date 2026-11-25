@@ -23,6 +23,22 @@ describe('normalize canvas albums', () => {
     expect(out.slideshow.canvas).toEqual({ crossfadeMs: 3000 })
   })
 
+  it('rounds fractional canvas timing values during normalization', () => {
+    const store = seed()
+    store.albums.push({
+      id: 'canvas-fractional',
+      name: 'Wall',
+      theme: 'canvas',
+      items: [],
+      slideshow: { ...defaultSlideshow('canvas'), interval: 30.5, canvas: { crossfadeMs: 400.5 } },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    const out = normalize(store).albums.find((album) => album.id === 'canvas-fractional')!
+    expect(out.slideshow.interval).toBe(31)
+    expect(out.slideshow.canvas).toEqual({ crossfadeMs: 401 })
+  })
+
   it('leaves a canvas album with scenes intact', () => {
     const store = seed()
     const scene = { id: 's1', name: 'Test', enabled: true, durationSec: 30, seed: 1, type: 'sync-test' as const, config: { periodSec: 4, showGrid: true, showBezels: true } }

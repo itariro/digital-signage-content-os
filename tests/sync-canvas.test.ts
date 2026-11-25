@@ -31,6 +31,18 @@ async function seedFrame(id: string) {
   })
 }
 
+const canvasConfig = {
+  arrangement: 'row' as const,
+  gap: 0,
+  align: 'center' as const,
+  slots: [{ id: 'a', frameId: null, offset: { x: 0, y: 0 }, scale: 1 }],
+  background: '#000000',
+  markers: 'identify' as const,
+  notifications: 'suppress' as const,
+  nightMode: 'inherit' as const,
+  maxFps: 30 as const,
+}
+
 const state = {
   v: 1 as const,
   active: null,
@@ -111,6 +123,26 @@ describe('pullRemote canvas apply', () => {
 
     const { getCanvasClock } = await import('@/lib/canvas/clock-service')
     expect(getCanvasClock().source).toBe('console')
+  })
+
+  it('rejects a remote deployment whose slot is absent from the config', async () => {
+    const invalid = {
+      ...state,
+      active: {
+        canvasId: 'wall', name: 'Wall', revision: 1, effectiveAt: 0, releaseAt: null,
+        slotId: 'missing', config: canvasConfig, album: null,
+      },
+    }
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      changes: [], cursor: 'c', resolvedConflicts: [],
+      canvas: { revision: 4, state: invalid },
+    }), { status: 200 })) as typeof fetch
+
+    const { pullRemote } = await import('@/lib/sync/client')
+    await expect(pullRemote({ endpoint: 'http://console.test', token: 't', instanceId: 'inst-3' })).rejects.toThrow(/slot/i)
+
+    const { getCanvasState } = await import('@/lib/canvas/state-store')
+    expect(await getCanvasState('inst-3')).toBeNull()
   })
 
   it('sends cvRev and the last report as query parameters', async () => {

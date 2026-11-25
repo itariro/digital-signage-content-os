@@ -65,20 +65,26 @@ async function stateIsActive(instanceId: string): Promise<boolean> {
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null
+let runningToken: number | null = null
 let generation = 0
 let failures = 0
 
 export function startCanvasPoll(config: SyncConfig, options: CanvasPollOptions = {}): void {
-  if (timer !== null) return
+  if (timer !== null || runningToken !== null) return
   const env = options.env ?? process.env
   const random = options.random ?? Math.random
   const isActive = options.isActive ?? (() => stateIsActive(config.instanceId))
   const run = options.run ?? runSyncCycle
   const token = generation
 
+  const finish = () => {
+    if (runningToken === token) runningToken = null
+  }
+
   const tick = async () => {
     if (token !== generation) return
     timer = null
+    runningToken = token
     let failed = false
     try {
       await run(config)
@@ -86,12 +92,13 @@ export function startCanvasPoll(config: SyncConfig, options: CanvasPollOptions =
       failed = true
       console.error('canvas poll failed:', error)
     }
-    if (token !== generation) return
+    if (token !== generation) return finish()
     failures = failed ? failures + 1 : 0
     const active = await isActive()
-    if (token !== generation) return
+    if (token !== generation) return finish()
     const delay = failed ? backoffMs(failures, random) : pollDelayMs(active, env, random)
     timer = setTimeout(tick, delay)
+    finish()
   }
 
   timer = setTimeout(tick, 0)
@@ -103,5 +110,6 @@ export function stopCanvasPoll(): void {
     clearTimeout(timer)
     timer = null
   }
+  runningToken = null
   failures = 0
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { albumUpdateSchema, layoutInputSchema } from '@/lib/schema'
 import { DEFAULT_STYLE } from '@/lib/widgets'
-import { canvasConfigSchema, canvasSceneSchema } from '@/lib/canvas/schema'
+import { canvasConfigSchema, canvasSceneSchema, canvasStateSchema } from '@/lib/canvas/schema'
 
 const slot = (id: string, frameId: string | null) => ({
   id,
@@ -138,6 +138,19 @@ describe('canvas scene schema', () => {
     const scene = scenes.pong
     if (scene.type !== 'pong') throw new Error('wrong scene')
     expect(canvasSceneSchema.safeParse({ ...scene, config: { ...scene.config, rallyHits: [4, 4] } }).success).toBe(false)
+  })
+})
+
+describe('canvas deployment schema', () => {
+  it('requires the deployment slot to exist in the config', () => {
+    const deployment = {
+      canvasId: 'wall', name: 'Wall', revision: 1, effectiveAt: 0, releaseAt: null,
+      slotId: 'missing', config,
+      album: { id: 'album', name: 'Album', scenes: [scenes['sync-test']], order: 'sequence' as const, crossfadeMs: 400 },
+    }
+    const state = { v: 1 as const, active: deployment, pending: null, identify: null }
+    expect(canvasStateSchema.safeParse(state).success).toBe(false)
+    expect(canvasStateSchema.safeParse({ ...state, active: { ...deployment, slotId: 'a' } }).success).toBe(true)
   })
 })
 

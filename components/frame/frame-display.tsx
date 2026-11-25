@@ -7,7 +7,7 @@ import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
 import { clockParts, resolveDisplay } from '@/lib/schedule'
 import { googleFontHref } from '@/lib/fonts'
 import { SYSTEM_CLOCK, type CanvasClock } from '@/lib/canvas/clock'
-import { canvasRenderModel } from '@/lib/canvas/render-model'
+import { canvasRenderModel, nextCanvasDeadlineMs } from '@/lib/canvas/render-model'
 import { useNow } from '@/hooks/use-now'
 import { useWeather } from '@/hooks/use-frame-store'
 import { FrameScene } from './frame-scene'
@@ -72,14 +72,24 @@ export function FrameDisplay({ initialStore, frameId = 'home' }: { initialStore:
     refreshWhenHidden: false,
   })
 
+  const clockOffsetMs = canvasData?.clock.offsetMs ?? 0
   const canvasModel = canvasData
-    ? canvasRenderModel(canvasData.state, Date.now(), canvasData.clock.offsetMs)
+    ? canvasRenderModel(canvasData.state, Date.now(), clockOffsetMs)
     : null
+  const nextDeadline = nextCanvasDeadlineMs(canvasData?.state ?? null, Date.now() + clockOffsetMs)
+  const [, bumpCanvasDeadline] = useState(0)
   const revision = canvasData?.revision ?? null
   const fpsRef = useRef(0)
   const onCanvasFps = useCallback((fpsAvg: number) => { fpsRef.current = fpsAvg }, [])
   const reportWindow = useRef({ at: Date.now() })
   const hasCanvas = Boolean(canvasModel)
+
+  useEffect(() => {
+    if (nextDeadline === null) return
+    const delay = Math.max(0, nextDeadline - (Date.now() + clockOffsetMs))
+    const id = window.setTimeout(() => bumpCanvasDeadline((value) => value + 1), delay)
+    return () => window.clearTimeout(id)
+  }, [nextDeadline, clockOffsetMs])
 
   useEffect(() => {
     if (!hasCanvas) return

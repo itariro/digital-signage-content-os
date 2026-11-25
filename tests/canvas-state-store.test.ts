@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
 
 const env = process.env as Record<string, string | undefined>
 
@@ -40,6 +41,46 @@ describe('canvas state store', () => {
     expect((await getCanvasState('frame-a'))?.revision).toBe(7)
     await applyRemoteCanvasState('frame-a', 0, null)
     expect(await getCanvasState('frame-a')).toBeNull()
+  })
+
+  it('keeps revisions increasing after a row is deleted', async () => {
+    await freshDb()
+    const { putCanvasState, applyRemoteCanvasState, deleteCanvasState, getCanvasState } = await import('@/lib/canvas/state-store')
+    expect(await putCanvasState('frame-a', state)).toBe(1)
+    await deleteCanvasState('frame-a')
+    expect(await putCanvasState('frame-a', state)).toBe(2)
+    await applyRemoteCanvasState('frame-a', 7, state)
+    await deleteCanvasState('frame-a')
+    expect(await putCanvasState('frame-a', state)).toBe(8)
+    await applyRemoteCanvasState('frame-a', 3, state)
+    expect(await putCanvasState('frame-a', state)).toBe(9)
+    expect((await getCanvasState('frame-a'))?.revision).toBe(9)
+  })
+
+  it('does not delete a row replaced after pruning listed it', async () => {
+    await freshDb()
+    const { getCanvasState, putCanvasState, pruneCanvasState } = await import('@/lib/canvas/state-store')
+    const expired = {
+      ...state,
+      active: {
+        canvasId: 'wall', name: 'Wall', revision: 1, effectiveAt: 0, releaseAt: 1,
+        slotId: 'a', config: { arrangement: 'row' as const, gap: 0, align: 'center' as const, slots: [{ id: 'a', frameId: null, offset: { x: 0, y: 0 }, scale: 1 }], background: '#000000', markers: 'identify' as const, notifications: 'suppress' as const, nightMode: 'inherit' as const, maxFps: 30 as const }, album: null,
+      },
+    }
+    await putCanvasState('frame-a', expired)
+    const { getDb } = await import('@/lib/db')
+    const { getTables } = await import('@/lib/db/tables')
+    const db = getDb()
+    const tables = getTables()
+    await db.update(tables.canvasState).set({ revision: 2 }).where(eq(tables.canvasState.instanceId, 'frame-a'))
+
+    const removed = await pruneCanvasState(Date.now(), async () => [{
+      instanceId: 'frame-a', revision: 1, data: expired, updatedAt: new Date(),
+      reportedRevision: null, clockOffsetMs: null, clockUncertaintyMs: null,
+      viewportW: null, viewportH: null, fpsAvg: null, reportedAt: null,
+    }])
+    expect(removed).toBe(1)
+    expect((await getCanvasState('frame-a'))?.revision).toBe(2)
   })
 
   it('records a report once and throttles repeats', async () => {

@@ -11,6 +11,10 @@ export const dynamic = 'force-dynamic'
 
 const FRAME_ID = /^[a-zA-Z0-9_-]{1,64}$/
 
+// Fixed timeline and scene identities keep separate frames (and separate dev
+// processes) showing one wall. Only frame-specific fields vary per request.
+const DEMO_EFFECTIVE_AT = 1_700_000_000_000
+
 function demoConfig(): CanvasConfig {
   return {
     arrangement: 'row',
@@ -43,23 +47,24 @@ export async function POST(request: Request) {
   const marker = geometry.slots.find((slot) => slot.slotId === slotId)?.marker ?? 1
   const now = Date.now()
 
+  const scenes = (['marquee', 'bounce', 'pong', 'sync-test'] as const).map((type, index) => ({
+    ...defaultScene(type, geometry),
+    id: `demo-${type}`,
+    seed: index + 1,
+  }))
+
   const deployment: CanvasDeployment = {
     canvasId: 'demo-wall',
     name: 'Demo wall',
     revision: 1,
-    effectiveAt: now - 1_000,
+    effectiveAt: DEMO_EFFECTIVE_AT,
     releaseAt: null,
     slotId,
     config,
     album: {
       id: 'demo-album',
       name: 'Demo album',
-      scenes: [
-        defaultScene('marquee', geometry),
-        defaultScene('bounce', geometry),
-        defaultScene('pong', geometry),
-        defaultScene('sync-test', geometry),
-      ],
+      scenes,
       order: 'sequence',
       crossfadeMs: 800,
     },

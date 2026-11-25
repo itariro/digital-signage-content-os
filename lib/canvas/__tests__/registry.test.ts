@@ -51,6 +51,27 @@ describe('coerceScene', () => {
     expect(canvasSceneSchema.safeParse(coerced).success).toBe(true)
   })
 
+  it('drops a strip measured for the previous travel axis', () => {
+    const base = defaultScene('marquee', geometry)
+    if (base.type !== 'marquee') throw new Error('wrong scene')
+    const horizontal = {
+      ...base,
+      config: {
+        ...base.config,
+        layout: 'block' as const,
+        lines: ['a', 'b', 'c'],
+        lineHeight: 100,
+        direction: 'right' as const,
+        strip: { lengthPx: 300, crossPx: geometry.height, segments: [] },
+      },
+    }
+    const coerced = coerceScene(horizontal, 'column', geometry)
+    if (coerced.type !== 'marquee') throw new Error('wrong scene')
+    expect(coerced.config.direction).toBe('up')
+    expect(coerced.config.strip?.crossPx).toBe(geometry.width)
+    expect(coerced.config.strip?.lengthPx).toBe(300)
+  })
+
   it('leaves a valid direction alone', () => {
     const base = defaultScene('marquee', geometry)
     if (base.type !== 'marquee') throw new Error('wrong scene')

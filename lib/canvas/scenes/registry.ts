@@ -12,7 +12,7 @@ import type {
 } from '@/lib/types'
 import type { ResolvedGeometry } from '@/lib/canvas/geometry'
 import { DEFAULT_STYLE } from '@/lib/widgets'
-import { coerceDirection, ensureStrip, marqueeState, type MarqueeState } from './marquee'
+import { coerceDirection, ensureStrip, marqueeState, travelAxis, type MarqueeState } from './marquee'
 import { bounceState, type BounceState } from './bounce'
 import { pongState, type PongState } from './pong'
 import { syncTestState, type SyncTestState } from './sync-test'
@@ -101,7 +101,8 @@ export function defaultScene(type: CanvasSceneType, geometry: ResolvedGeometry):
 export function coerceScene(scene: CanvasScene, arrangement: CanvasArrangement, geometry: ResolvedGeometry): CanvasScene {
   if (scene.type !== 'marquee') return scene
   const direction = coerceDirection(scene.config.direction, arrangement)
-  const config = { ...scene.config, direction }
+  const axisChanged = travelAxis(scene.config.direction) !== travelAxis(direction)
+  const config = { ...scene.config, direction, strip: axisChanged ? undefined : scene.config.strip }
   const strip = ensureStrip(config, { width: geometry.width, height: geometry.height })
   return { ...scene, config: { ...config, strip } }
 }

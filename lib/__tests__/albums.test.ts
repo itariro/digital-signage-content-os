@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PRESENTATION_META, defaultSlideshow, themeMeta, THEME_META } from '../albums'
+import { EDITOR_ALBUM_THEMES, EDITOR_PRESENTATIONS, PRESENTATION_META, defaultSlideshow, themeMeta, THEME_META } from '../albums'
 import { albumUpdateSchema } from '../schema'
 
 describe('themeMeta', () => {
@@ -77,5 +77,12 @@ describe('canvas album metadata', () => {
     expect(slide.transition).toBe('none')
     expect(slide.interval).toBe(30)
     expect(slide.canvas).toEqual({ crossfadeMs: 400 })
+  })
+
+  it('hides deferred canvas choices from the existing album editor', () => {
+    expect(EDITOR_ALBUM_THEMES).toContain('photos')
+    expect(EDITOR_ALBUM_THEMES).not.toContain('canvas')
+    expect(EDITOR_PRESENTATIONS).toContain('fill')
+    expect(EDITOR_PRESENTATIONS).not.toContain('canvas')
   })
 })

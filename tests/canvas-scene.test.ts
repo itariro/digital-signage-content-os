@@ -16,6 +16,8 @@ describe('canvas scene rendering', () => {
     expect(scene).toContain('visibleCopies(config, geometry, slot, state.tauPx)')
     expect(scene).toContain('copyPosition(config, geometry, state.tauPx, copy)')
     expect(scene).toContain('visibleSegments(')
+    expect(scene).toContain('marqueePoolSize(')
+    expect(scene).not.toContain('MARQUEE_POOL')
   })
 
   it('projects pong court coordinates for either axis', () => {
@@ -29,6 +31,11 @@ describe('canvas scene rendering', () => {
     expect(scene).toContain('config.cornerCelebration')
     expect(scene).toContain("prefers-reduced-motion: reduce")
     expect(scene).toContain('export function paintScene')
+  })
+
+  it('applies the animated tint to the element that paints a text logo', () => {
+    expect(scene).toContain("ref('bounce:text', refs)")
+    expect(scene).toContain('text.style.color = tint')
   })
 
   it('draws the sync-test helpers', () => {

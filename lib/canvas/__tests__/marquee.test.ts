@@ -5,6 +5,7 @@ import {
   coerceDirection,
   copyPosition,
   ensureStrip,
+  marqueePoolSize,
   marqueeState,
   visibleCopies,
   visibleSegments,
@@ -111,6 +112,25 @@ describe('visibleCopies', () => {
   it('never returns more than 64 copies', () => {
     const tiny = { ...config, gap: 0, strip: { lengthPx: 1, crossPx: 200, segments: [{ text: 'x', at: 0, w: 1 }] } }
     expect(visibleCopies(tiny, geometry, geometry.slots[0], 0).length).toBeLessThanOrEqual(64)
+  })
+
+  it('finds visible copies after the first 64 positions', () => {
+    expect(visibleCopies(config, geometry, geometry.slots[0], 240_000)).toEqual([396, 397, 398])
+    expect(visibleCopies(config, geometry, geometry.slots[1], 240_000)).toEqual([398, 399])
+    expect(visibleCopies({ ...config, direction: 'right' }, geometry, geometry.slots[0], 240_000)).toEqual([398, 399])
+  })
+})
+
+describe('marqueePoolSize', () => {
+  it('sizes the pool from the slot and strip period', () => {
+    expect(marqueePoolSize(config, geometry, geometry.slots[0])).toBe(3)
+    expect(marqueePoolSize({ ...config, direction: 'up' }, geometry, geometry.slots[0])).toBe(5)
+  })
+
+  it('caps the pool and keeps non-repeating marquees to one copy', () => {
+    const tiny = { ...config, gap: 0, strip: { lengthPx: 1, crossPx: 200, segments: [{ text: 'x', at: 0, w: 1 }] } }
+    expect(marqueePoolSize(tiny, geometry, geometry.slots[0])).toBe(64)
+    expect(marqueePoolSize({ ...config, repeat: false }, geometry, geometry.slots[0])).toBe(1)
   })
 })
 

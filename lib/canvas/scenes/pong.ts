@@ -80,7 +80,7 @@ export function pongTiming(config: PongConfig, bounds: { width: number; height: 
 }
 
 function face(timing: PongTiming, side: 0 | 1): number {
-  return side === 0 ? timing.xL : timing.xR
+  return side === 0 ? timing.xL + timing.bs / 2 : timing.xR - timing.bs / 2
 }
 
 function restY(seed: number, matchIndex: number, k: number, side: 0 | 1, timing: PongTiming, config: PongConfig): number {

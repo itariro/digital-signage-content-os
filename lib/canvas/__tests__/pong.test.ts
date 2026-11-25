@@ -101,6 +101,15 @@ describe('pongState', () => {
     }
   })
 
+  it('serves from the ball-center contact position on each paddle', () => {
+    const timing = pongTiming(config, bounds)
+    const first = pongState(config, { bounds, geometry: row, tMs: 0, seed: 5 })
+    const second = pongState(config, { bounds, geometry: row, tMs: timing.pointSec * 1000, seed: 5 })
+    expect(first.ball.x).toBeCloseTo(timing.xL + timing.bs / 2, 6)
+    expect(second.ball.x).toBeCloseTo(timing.xR - timing.bs / 2, 6)
+    expect((timing.xR - timing.bs / 2) - (timing.xL + timing.bs / 2)).toBeCloseTo(timing.D, 6)
+  })
+
   it('lands the ball within half a paddle at every hit and outside it at the miss', () => {
     const timing = pongTiming(config, bounds)
     const k = 2
@@ -125,7 +134,7 @@ describe('pongState', () => {
   it('keeps scores monotonic inside a match, shows a banner and resets', () => {
     const timing = pongTiming(config, bounds)
     let previous = -1
-    for (let t = 0; t < timing.pointSec * timing.matchSlots; t += 100) {
+    for (let t = 0; t < timing.pointSec * timing.matchSlots; t += 0.1) {
       const state = pongState(config, { bounds, geometry: row, tMs: t * 1000, seed: 5 })
       expect(state.score[0] + state.score[1]).toBeGreaterThanOrEqual(previous)
       previous = state.score[0] + state.score[1]

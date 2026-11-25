@@ -15,6 +15,12 @@ describe('frame display canvas takeover', () => {
     expect(display).not.toContain('setFrameTick')
   })
 
+  it('schedules a render at the next deployment deadline', () => {
+    expect(display).toContain('nextCanvasDeadlineMs(')
+    expect(display).toContain('window.setTimeout(')
+    expect(display).toContain('clearTimeout(')
+  })
+
   it('reports the applied revision, viewport and measured fps', () => {
     expect(display).toContain('/api/canvas/report?frame=')
     expect(display).toContain('appliedRevision: canvasModel ? revision : null')
@@ -33,6 +39,11 @@ describe('frame display canvas takeover', () => {
     expect(stage).toContain('canvasLoopKey(')
     expect(stage).toContain('}, [loopKey, onFps])')
     expect(stage).toContain('sceneRef.current')
+  })
+
+  it('updates scene opacity in the animation tick', () => {
+    expect(stage).toContain('sceneOpacityRef')
+    expect(stage).toContain('style.opacity = String(plan.fade)')
   })
 
   it('keeps the stage filled with the canvas background and handles pre-roll', () => {
