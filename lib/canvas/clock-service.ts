@@ -1,5 +1,7 @@
 import { estimate, SYSTEM_CLOCK, type CanvasClock, type ClockSample } from './clock'
 
+export { SYSTEM_CLOCK } from './clock'
+
 const samples: ClockSample[] = []
 const MAX_SAMPLES = 16
 
