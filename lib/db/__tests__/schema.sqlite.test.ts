@@ -16,4 +16,12 @@ describe('sqlite schema', () => {
       expect(columns).toContain(name)
     }
   })
+
+  it('exports canvasAssets with the content-addressed columns', () => {
+    expect(s.canvasAssets).toBeDefined()
+    const columns = Object.keys(s.canvasAssets)
+    for (const name of ['hash', 'mime', 'size', 'createdAt']) {
+      expect(columns).toContain(name)
+    }
+  })
 })

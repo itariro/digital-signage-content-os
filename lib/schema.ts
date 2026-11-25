@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { ALBUM_THEMES, PRESENTATIONS, WIDGET_TYPES } from './types'
+import { ALBUM_THEMES, CANVAS_PALETTE_IDS, PRESENTATIONS, WIDGET_TYPES } from './types'
 import { hex, widgetStyleSchema } from './widget-style-schema'
-import { canvasConfigSchema, canvasSceneSchema } from './canvas/schema'
+import { canvasConfigSchema, canvasLayerSchema, canvasSceneSchema, canvasWallTransitionSchema } from './canvas/schema'
 export { widgetStyleSchema } from './widget-style-schema'
 
 const stickerLayerSchema = z.object({
@@ -159,6 +159,9 @@ export const albumUpdateSchema = z.object({
   mapArt: mapArtSettingsSchema.optional(),
   subject: subjectSchema.nullable().optional(),
   scenes: z.array(canvasSceneSchema).max(50).optional(),
+  layers: z.array(canvasLayerSchema).min(1).max(3).optional(),
+  transition: canvasWallTransitionSchema.optional(),
+  paletteId: z.enum(CANVAS_PALETTE_IDS).optional(),
 }).superRefine((album, ctx) => {
   const isCanvas = album.theme === 'canvas'
   const presentationIsCanvas = album.slideshow.presentation === 'canvas'
@@ -172,6 +175,11 @@ export const albumUpdateSchema = z.object({
   if (isCanvas) {
     if (album.items.length > 0) ctx.addIssue({ code: 'custom', message: 'Canvas albums have no artwork items', path: ['items'] })
     if (album.slideshow.transition !== 'none') ctx.addIssue({ code: 'custom', message: 'Canvas albums use transition none', path: ['slideshow', 'transition'] })
+    if (album.layers?.[0] && JSON.stringify(album.layers[0].scenes) !== JSON.stringify(album.scenes)) {
+      ctx.addIssue({ code: 'custom', message: 'Layer zero must mirror scenes', path: ['layers', 0, 'scenes'] })
+    }
+  } else if (album.layers || album.transition || album.paletteId) {
+    ctx.addIssue({ code: 'custom', message: 'Only canvas albums use layers, transitions and palettes', path: ['layers'] })
   }
 })
 

@@ -160,3 +160,10 @@ export const auditLog = pgTable('audit_log', {
   details: jsonb('details'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 })
+
+export const canvasAssets = pgTable('canvas_assets', {
+  hash: text('hash').primaryKey(),
+  mime: text('mime').notNull(),
+  size: integer('size').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})

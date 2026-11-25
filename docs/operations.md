@@ -60,3 +60,12 @@
 
 ## Postgres schema (console)
 - Apply migrations with `pnpm exec drizzle-kit migrate` (drizzle/0000..0004, latest: enrollment_codes). Do not rely on `drizzle-kit push`: until 0002 the migration set was missing 8 console tables and the frame_documents sync columns (revision/content_hash/updated_by).
+
+## Multi-frame canvas
+
+- The console Canvas rail manages canvas layouts, canvas albums and frame status. Console canvas routes require `resolveActor` and refuse requests when `INSTANCE_ID` is set. `GET /api/canvas/status?layoutId=<id>` returns the status rows used by the Status tab.
+- Enroll every canvas member as an instance. A frame can join one scheduled or live canvas at a time. Keep network time enabled on every frame. The operator guide in `docs/canvas.md` covers deploy, release and calibration.
+- Fast canvas polling uses `CANVAS_POLL_ACTIVE_SECONDS` (default `5`) while a frame has a canvas deployment or identify request, and `CANVAS_POLL_IDLE_SECONDS` (default `30`) otherwise. Set either value to `0` to disable that fast poll and fall back to the regular sync interval from `SYNC_INTERVAL_MINUTES` (default `15` minutes). Set these values in `/etc/dscos/frame.env` and restart `dscos`. The console Status tab always polls every 5 seconds.
+- Problem labels: Offline means no report for more than three poll intervals. Out of date means the rendering revision trails the delivered revision after `effectiveAt`. Clock drift risk means poor quality or uncertainty above 50 ms. Wrong aspect ratio means the viewport differs from 9 by 16 by more than 1 percent. No report yet means the frame never sent a canvas report. Unpublished changes means the library differs from the deployed snapshot. Frame missing means the instance is gone or was revoked.
+- Revoking an instance with `DELETE /api/instances/<id>` deletes its `canvas_state` row. Remove or replace any revoked frame still assigned to a slot before deploying again; otherwise the deploy fails with `E_UNKNOWN_FRAME`. A canvas whose only member was revoked disappears from the Status tab until you assign a new frame and deploy.
+- Canvas state is derived data. Backups cover the authoring library through frame documents. A rebuild on the next deploy restores delivery rows.

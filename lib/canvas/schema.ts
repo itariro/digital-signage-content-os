@@ -1,6 +1,18 @@
 import { z } from 'zod'
-import { hex, widgetStyleSchema } from '@/lib/widget-style-schema'
-import { FRAME_HEIGHT, FRAME_WIDTH } from '@/lib/types'
+import { widgetStyleSchema as baseWidgetStyleSchema } from '@/lib/widget-style-schema'
+import { CANVAS_PALETTE_IDS, CANVAS_TRANSITION_KINDS } from '@/lib/types'
+import { FRAME_HEIGHT, FRAME_WIDTH, type CanvasState } from '@/lib/types'
+import { CATALOG_TYPES, catalogConfigSchema } from '@/lib/canvas/catalog-kit'
+
+const hexLiteral = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+const paletteColor = z.string().regex(/^palette:(primary|secondary|accent|background|text)$/)
+const hex: z.ZodType<string> = z.union([hexLiteral, paletteColor])
+const widgetStyleSchema = baseWidgetStyleSchema.extend({
+  color: hex,
+  accent: hex,
+  bg: hex,
+  stroke: hex,
+})
 
 const MAX_LOGO_BYTES = 200 * 1024
 
@@ -92,8 +104,9 @@ export const bounceConfigSchema = z.object({
     .default({ mode: 'none', colors: ['#e11d48', '#f59e0b', '#22c55e', '#3b82f6'], fixed: '#ffffff' }),
   cornerCelebration: z.boolean().default(true),
   trail: z
-    .object({ enabled: z.boolean().default(false), length: z.number().int().min(0).max(12).default(0), spacingMs: z.number().int().min(16).max(1000).default(80) })
-    .default({ enabled: false, length: 0, spacingMs: 80 }),
+    .object({ enabled: z.boolean().default(false), length: z.number().int().min(0).max(12).default(0), spacingMs: z.number().int().min(16).max(1000).default(80), finish: z.boolean().default(true) })
+    .default({ enabled: false, length: 0, spacingMs: 80, finish: true }),
+  guaranteedCorner: z.boolean().default(false),
 })
 
 export const pongConfigSchema = z.object({
@@ -130,6 +143,7 @@ export const canvasSlotSchema = z.object({
   label: z.string().max(40).optional(),
   offset: z.object({ x: z.number().min(-8000).max(8000), y: z.number().min(-8000).max(8000) }).default({ x: 0, y: 0 }),
   scale: z.number().min(0.25).max(4).default(1),
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
 })
 
 export const canvasConfigSchema = z
@@ -139,11 +153,15 @@ export const canvasConfigSchema = z
     gap: z.number().min(0).max(600).default(0),
     align: z.enum(['start', 'center', 'end']).default('center'),
     slots: z.array(canvasSlotSchema).min(1).max(16),
-    background: hex.default('#000000'),
+    background: hexLiteral.default('#000000'),
     markers: z.enum(['identify', 'always', 'never']).default('identify'),
     notifications: z.enum(['suppress', 'show']).default('suppress'),
     nightMode: z.enum(['inherit', 'ignore']).default('inherit'),
     maxFps: z.union([z.literal(15), z.literal(24), z.literal(30), z.literal(60)]).default(30),
+    bezelMode: z.enum(['show', 'hide', 'collapse']).default('show'),
+    unitMode: z.enum(['pixels', 'physical']).default('pixels'),
+    screenWidthMm: z.number().min(1).max(4000).optional(),
+    screenHeightMm: z.number().min(1).max(4000).optional(),
   })
   .superRefine((config, ctx) => {
     const ids = new Set<string>()
@@ -156,6 +174,9 @@ export const canvasConfigSchema = z
         frames.add(slot.frameId)
       }
     })
+    if (config.unitMode === 'physical' && (!config.screenWidthMm || !config.screenHeightMm)) {
+      ctx.addIssue({ code: 'custom', message: 'Physical units require screen dimensions', path: ['screenWidthMm'] })
+    }
   })
 
 const sceneBaseShape = {
@@ -171,7 +192,35 @@ export const canvasSceneSchema = z.discriminatedUnion('type', [
   z.object({ ...sceneBaseShape, type: z.literal('bounce'), config: bounceConfigSchema }),
   z.object({ ...sceneBaseShape, type: z.literal('pong'), config: pongConfigSchema }),
   z.object({ ...sceneBaseShape, type: z.literal('sync-test'), config: syncTestConfigSchema }),
+  z.object({ ...sceneBaseShape, type: z.enum(CATALOG_TYPES), config: catalogConfigSchema }),
 ])
+
+export const canvasLayerSchema = z.object({
+  id: z.string().min(1).max(40),
+  name: z.string().min(1).max(60),
+  enabled: z.boolean(),
+  scenes: z.array(canvasSceneSchema).min(1).max(50),
+  order: z.enum(['sequence', 'shuffle']),
+  crossfadeMs: z.number().int().min(0).max(3000),
+})
+
+export const canvasWallTransitionSchema = z.object({
+  kind: z.enum(CANVAS_TRANSITION_KINDS),
+  durationMs: z.number().int().min(0).max(10_000),
+  direction: z.enum(['left', 'right', 'up', 'down']),
+})
+
+export const canvasPaletteSchema = z.object({
+  id: z.enum(CANVAS_PALETTE_IDS),
+  name: z.string().min(1).max(40),
+  colors: z.object({
+    primary: hexLiteral,
+    secondary: hexLiteral,
+    accent: hexLiteral,
+    background: hexLiteral,
+    text: hexLiteral,
+  }),
+})
 
 export const deploymentAlbumSchema = z.object({
   id: z.string().min(1).max(40),
@@ -179,6 +228,9 @@ export const deploymentAlbumSchema = z.object({
   scenes: z.array(canvasSceneSchema).max(50),
   order: z.enum(['sequence', 'shuffle']),
   crossfadeMs: z.number().int().min(0).max(3000),
+  layers: z.array(canvasLayerSchema).min(1).max(3).optional(),
+  transition: canvasWallTransitionSchema.optional(),
+  palette: canvasPaletteSchema.optional(),
 })
 
 export const canvasDeploymentSchema = z.object({
@@ -190,6 +242,11 @@ export const canvasDeploymentSchema = z.object({
   slotId: z.string().min(1).max(40),
   config: canvasConfigSchema,
   album: deploymentAlbumSchema.nullable(),
+  frameSizes: z.array(z.object({
+    id: z.string().min(1).max(64),
+    screenWidthMm: z.number().min(1).max(4000).nullable().optional(),
+    screenHeightMm: z.number().min(1).max(4000).nullable().optional(),
+  })).optional(),
 }).superRefine((deployment, ctx) => {
   if (!deployment.config.slots.some((slot) => slot.id === deployment.slotId)) {
     ctx.addIssue({ code: 'custom', message: `Slot ${deployment.slotId} is not in config.slots`, path: ['slotId'] })
@@ -205,11 +262,16 @@ export const canvasIdentifySchema = z.object({
   count: z.number().int().min(1).max(16),
 })
 
-export const canvasStateSchema = z.object({
+/**
+ * Task 21 widens `CanvasSceneType` once the registry can render catalog
+ * scenes. Until then the parsed value is typed as the existing CanvasState
+ * at this single boundary rather than at every consumer.
+ */
+export const canvasStateSchema: z.ZodType<CanvasState> = z.object({
   v: z.literal(1),
   active: canvasDeploymentSchema.nullable(),
   pending: canvasDeploymentSchema.nullable(),
   identify: canvasIdentifySchema.nullable(),
-})
+}) as unknown as z.ZodType<CanvasState>
 
 export const FRAME_CPX = { width: FRAME_WIDTH, height: FRAME_HEIGHT } as const

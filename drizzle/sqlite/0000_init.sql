@@ -128,3 +128,10 @@ CREATE TABLE IF NOT EXISTS canvas_state (
   fps_avg REAL,
   reported_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS canvas_assets (
+  hash TEXT PRIMARY KEY,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);

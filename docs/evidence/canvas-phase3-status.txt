@@ -1,0 +1,21 @@
+Phase 3 status evidence
+
+Before, at Phase 2 head 3245d41:
+- `app/api/canvas/status/route.ts` did not exist.
+- `tests/canvas-admin-shell.test.ts` asserted the panel had only Layouts and Albums.
+- The first route test run failed all 7 tests because `@/app/api/canvas/status/route` was missing.
+
+After, on this branch:
+
+$ pnpm vitest run lib/canvas/__tests__/problems.test.ts tests/canvas-status-route.test.ts
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.1.0 /Users/tariro/.local/share/opencode/worktree/68dcae/canvas-phase2-authoring
+
+
+ Test Files  2 passed (2)
+      Tests  22 passed (22)
+   Start at  20:56:38
+   Duration  675ms (tests 96%, import 2%, transform 1%, worker 1%)

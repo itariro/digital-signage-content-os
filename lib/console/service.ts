@@ -7,6 +7,8 @@ export interface FrameSummary {
   name: string
   updatedAt: Date | string | null
   revision: number | null
+  screenWidthMm?: number | null
+  screenHeightMm?: number | null
 }
 
 export interface InstanceCard {
@@ -33,7 +35,14 @@ export async function listInstanceCards(): Promise<InstanceCard[]> {
       id: i.id,
       createdAt: i.createdAt ?? null,
       lastSeenAt: i.lastSeenAt ?? null,
-      frame: f ? { identifier: f.identifier, name: f.name, updatedAt: f.updatedAt, revision: f.revision } : null,
+      frame: f ? {
+        identifier: f.identifier,
+        name: f.name,
+        updatedAt: f.updatedAt,
+        revision: f.revision,
+        screenWidthMm: f.screenWidthMm ?? null,
+        screenHeightMm: f.screenHeightMm ?? null,
+      } : null,
     }
   })
 }

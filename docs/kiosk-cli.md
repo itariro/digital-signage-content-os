@@ -349,6 +349,24 @@ instead: `SYNC_ENABLED`, `SYNC_ENDPOINT`, `SYNC_TOKEN`, `INSTANCE_ID`, and
 those values set. The CLI's sync settings are the device-side record plus the
 probe; they are not yet wired to the service's environment.
 
+### Canvas fast poll
+
+Canvas delivery uses a second pull timer in the app service. It runs beside the
+15 minute sync worker. Set these values in `/etc/dscos/frame.env` as root and
+restart the app with `kiosk app restart`:
+
+```bash
+CANVAS_POLL_ACTIVE_SECONDS=5
+CANVAS_POLL_IDLE_SECONDS=30
+```
+
+`CANVAS_POLL_ACTIVE_SECONDS` applies while the frame has a canvas deployment or
+an identify request. `CANVAS_POLL_IDLE_SECONDS` applies when it has no canvas
+work. Set either value to `0` to disable that fast poll and fall back to the
+regular sync interval from `SYNC_INTERVAL_MINUTES` (default `15` minutes). Check
+the Status tab in the console to see whether reports arrive within the expected
+5 seconds.
+
 ### Updates
 
 ```text

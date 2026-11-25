@@ -1,0 +1,35 @@
+Phase 4 catalog and extras evidence
+
+Before, at Phase 3 head 123a5ad:
+- `CanvasSceneType` contained only marquee, bounce, pong and sync-test.
+- `lib/canvas/scenes/catalog/` did not exist.
+- `lib/canvas/catalog-kit.ts`, `lib/canvas/catalog-draw.ts` and the per-scene renderer directory did not exist.
+- `pnpm test` reported 931 passed / 7 skipped; `npx tsc --noEmit` was clean.
+
+After, on agent/canvas-phase4-catalog-and-extras:
+- `CanvasSceneType` contains the four Phase 1 scenes plus 28 catalog scenes.
+- Every catalog scene has a pure state module and a renderer file.
+- Wall continuity and source purity are covered by two new test files.
+
+Targeted proof:
+
+$ pnpm vitest run lib/canvas/__tests__/catalog-continuity.test.ts lib/canvas/__tests__/catalog-source.test.ts
+ Test Files  2 passed (2)
+      Tests  60 passed (60)
+
+Whole-branch proof:
+
+$ pnpm test
+ Test Files  154 passed | 3 skipped (157)
+      Tests  1124 passed | 7 skipped (1131)
+
+$ npx tsc --noEmit
+(clean)
+
+$ pnpm build
+(compiled successfully)
+
+Visual note:
+No physical two-display capture was available in this environment. The console
+wall preview walkthrough is in the PR body for a human check with calibration,
+gallery-wall, mosaic-wall, breakout and life deployed across two frames.

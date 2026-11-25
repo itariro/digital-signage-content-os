@@ -54,6 +54,12 @@ Editor functionality includes:
 
 Layouts are stored as data documents, which makes them portable between the editor and the display renderer. A layout is not treated as a separate page; it is a structured composition of widgets and settings.
 
+### Multi-frame canvas
+
+A canvas treats several frames as one wide or tall display. Operators create canvas albums and canvas layouts from the Canvas rail, assign enrolled frames to slots, identify the slots on the wall, and deploy with a shared start time. Frames pull the same snapshot and compute scenes from synced time, so motion stays continuous across bezels and survives a network drop.
+
+The Status tab shows the last report, delivered and rendering revisions, clock offset and quality, viewport, frame rate and problem labels for every slot. Library edits are marked as unpublished until the next deploy. Revoking an instance also clears its canvas state row. See `docs/canvas.md` for setup, NTP advice, calibration and troubleshooting.
+
 ### Widget library
 
 The application includes widgets for time, weather, planning, and decorative content:

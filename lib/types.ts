@@ -1,3 +1,5 @@
+import type { CatalogSceneConfig, CatalogSceneType } from '@/lib/canvas/catalog-kit'
+
 export const FRAME_WIDTH = 1080
 export const FRAME_HEIGHT = 1920
 
@@ -206,6 +208,9 @@ export type Album = {
   subject?: SubjectPortrait | null
   subjects?: SubjectPortrait[]
   scenes?: CanvasScene[]
+  layers?: CanvasLayer[]
+  transition?: CanvasWallTransition
+  paletteId?: CanvasPaletteId
   createdAt: string
   updatedAt: string
 }
@@ -227,6 +232,25 @@ export type Layout = {
   updatedAt: string
 }
 
+export type CanvasAlbum = Album & {
+  theme: 'canvas'
+  scenes: CanvasScene[]
+}
+
+export type CanvasTemplate = {
+  id: CanvasTemplateId
+  name: string
+  description: string
+  layout: {
+    name: string
+    kind: 'canvas'
+    widgets: []
+    canvas: CanvasConfig
+    settings: LayoutSettings
+  }
+  album: Omit<CanvasAlbum, 'id' | 'createdAt' | 'updatedAt'>
+}
+
 // ---------------------------------------------------------------------------
 // Multi-frame canvas
 // ---------------------------------------------------------------------------
@@ -240,6 +264,7 @@ export type CanvasSlot = {
   label?: string
   offset: { x: number; y: number }
   scale: number
+  rotation?: 0 | 90 | 180 | 270
 }
 
 export type CanvasConfig = {
@@ -253,9 +278,13 @@ export type CanvasConfig = {
   notifications: 'suppress' | 'show'
   nightMode: 'inherit' | 'ignore'
   maxFps: 15 | 24 | 30 | 60
+  bezelMode?: 'show' | 'hide' | 'collapse'
+  unitMode?: 'pixels' | 'physical'
+  screenWidthMm?: number
+  screenHeightMm?: number
 }
 
-export type CanvasSceneType = 'marquee' | 'bounce' | 'pong' | 'sync-test'
+export type CanvasSceneType = 'marquee' | 'bounce' | 'pong' | 'sync-test' | CatalogSceneType
 
 export type MarqueeStrip = {
   lengthPx: number
@@ -291,7 +320,8 @@ export type BounceConfig = {
   startMode: 'seed' | 'center'
   tint: { mode: 'cycle' | 'fixed' | 'none'; colors: string[]; fixed: string }
   cornerCelebration: boolean
-  trail: { enabled: boolean; length: number; spacingMs: number }
+  trail: { enabled: boolean; length: number; spacingMs: number; finish?: boolean }
+  guaranteedCorner?: boolean
 }
 
 export type PongConfig = {
@@ -327,6 +357,7 @@ export type CanvasScene =
   | (CanvasSceneBase & { type: 'bounce'; config: BounceConfig })
   | (CanvasSceneBase & { type: 'pong'; config: PongConfig })
   | (CanvasSceneBase & { type: 'sync-test'; config: SyncTestConfig })
+  | (CanvasSceneBase & { type: CatalogSceneType; config: CatalogSceneConfig })
 
 export type DeploymentAlbum = {
   id: string
@@ -334,6 +365,9 @@ export type DeploymentAlbum = {
   scenes: CanvasScene[]
   order: 'sequence' | 'shuffle'
   crossfadeMs: number
+  layers?: CanvasLayer[]
+  transition?: CanvasWallTransition
+  palette?: CanvasPalette
 }
 
 export type CanvasDeployment = {
@@ -345,6 +379,7 @@ export type CanvasDeployment = {
   slotId: string
   config: CanvasConfig
   album: DeploymentAlbum | null
+  frameSizes?: Array<{ id: string; screenWidthMm?: number | null; screenHeightMm?: number | null }>
 }
 
 export type CanvasIdentify = {
@@ -362,6 +397,47 @@ export type CanvasState = {
   pending: CanvasDeployment | null
   identify: CanvasIdentify | null
 }
+
+export const CANVAS_PALETTE_IDS = ['aurora', 'sunset', 'mono', 'neon', 'forest', 'candy'] as const
+export type CanvasPaletteId = (typeof CANVAS_PALETTE_IDS)[number]
+
+export const CANVAS_PALETTE_TOKENS = ['primary', 'secondary', 'accent', 'background', 'text'] as const
+export type CanvasPaletteToken = (typeof CANVAS_PALETTE_TOKENS)[number]
+
+export type CanvasPalette = {
+  id: CanvasPaletteId
+  name: string
+  colors: Record<CanvasPaletteToken, string>
+}
+
+export const CANVAS_TRANSITION_KINDS = ['none', 'wipe', 'iris', 'chase'] as const
+export type CanvasTransitionKind = (typeof CANVAS_TRANSITION_KINDS)[number]
+export type CanvasTransitionDirection = 'left' | 'right' | 'up' | 'down'
+
+export type CanvasWallTransition = {
+  kind: CanvasTransitionKind
+  durationMs: number
+  direction: CanvasTransitionDirection
+}
+
+export type CanvasLayer = {
+  id: string
+  name: string
+  enabled: boolean
+  scenes: CanvasScene[]
+  order: 'sequence' | 'shuffle'
+  crossfadeMs: number
+}
+
+export const CANVAS_TEMPLATE_IDS = [
+  'hello-wall',
+  'sync-check',
+  'colour-study',
+  'type-parade',
+  'arcade-night',
+  'wall-clock',
+] as const
+export type CanvasTemplateId = (typeof CANVAS_TEMPLATE_IDS)[number]
 
 export type Preset = {
   id: string

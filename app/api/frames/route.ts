@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, ne } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getDb } from '@/lib/db'
 import { getTables } from '@/lib/db/tables'
@@ -7,6 +7,7 @@ import { readStore } from '@/lib/store'
 import type { FrameStore } from '@/lib/types'
 import { resolveDisplay, clockParts } from '@/lib/schedule'
 import { requireHostedOperator } from '@/lib/http-auth'
+import { CANVAS_LIBRARY_ID, isLibraryFrame } from '@/lib/canvas/library'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,8 +16,7 @@ function validId(value: unknown) {
 }
 
 // A provisioned kiosk (INSTANCE_ID set) manages EXACTLY ONE frame: 'home'
-// (user design resolution). Multi-frame lives on the console — one instance
-// per screen. Refuse any local frame other than home.
+// (user design resolution). Multi-frame lives on the console.
 function singleFrameViolation(): NextResponse | null {
   if (!process.env.INSTANCE_ID) return null
   return NextResponse.json(
@@ -27,7 +27,9 @@ function singleFrameViolation(): NextResponse | null {
 
 export async function GET() {
   const frameDocuments = getTables().frameDocuments
-  const documents = await getDb().select().from(frameDocuments).orderBy(desc(frameDocuments.updatedAt))
+  const documents = await getDb().select().from(frameDocuments)
+    .where(ne(frameDocuments.identifier, CANVAS_LIBRARY_ID))
+    .orderBy(desc(frameDocuments.updatedAt))
   const now = new Date()
   return NextResponse.json(await Promise.all(documents.map(async (document) => {
     const store = document.data as FrameStore
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
   const frameDocuments = getTables().frameDocuments
   const now = new Date()
   const identifier = body.id.trim()
+  if (isLibraryFrame(identifier)) return NextResponse.json({ error: 'That frame id is reserved' }, { status: 400 })
   const violation = singleFrameViolation()
   if (violation && identifier !== 'home') return violation
   const [existing] = await db.select({ id: frameDocuments.id }).from(frameDocuments).where(eq(frameDocuments.identifier, identifier)).limit(1)
@@ -86,6 +89,7 @@ export async function PATCH(request: Request) {
 
   const body = await request.json().catch(() => null)
   if (!body || !validId(body.id)) return NextResponse.json({ error: 'Valid frame ID is required' }, { status: 400 })
+  if (isLibraryFrame(body.id)) return NextResponse.json({ error: 'The canvas library is not a frame' }, { status: 400 })
   const patchViolation = singleFrameViolation()
   if (patchViolation && body.id !== 'home') return patchViolation
   const db = getDb()
@@ -114,12 +118,13 @@ export async function DELETE(request: Request) {
   }
 
   const id = new URL(request.url).searchParams.get('id')
-  if (!id || !validId(id) || id === 'home') return NextResponse.json({ error: 'The home frame cannot be removed' }, { status: 400 })
+  if (!id || !validId(id) || id === 'home' || isLibraryFrame(id)) {
+    return NextResponse.json({ error: 'That frame cannot be removed' }, { status: 400 })
+  }
   const deleteViolation = singleFrameViolation()
   if (deleteViolation) return deleteViolation
   const frameDocuments = getTables().frameDocuments
   const result = await getDb().delete(frameDocuments).where(eq(frameDocuments.identifier, id))
-  // dialect difference: sqlite reports `changes`, pg reports `rowCount`
   const r = result as unknown as { changes?: number; rowCount?: number }
   return NextResponse.json({ ok: true, deleted: r.changes ?? r.rowCount ?? 0 })
 }

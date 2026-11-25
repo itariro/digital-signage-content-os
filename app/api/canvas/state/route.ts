@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db'
+import { getTables } from '@/lib/db/tables'
 import { getCanvasClock, SYSTEM_CLOCK } from '@/lib/canvas/clock-service'
 import { getCanvasState } from '@/lib/canvas/state-store'
 import { frameIdParam } from '@/lib/frames/request'
@@ -12,10 +15,26 @@ export async function GET(request: Request) {
   const frameId = frameIdParam(request.url) ?? 'home'
   if (!FRAME_ID.test(frameId)) return NextResponse.json({ error: 'Invalid frame id' }, { status: 400 })
 
-  const row = await getCanvasState(remoteEntityId(frameId))
+  const entityId = remoteEntityId(frameId)
+  const [row, frameRows] = await Promise.all([
+    getCanvasState(entityId),
+    getDb().select().from(getTables().frameDocuments),
+  ])
   const clock = process.env.INSTANCE_ID ? getCanvasClock() : SYSTEM_CLOCK
+  const frames = frameRows.map((frame) => ({
+    id: frame.identifier,
+    screenWidthMm: frame.screenWidthMm ?? null,
+    screenHeightMm: frame.screenHeightMm ?? null,
+  }))
+  const frame = frameRows.find((row) => row.identifier === entityId)
   return NextResponse.json(
-    { revision: row?.revision ?? 0, state: row?.data ?? null, clock },
+    {
+      revision: row?.revision ?? 0,
+      state: row?.data ?? null,
+      clock,
+      frame: frame ? { id: frame.identifier, screenWidthMm: frame.screenWidthMm ?? null, screenHeightMm: frame.screenHeightMm ?? null } : null,
+      frames,
+    },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } },
   )
 }
