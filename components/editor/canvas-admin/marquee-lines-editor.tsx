@@ -3,19 +3,24 @@
 import { useState } from 'react'
 import { EditorButton } from '@/components/editor/controls'
 import { withMeasuredStrip } from '@/lib/canvas/measure-client'
+import type { MarqueeConfig, MarqueeStrip } from '@/lib/types'
+
+type ConfigObject = Record<string, unknown>
 
 export function MarqueeLinesEditor({
+  config,
   value,
   maxLines,
   maxLength,
   colorMode = false,
   onChange,
 }: {
+  config: ConfigObject
   value: string[]
   maxLines: number
   maxLength: number
   colorMode?: boolean
-  onChange: (value: string[] | Record<string, unknown>) => void
+  onChange: (value: string[], strip?: MarqueeStrip | null) => void
 }) {
   const [draft, setDraft] = useState(value.join('\n'))
   const [error, setError] = useState<string | null>(null)
@@ -33,14 +38,14 @@ export function MarqueeLinesEditor({
     }
     setError(null)
     if (colorMode) {
-      onChange({ colors: lines })
+      onChange(lines)
       return
     }
     try {
-      const config = withMeasuredStrip({ lines } as never)
-      onChange({ lines, strip: (config as { strip?: unknown }).strip ?? null })
+      const measured = withMeasuredStrip({ ...config, lines } as MarqueeConfig)
+      onChange(lines, (measured as { strip?: MarqueeStrip }).strip ?? null)
     } catch {
-      onChange({ lines })
+      onChange(lines, null)
     }
   }
 
@@ -63,7 +68,7 @@ export function MarqueeLinesEditor({
         variant="quiet"
         onClick={() => {
           setDraft('')
-          onChange(colorMode ? { colors: [] } : { lines: [] })
+          onChange([], null)
         }}
       >
         Clear

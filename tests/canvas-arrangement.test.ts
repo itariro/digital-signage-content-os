@@ -19,6 +19,10 @@ describe('canvas arrangement editor', () => {
     expect(source).toContain('validateGeometry')
     expect(source).toContain('Unpublished changes')
     expect(source).toContain('<WallPreview')
+    expect(source).toContain('disabled={Boolean(entry.inCanvas && entry.inCanvas.canvasId !== layout.id)}')
+    expect(source).toContain('max={600}')
+    expect(source).toContain('label="Canvas colour"')
+    expect(source).toContain('Move slot ${index + 1} earlier')
   })
 
   it('uses the console clock for the preview', () => {

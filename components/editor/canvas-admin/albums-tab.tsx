@@ -18,13 +18,13 @@ export function AlbumsTab() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Album | null>(null)
   const [busy, setBusy] = useState(false)
-  const albums = store.albums.filter((album) => album.theme === 'canvas')
+  const visibleAlbums = useMemo(() => store.albums.filter((album) => album.theme === 'canvas'), [store.albums])
   const geometry = useMemo(() => resolveGeometry(emptyCanvasConfig()), [])
 
   useEffect(() => {
     if (!openId) return
-    setDraft(albums.find((album) => album.id === openId) ?? null)
-  }, [openId, albums])
+    setDraft(visibleAlbums.find((album) => album.id === openId) ?? null)
+  }, [openId, visibleAlbums])
 
   const dirty = useMemo(() => {
     if (!draft) return false
@@ -35,7 +35,7 @@ export function AlbumsTab() {
   async function create() {
     setBusy(true)
     try {
-      const { id } = await createAlbum(`Canvas scenes ${albums.length + 1}`)
+      const { id } = await createAlbum(`Canvas scenes ${visibleAlbums.length + 1}`)
       setOpenId(id)
       toast.success('Canvas album created with a sync test scene')
     } catch (e) {
@@ -82,7 +82,7 @@ export function AlbumsTab() {
         <EditorButton type="button" variant="secondary" onClick={() => void create()} disabled={busy}>New album</EditorButton>
       </div>
       <ul className="flex flex-col gap-2">
-        {albums.map((album) => (
+        {visibleAlbums.map((album) => (
           <li key={album.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-2">
             <button type="button" onClick={() => setOpenId(album.id)} className="min-w-0 flex-1 truncate text-left text-sm">
               {album.name}
@@ -90,7 +90,7 @@ export function AlbumsTab() {
             <EditorButton type="button" variant="destructive" aria-label={`Delete ${album.name}`} onClick={() => void remove(album)}>Delete</EditorButton>
           </li>
         ))}
-        {albums.length === 0 && (
+        {visibleAlbums.length === 0 && (
           <li className="rounded border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No canvas albums yet.</li>
         )}
       </ul>

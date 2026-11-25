@@ -95,6 +95,16 @@ describe('deployCanvas', () => {
     expect(logs.some((log) => log.action === 'canvas_deploy')).toBe(true)
   })
 
+  it('serialises concurrent deployments so revisions are unique', async () => {
+    const { layoutId } = await seed()
+    const results = await Promise.all([
+      deployCanvas({ layoutId, actor: 'op' }),
+      deployCanvas({ layoutId, actor: 'op' }),
+    ])
+    const revisions = results.map((result) => result.ok ? result.revision : -1).sort()
+    expect(revisions).toEqual([1, 2])
+  })
+
   it('keeps active state on update and releases removed members', async () => {
     const { layoutId } = await seed()
     const first = await deployCanvas({ layoutId, actor: 'operator' })

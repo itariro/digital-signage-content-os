@@ -41,12 +41,16 @@ function FieldRow({ label, help, children }: { label: string; help?: string; chi
 
 function FieldControl({
   field,
+  config,
   value,
   write,
+  onChange,
 }: {
   field: SceneField
+  config: ConfigObject
   value: unknown
   write: (next: unknown) => void
+  onChange: (config: ConfigObject) => void
 }) {
   switch (field.kind) {
     case 'number': {
@@ -124,11 +128,15 @@ function FieldControl({
       return (
         <FieldRow label={field.label} help={field.help}>
           <MarqueeLinesEditor
+            config={config}
             value={Array.isArray(value) ? value.map(String) : []}
             maxLines={field.maxLines}
             maxLength={field.maxLength}
             colorMode={field.key === 'tint.colors'}
-            onChange={write}
+            onChange={(next, strip) => {
+              const updated = setPath(config, field.key, next)
+              onChange(field.key === 'lines' && strip !== undefined ? { ...updated, strip } : updated)
+            }}
           />
         </FieldRow>
       )
@@ -195,8 +203,10 @@ export function SceneFields({
         <FieldControl
           key={field.key}
           field={field}
+          config={config}
           value={getPath(config, field.key)}
           write={(next) => onChange(setPath(config, field.key, next))}
+          onChange={onChange}
         />
       ))}
     </div>

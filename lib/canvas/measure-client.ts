@@ -9,7 +9,8 @@ export function measureMarquee(config: MarqueeConfig): MarqueeStrip {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas unavailable')
-  ctx.font = `${config.style.fontWeight} ${config.fontSize}px ${fontStack(config.style.fontFamily)}`
+  const style = config.style ?? {}
+  ctx.font = `${style.fontWeight ?? 400} ${config.fontSize}px ${fontStack(style.fontFamily ?? '')}`
 
   const segments: MarqueeStrip['segments'] = []
   let at = 0

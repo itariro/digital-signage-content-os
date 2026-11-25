@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
-import { EditorButton, SelectField, SliderField } from '@/components/editor/controls'
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { ColorField, EditorButton, SelectField, SliderField } from '@/components/editor/controls'
 import { resolveGeometry, validateGeometry } from '@/lib/canvas/geometry'
 import { nanoid } from 'nanoid'
 import type { Album, CanvasConfig, CanvasSlot, FrameStore, Layout } from '@/lib/types'
@@ -49,6 +49,16 @@ export function ArrangementEditor({
     })
   }
 
+  function moveSlot(id: string, delta: number) {
+    const index = config.slots.findIndex((slot) => slot.id === id)
+    const target = index + delta
+    if (index < 0 || target < 0 || target >= config.slots.length) return
+    const slots = [...config.slots]
+    const [moved] = slots.splice(index, 1)
+    slots.splice(target, 0, moved)
+    updateConfig({ ...config, slots })
+  }
+
   return (
     <div className="flex flex-col gap-4 p-3">
       <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2 text-xs">
@@ -81,7 +91,7 @@ export function ArrangementEditor({
       {config.arrangement === 'grid' && (
         <SliderField label="Grid columns" value={config.gridColumns ?? 2} min={1} max={8} step={1} onChange={(v) => updateConfig({ ...config, gridColumns: v })} />
       )}
-      <SliderField label="Gap" value={config.gap} min={0} max={160} step={2} suffix="px" onChange={(v) => updateConfig({ ...config, gap: v })} />
+      <SliderField label="Gap" value={config.gap} min={0} max={600} step={2} suffix="px" onChange={(v) => updateConfig({ ...config, gap: v })} />
       <SelectField label="Alignment" value={config.align} options={ALIGN_OPTIONS} onChange={(v) => updateConfig({ ...config, align: v as CanvasConfig['align'] })} />
 
       <section aria-label="Frames" className="flex flex-col gap-2">
@@ -107,11 +117,17 @@ export function ArrangementEditor({
                   >
                     <option value="">Empty slot</option>
                     {frames.map((entry) => (
-                      <option key={entry.id} value={entry.id}>
+                      <option key={entry.id} value={entry.id} disabled={Boolean(entry.inCanvas && entry.inCanvas.canvasId !== layout.id)}>
                         {entry.name}{entry.inCanvas ? ` (${entry.inCanvas.state} on ${entry.inCanvas.name})` : ''}
                       </option>
                     ))}
                   </select>
+                  <EditorButton type="button" variant="quiet" aria-label={`Move slot ${index + 1} earlier`} disabled={index === 0} onClick={() => moveSlot(slot.id, -1)}>
+                    <ArrowUp className="size-4" aria-hidden />
+                  </EditorButton>
+                  <EditorButton type="button" variant="quiet" aria-label={`Move slot ${index + 1} later`} disabled={index === config.slots.length - 1} onClick={() => moveSlot(slot.id, 1)}>
+                    <ArrowDown className="size-4" aria-hidden />
+                  </EditorButton>
                   <EditorButton type="button" variant="destructive" aria-label={`Remove slot ${index + 1}`} onClick={() => updateConfig({ ...config, slots: config.slots.filter((s) => s.id !== slot.id) })}>
                     <Trash2 className="size-4" aria-hidden />
                   </EditorButton>
@@ -146,6 +162,7 @@ export function ArrangementEditor({
 
       <section aria-label="Display options" className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2">
         <h3 className="text-sm font-semibold">Display options</h3>
+        <ColorField label="Canvas colour" value={config.background} onChange={(v) => updateConfig({ ...config, background: v })} />
         <SelectField label="Markers" value={config.markers} options={[
           { value: 'identify', label: 'During identification' },
           { value: 'always', label: 'Always' },

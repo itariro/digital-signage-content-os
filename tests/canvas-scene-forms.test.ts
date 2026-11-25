@@ -15,6 +15,13 @@ describe('canvas scene authoring forms', () => {
     expect(source).toContain("key: 'lines'")
     expect(source).toContain("key: 'style.fontFamily'")
     expect(source).toContain("key: 'rallyHits.0'")
+    expect(source).toContain("kind: 'lines', maxLines: 200, maxLength: 300")
+  })
+
+  it('measures marquee lines with the full scene config', () => {
+    const lines = read('components/editor/canvas-admin/marquee-lines-editor.tsx')
+    expect(lines).toContain('withMeasuredStrip({ ...config, lines }')
+    expect(lines).toContain('config: ConfigObject')
   })
 
   it('renders every SceneField kind and writes dot paths', () => {

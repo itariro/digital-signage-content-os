@@ -109,10 +109,10 @@ export function LayoutsTab() {
               {openId === layout.id && (
                 <div className="mt-2 flex flex-wrap gap-2 border-t border-border pt-2">
                   <EditorButton type="button" variant="secondary" onClick={() => void save()} disabled={!dirty || busy}>Save</EditorButton>
-                  <EditorButton type="button" variant="secondary" onClick={() => void run(() => deploy(layout.id, { leadMs: leadSeconds * 1000 }), 'Canvas scheduled')} disabled={busy}>Deploy</EditorButton>
-                  <EditorButton type="button" variant="secondary" onClick={() => void run(() => release(layout.id), 'Canvas released')} disabled={busy}>Release</EditorButton>
-                  <EditorButton type="button" variant="quiet" onClick={() => void run(() => identify(layout.id, identifySeconds), 'Identification started')} disabled={busy}>Identify</EditorButton>
-                  <EditorButton type="button" variant="quiet" onClick={() => void run(() => identify(layout.id, 0), 'Identification cleared')} disabled={busy}>Clear markers</EditorButton>
+                  <EditorButton type="button" variant="secondary" onClick={() => void run(() => deploy(layout.id, { leadMs: leadSeconds * 1000 }), 'Canvas scheduled')} disabled={dirty || busy}>Deploy</EditorButton>
+                  <EditorButton type="button" variant="secondary" onClick={() => void run(() => release(layout.id), 'Canvas released')} disabled={dirty || busy}>Release</EditorButton>
+                  <EditorButton type="button" variant="quiet" onClick={() => void run(() => identify(layout.id, identifySeconds), 'Identification started')} disabled={dirty || busy}>Identify</EditorButton>
+                  <EditorButton type="button" variant="quiet" onClick={() => void run(() => identify(layout.id, 0), 'Identification cleared')} disabled={dirty || busy}>Clear markers</EditorButton>
                   <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     Lead
                     <input aria-label="Lead seconds" type="number" min={0} max={600} value={leadSeconds} onChange={(e) => setLeadSeconds(Number(e.target.value))} className="editor-control h-8 w-14 px-1" />

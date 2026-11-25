@@ -9,7 +9,7 @@ const ALIGN = [
 
 export const SCENE_FIELDS: Record<CanvasSceneType, SceneField[]> = {
   marquee: [
-    { key: 'lines', label: 'Text lines', kind: 'lines', maxLines: 40, maxLength: 400, help: 'One line per row. Block layout keeps line breaks.' },
+    { key: 'lines', label: 'Text lines', kind: 'lines', maxLines: 200, maxLength: 300, help: 'One line per row. Block layout keeps line breaks.' },
     { key: 'layout', label: 'Line layout', kind: 'select', options: [{ value: 'line', label: 'Single line' }, { value: 'block', label: 'Block' }] },
     { key: 'separator', label: 'Separator', kind: 'text', maxLength: 40, placeholder: '   •   ' },
     { key: 'direction', label: 'Direction', kind: 'select', options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }, { value: 'up', label: 'Up' }, { value: 'down', label: 'Down' }] },

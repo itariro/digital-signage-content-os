@@ -180,7 +180,18 @@ function stateForRow(row: CanvasStateRow | undefined): CanvasState {
   return row?.data ?? { v: 1, active: null, pending: null, identify: null }
 }
 
-export async function deployCanvas(input: {
+// Console deploys are rare and short; a single in-process queue keeps two
+// concurrent operators from reading the same revision and overwriting each
+// other's state writes. Postgres writes are also wrapped in a transaction.
+let canvasWriteQueue: Promise<unknown> = Promise.resolve()
+
+function serialiseCanvasWrite<T>(run: () => Promise<T>): Promise<T> {
+  const result = canvasWriteQueue.then(run, run)
+  canvasWriteQueue = result.then(() => undefined, () => undefined)
+  return result
+}
+
+async function deployCanvasNow(input: {
   layoutId: string
   leadMs?: number
   releaseAt?: number | null
@@ -309,7 +320,11 @@ export async function deployCanvas(input: {
   }
 }
 
-export async function releaseCanvas(input: {
+export async function deployCanvas(input: Parameters<typeof deployCanvasNow>[0]): Promise<DeployResult> {
+  return serialiseCanvasWrite(() => deployCanvasNow(input))
+}
+
+async function releaseCanvasNow(input: {
   layoutId: string
   leadMs?: number
   actor: string
@@ -356,6 +371,10 @@ export async function releaseCanvas(input: {
     members: members.map((member) => member.frameId),
   })
   return { ok: true, revision, releaseAt, leadMs: chosenLead, members, skipped }
+}
+
+export async function releaseCanvas(input: Parameters<typeof releaseCanvasNow>[0]): Promise<ReleaseResult> {
+  return serialiseCanvasWrite(() => releaseCanvasNow(input))
 }
 
 export async function identifyCanvas(input: {
