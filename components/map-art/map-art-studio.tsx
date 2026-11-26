@@ -618,7 +618,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const batch = cities.slice(0, available)
     setBusy(true)
     setBatchProgress(0)
-    const activeCityId = cityRef.current.id
+    const pendingCityId = settingsRef.current.city.id
     let activeStepId: string | null = null
     setTraceSteps([{
       id: 'generate',
@@ -629,7 +629,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
         title: `Preparing ${selected.name}`,
         status: 'pending',
         children: [
-          { id: `camera-${selected.id}`, title: 'Settling preview camera', status: selected.id === activeCityId ? 'running' : 'pending' },
+          { id: `camera-${selected.id}`, title: 'Settling preview camera', status: selected.id === pendingCityId ? 'running' : 'pending' },
           { id: `render-${selected.id}`, title: 'Rendering map tiles', status: 'pending' },
           { id: `compose-${selected.id}`, title: 'Composing poster', status: 'pending' },
           { id: `upload-${selected.id}`, title: 'Uploading PNG', status: 'pending' },
@@ -640,11 +640,22 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     // A city selection starts a 700 ms camera move. Exporting before it ends
     // would pair an in-between center with the newly selected city.
     await waitForCameraSettled(() => pendingCityMove.current)
-    setTraceSteps((current) => updateTraceStep(current, `camera-${activeCityId}`, (step) => ({
-      ...step,
-      status: undefined,
-      description: 'Preview camera settled',
-    })))
+    const activeCityId = settingsRef.current.city.id
+    setTraceSteps((current) => {
+      let next = updateTraceStep(current, `camera-${pendingCityId}`, (step) => ({
+        ...step,
+        status: undefined,
+        description: 'Preview camera settled',
+      }))
+      if (activeCityId !== pendingCityId) {
+        next = updateTraceStep(next, `camera-${activeCityId}`, (step) => ({
+          ...step,
+          status: undefined,
+          description: 'Preview camera settled',
+        }))
+      }
+      return next
+    })
     const previewView: MapView | null = mapRef.current
       ? {
           center: [mapRef.current.getCenter().lng, mapRef.current.getCenter().lat],
@@ -841,12 +852,12 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
           </Tabs>
         </aside>
         <main className="map-art-stage">
-          <div className="map-art-stage-head"><div><span className="eyebrow">MAP PREVIEW</span><h1>{city.name}<span>{city.country}</span></h1></div><div className="map-art-pager"><Button type="button" variant="ghost" size="icon-sm" aria-label="Previous city" onClick={() => changeCity(activeIndex - 1)} disabled={cities.length < 2}><ChevronLeft size={17} /></Button><span>{cities.length ? `${activeIndex + 1} / ${cities.length}` : '0 / 0'}</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Next city" onClick={() => changeCity(activeIndex + 1)} disabled={cities.length < 2}><ChevronRight size={17} /></Button></div></div>
+          <div className="map-art-stage-head"><div><span className="eyebrow">MAP PREVIEW</span><h1>{city.name}<span>{city.country}</span></h1></div><div className="map-art-pager"><Button type="button" variant="ghost" size="icon-sm" aria-label="Previous city" onClick={() => changeCity(activeIndex - 1)} disabled={busy || cities.length < 2}><ChevronLeft size={17} /></Button><span>{cities.length ? `${activeIndex + 1} / ${cities.length}` : '0 / 0'}</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Next city" onClick={() => changeCity(activeIndex + 1)} disabled={busy || cities.length < 2}><ChevronRight size={17} /></Button></div></div>
           <div className="map-art-canvas-wrap"><div className={`map-art-poster ${orientation}`} data-style={style.id} style={{ backgroundColor }}><div className="map-art-map-area"><div className="map-art-map" ref={mapNode} /><span className="map-art-map-credit">© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors</span></div>{title && <div className="map-art-title"><h2>{city.name}</h2><p>{city.country}</p>{showCoords && <small>{Math.abs(city.lat).toFixed(4)}° {city.lat < 0 ? 'S' : 'N'} · {Math.abs(city.lon).toFixed(4)}° {city.lon < 0 ? 'W' : 'E'}</small>}{customText && <small>{customText}</small>}</div>}</div></div>
           <div className="map-art-stage-foot"><div className="map-art-zoom"><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={() => { const next = Math.max(8, zoom - 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Minus size={15} /></Button><span>{zoom.toFixed(1)}×</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => { const next = Math.min(16, zoom + 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Plus size={15} /></Button><Button type="button" variant="ghost" size="sm" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}>Fit</Button><Button type="button" variant="ghost" size="icon-sm" aria-label="Reset map position" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}><RotateCcw size={14} /></Button></div><span>{style.label} · {orientation === 'portrait' ? '11 MP portrait' : '8 MP landscape'}</span><Button variant="outline" size="sm" onClick={() => void generateBatch()} disabled={busy}><Upload size={14} data-icon="inline-start" /> {busy ? 'Generating…' : embedded ? 'Generate maps' : 'Save poster'}</Button></div>
           {status && <div className="map-art-status" role="status"><span>{status}</span>{busy && <Progress aria-label="Map generation progress" max={Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)} value={batchProgress} />}</div>}
           <GenerationTrace steps={traceSteps} />
-          {artworks.length > 0 && <section className="map-art-gallery"><div className="map-art-gallery-head"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2></div><Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download size={14} data-icon="inline-start" /> Download ZIP</Button></div><div className="map-art-gallery-grid">{artworks.map((artwork, index) => <article key={`${artwork.city.id}-${artwork.createdAt}`}><Button className="map-art-thumb h-auto" variant="ghost" onClick={() => { setCity(artwork.city); setActiveIndex(index) }}><img src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} /></Button><div><strong>{artwork.city.name}</strong><small>{artwork.city.country}</small><a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`}><Download size={14} /></a></div></article>)}</div></section>}
+          {artworks.length > 0 && <section className="map-art-gallery"><div className="map-art-gallery-head"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2></div><Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download size={14} data-icon="inline-start" /> Download ZIP</Button></div><div className="map-art-gallery-grid">{artworks.map((artwork, index) => <article key={`${artwork.city.id}-${artwork.createdAt}`}><Button className="map-art-thumb h-auto" variant="ghost" disabled={busy} onClick={() => { setCity(artwork.city); setActiveIndex(index) }}><img src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} /></Button><div><strong>{artwork.city.name}</strong><small>{artwork.city.country}</small><a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`}><Download size={14} /></a></div></article>)}</div></section>}
         </main>
         <aside className="map-art-right">
           <section className="map-art-block"><div className="map-art-label">Map layers</div><p className="map-art-hint">OpenFreeMap vector tiles keep roads, railway lines, paths, and street labels independently adjustable.</p></section>

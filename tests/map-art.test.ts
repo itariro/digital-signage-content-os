@@ -69,6 +69,17 @@ describe('map art export view', () => {
     expect(studioSource).toContain('zoom: view.zoom')
     expect(studioSource).not.toMatch(/map\.flyTo\(\{ center: \[selected\.lon, selected\.lat\]/)
   })
+
+  it('reads the active city after the camera settles, alongside the preview view', () => {
+    const waitIndex = studioSource.indexOf('await waitForCameraSettled(() => pendingCityMove.current)')
+    const idIndex = studioSource.indexOf('const activeCityId = settingsRef.current.city.id')
+    const viewIndex = studioSource.indexOf('const previewView: MapView')
+    expect(waitIndex).toBeGreaterThanOrEqual(0)
+    expect(idIndex).toBeGreaterThan(waitIndex)
+    expect(idIndex).toBeLessThan(viewIndex)
+    expect(studioSource).not.toContain('const activeCityId = cityRef.current.id')
+    expect(studioSource).toContain('disabled={busy || cities.length < 2}')
+  })
 })
 
 describe('map art camera settling', () => {
@@ -116,7 +127,7 @@ describe('map art camera settling', () => {
     expect(waitIndex).toBeGreaterThan(-1)
     expect(snapshotIndex).toBeGreaterThan(waitIndex)
     expect(studioSource).toContain("map.once('moveend', finish)")
-    expect(studioSource).toContain('const activeCityId = cityRef.current.id')
+    expect(studioSource).toContain('const activeCityId = settingsRef.current.city.id')
   })
 })
 
