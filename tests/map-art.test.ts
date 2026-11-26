@@ -211,4 +211,19 @@ describe('map art tab and trace wiring', () => {
     expect(appendIndex).toBeGreaterThan(savedIndex)
     expect(studioSource).toContain("persistField('recentLocations'")
   })
+
+  it('accumulates recent locations without depending on a render between posters', () => {
+    expect(studioSource).toContain('let nextRecent = getRecentLocations(settingsRef.current)')
+    expect(studioSource).toContain('nextRecent = appendRecentLocation(nextRecent, selected)')
+    expect(studioSource).not.toContain('recentRef')
+  })
+
+  it('only records recent locations when the batch was verified', () => {
+    expect(studioSource).toContain('const recordRecent = verifiedCount !== null')
+  })
+
+  it('invalidates verification whenever the candidate set changes', () => {
+    const resets = studioSource.match(/setVerifiedCount\(null\)/g) ?? []
+    expect(resets.length).toBeGreaterThanOrEqual(6)
+  })
 })

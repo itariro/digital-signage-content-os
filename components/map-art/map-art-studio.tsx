@@ -214,7 +214,6 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const [customText, setCustomText] = useState(initialSettings.customText)
   const [tab, setTab] = useState<'locations' | 'style'>('locations')
   const [recentLocations, setRecentLocations] = useState(() => getRecentLocations(initialSettings))
-  const recentRef = useRef(recentLocations)
   const [verifiedCount, setVerifiedCount] = useState<number | null>(null)
   const [traceSteps, setTraceSteps] = useState<TraceStep[]>([])
 
@@ -258,7 +257,6 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
 
   preferencesRef.current = { streetLabels, showRailways, showTrails, backgroundColor }
   cityRef.current = city
-  recentRef.current = recentLocations
 
   useEffect(() => {
     if (!mapNode.current || mapRef.current) return
@@ -338,6 +336,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const unique = [...new Set(normalized)]
     if (!unique.length) return setStatus('Add at least one city, one per line.')
     if (unique.length > 100) return setStatus('Choose 100 cities or fewer per batch.')
+    setVerifiedCount(null)
     setTraceSteps([{
       id: 'validate',
       title: 'Validating locations',
@@ -392,6 +391,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const ambiguity = ambiguities.find((entry) => entry.query === queryText)
     const selected = ambiguity?.matches.find((match) => match.id === selectedId)
     if (!ambiguity || !selected) return
+    setVerifiedCount(null)
     setResults((current) => current.map((entry, index) => index === ambiguity.rowId ? selected : entry))
     setCities((current) => current.map((entry, index) => index === ambiguity.rowId ? selected : entry))
     setAmbiguities((current) => current.map((entry) => entry.rowId === ambiguity.rowId ? { ...entry, chosenId: selected.id } : entry))
@@ -401,6 +401,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   function removeLocation(removed: City) {
     const index = results.findIndex((entry) => entry.id === removed.id)
     if (index === -1) return
+    setVerifiedCount(null)
     const remaining = results.filter((_, currentIndex) => currentIndex !== index)
     setResults(remaining)
     setCities(remaining)
@@ -419,6 +420,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
 
   async function discoverCities() {
     if (continent === 'Antarctica') { setStatus('Antarctica has no permanent cities. Select a research station by name in Enter cities.'); return }
+    setVerifiedCount(null)
     const candidates = continentCities[continent] ?? []
     const target = count === 'custom' ? customCount : Number(count)
     const found: City[] = []
@@ -593,6 +595,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     if (!cities.length) { setStatus('Validate a city list before generating maps.'); return }
     const available = onAddToAlbum ? Math.max(0, 200 - albumCount) : cities.length
     if (available === 0) { setStatus('This album has reached the 200 map limit. Remove a map before generating more.'); return }
+    const recordRecent = verifiedCount !== null
     const batch = cities.slice(0, available)
     setBusy(true)
     setBatchProgress(0)
@@ -607,6 +610,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       : null
     const activeCityId = cityRef.current.id
     const output: Artwork[] = []
+    let nextRecent = getRecentLocations(settingsRef.current)
     setTraceSteps([{
       id: 'generate',
       title: `Generating ${batch.length} poster${batch.length === 1 ? '' : 's'}`,
@@ -632,7 +636,10 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
         setStatus(`Rendering and saving ${index + 1} of ${batch.length}: ${selected.name}…`)
         const view = resolveExportView(selected, activeCityId, previewView, settingsRef.current.zoom)
         const url = await renderArtwork(selected, view)
-        setRecent(appendRecentLocation(recentRef.current, selected))
+        if (recordRecent) {
+          nextRecent = appendRecentLocation(nextRecent, selected)
+          setRecent(nextRecent)
+        }
         setTraceSteps((current) => current.map((step) => step.id === 'generate' ? {
           ...step,
           children: step.children?.map((child) => child.id === `poster-${selected.id}` ? {
@@ -737,6 +744,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
                 onConfirm={() => setVerifiedCount(results.length)}
                 onEditVerified={() => setVerifiedCount(null)}
                 onUseRecent={(city) => {
+                  setVerifiedCount(null)
                   setCities((current) => [...current, city])
                   setResults((current) => [...current, city])
                   setCity(city)
