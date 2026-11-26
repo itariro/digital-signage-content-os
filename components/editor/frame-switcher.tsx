@@ -162,7 +162,7 @@ export function FrameSwitcher({ singleFrame = false }: { singleFrame?: boolean }
           </div>
         )}
 
-        <ScrollArea className="max-h-[26rem]">
+        <ScrollArea className="max-h-[26rem] [&_[data-slot=scroll-area-viewport]]:max-h-[26rem]">
           <div className="space-y-1 p-2">
             {frames.map((frame) => (
               <div key={frame.id} className="rounded-lg px-2 py-2.5 hover:bg-secondary">
