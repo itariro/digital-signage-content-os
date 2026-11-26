@@ -20,13 +20,22 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 
-const fetcher = (url: string) => fetch(url).then((response) => response.json())
 type Frame = { id: string; name: string; layoutId: string | null; layoutName: string | null; layouts: { id: string; name: string }[]; resolutionWidth: number; resolutionHeight: number; screenWidthMm: number | null; screenHeightMm: number | null }
+
+export async function fetchFrames(url: string): Promise<Frame[]> {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`Could not load frames (HTTP ${response.status})`)
+  const result: unknown = await response.json()
+  if (!Array.isArray(result)) throw new Error('Unexpected frames response')
+  return result as Frame[]
+}
+
 type FormState = { id: string; name: string; resolutionWidth: string; resolutionHeight: string; screenWidthMm: string; screenHeightMm: string }
 const blank: FormState = { id: '', name: '', resolutionWidth: '1920', resolutionHeight: '1080', screenWidthMm: '', screenHeightMm: '' }
 
 export function FrameSwitcher({ singleFrame = false }: { singleFrame?: boolean }) {
-  const { data: frames = [], mutate } = useSWR<Frame[]>('/api/frames', fetcher, { revalidateOnFocus: true })
+  const { data, mutate } = useSWR<Frame[]>('/api/frames', fetchFrames, { revalidateOnFocus: true })
+  const frames = Array.isArray(data) ? data : []
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<FormState | null>(null)
   const [busy, setBusy] = useState(false)
