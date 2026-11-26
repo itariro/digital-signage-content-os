@@ -227,3 +227,14 @@ describe('map art tab and trace wiring', () => {
     expect(resets.length).toBeGreaterThanOrEqual(6)
   })
 })
+
+describe('map art zoom radio styling', () => {
+  it('marks the checked zoom level with a visible background', () => {
+    const css = readFileSync(
+      path.resolve(__dirname, '../components/map-art/map-art.css'),
+      'utf8',
+    )
+    expect(css).toContain('.map-art-zoom-presets button[aria-checked=true]')
+    expect(css).toContain('background:var(--ink)')
+  })
+})

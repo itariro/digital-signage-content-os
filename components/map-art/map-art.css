@@ -16,6 +16,7 @@
 .map-art-embedded .map-art-block{padding:14px 16px;border-color:var(--border)}
 .map-art-embedded .map-art-mode{border-color:var(--border)}
 .map-art-embedded .map-art-mode button[aria-selected=true],.map-art-embedded .map-art-mode button[aria-pressed=true],.map-art-embedded .map-art-segment button[aria-pressed=true]{background:var(--primary);color:var(--primary-foreground)}
+.map-art-embedded .map-art-zoom-presets button[aria-checked=true]{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
 .map-art-embedded .map-art-primary{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
 .map-art-embedded .map-art-primary:hover{filter:brightness(.94)}
 .map-art-embedded .map-art-outline{border-color:var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground)}
@@ -27,6 +28,6 @@
 .map-art-poster[data-style='dark'] .map-art-title h2{color:#f1eee5}
 .map-art-poster[data-style='dark'] .map-art-title p{color:#d1cec5}
 .map-art-poster[data-style='dark'] .map-art-title small{color:#dedbd1}
-.map-art-color-picker{display:flex;align-items:center;gap:8px}.map-art-color-picker .map-art-color-input{width:42px;height:38px;padding:3px;border:1px solid var(--line);border-radius:8px;background:transparent}.map-art-color-picker .map-art-input{flex:1}.map-art-zoom-presets{display:flex;flex-wrap:wrap;gap:6px}.map-art-zoom-presets button{padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:transparent;color:inherit;font-size:11px;cursor:pointer}.map-art-zoom-presets button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.map-art-color-picker{display:flex;align-items:center;gap:8px}.map-art-color-picker .map-art-color-input{width:42px;height:38px;padding:3px;border:1px solid var(--line);border-radius:8px;background:transparent}.map-art-color-picker .map-art-input{flex:1}.map-art-zoom-presets{display:flex;flex-wrap:wrap;gap:6px}.map-art-zoom-presets button{padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:transparent;color:inherit;font-size:11px;cursor:pointer}.map-art-zoom-presets button[aria-checked=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .map-art-layer-toggle{display:flex;align-items:center;gap:9px;margin-top:11px;font-size:12px;color:var(--ink);cursor:pointer}
 .map-art-layer-toggle input{width:15px;height:15px;accent-color:var(--accent)}
