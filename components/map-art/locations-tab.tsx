@@ -201,7 +201,7 @@ export function LocationsTab({
 
       <section className="map-art-block">
         <div className="map-art-label">Recent locations</div>
-        <RecentLocationsTable locations={recentLocations} onUse={onUseRecent} onRemove={onRemoveRecent} />
+        <RecentLocationsTable locations={recentLocations} busy={busy} onUse={onUseRecent} onRemove={onRemoveRecent} />
       </section>
     </div>
   )

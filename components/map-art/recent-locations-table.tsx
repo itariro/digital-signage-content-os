@@ -13,8 +13,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-export function RecentLocationsTable({ locations, onUse, onRemove }: {
+export function RecentLocationsTable({ locations, busy, onUse, onRemove }: {
   locations: MapArtLocation[]
+  busy: boolean
   onUse: (city: MapArtLocation) => void
   onRemove: (city: MapArtLocation) => void
 }) {
@@ -40,7 +41,7 @@ export function RecentLocationsTable({ locations, onUse, onRemove }: {
               </span>
             </TableCell>
             <TableCell className="text-right">
-              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Use ${city.name}`} onClick={() => onUse(city)}>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Use ${city.name}`} disabled={busy} onClick={() => onUse(city)}>
                 <ArrowRight />
               </Button>
               <Button
@@ -48,6 +49,7 @@ export function RecentLocationsTable({ locations, onUse, onRemove }: {
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Remove ${city.name} from recent locations`}
+                disabled={busy}
                 onClick={() => onRemove(city)}
               >
                 <Trash2 />

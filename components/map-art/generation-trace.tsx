@@ -31,9 +31,7 @@ function StepLine({ step }: { step: TraceStep }) {
   )
 }
 
-export function GenerationTrace({ steps }: { steps: TraceStep[] }) {
-  if (!steps.length) return null
-
+function TraceList({ steps }: { steps: TraceStep[] }) {
   return (
     <section aria-label="Generation activity" className="w-full rounded-lg border border-border bg-card p-3">
       <p className="mb-2 text-xs font-medium text-foreground">Generation activity</p>
@@ -48,12 +46,20 @@ export function GenerationTrace({ steps }: { steps: TraceStep[] }) {
               </TraceCollapsibleTrigger>
               <TraceCollapsibleContent>
                 {step.detail && <p className="mb-2 text-xs text-muted-foreground">{step.detail}</p>}
-                {step.children?.length ? <GenerationTrace steps={step.children} /> : null}
+                {step.children?.length ? <TraceList steps={step.children} /> : null}
               </TraceCollapsibleContent>
             </TraceCollapsible>
           )
         })}
       </Trace>
     </section>
+  )
+}
+
+export function GenerationTrace({ steps }: { steps: TraceStep[] }) {
+  return (
+    <div aria-live="polite">
+      {steps.length ? <TraceList steps={steps} /> : null}
+    </div>
   )
 }

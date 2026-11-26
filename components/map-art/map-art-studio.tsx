@@ -7,13 +7,18 @@ import * as maplibregl from 'maplibre-gl'
 import type { FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
 import type { Album, AlbumItem, FrameStore, MapArtAmbiguity, MapArtLocation, MapArtSettings } from '@/lib/types'
 import {
+  CITY_BATCH_LIMIT,
   appendRecentLocation,
+  appendTraceChild,
   getRecentLocations,
   removeAmbiguityRow,
   resolveExportView,
+  selectOrAppendCity,
+  updateTraceStep,
   waitForCameraSettled,
   type MapView,
   type TraceStep,
+  type TraceStepStatus,
 } from '@/lib/map-art'
 import { ArrowLeft, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -428,27 +433,26 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       id: 'discover',
       title: `Validating city candidates across ${continent}`,
       status: 'running',
-      children: candidates.slice(0, target).map((candidate) => ({
-        id: `candidate-${candidate}`,
-        title: `Checking ${candidate}`,
-        status: 'pending',
-      })),
     }])
     setBusy(true)
     setStatus(`Validating city candidates across ${continent}…`)
+    let currentCandidate: string | null = null
     try {
       for (const candidate of candidates) {
         if (found.length >= target) break
+        currentCandidate = candidate
+        setTraceSteps((current) => appendTraceChild(current, 'discover', {
+          id: `candidate-${candidate}`,
+          title: `Checking ${candidate}`,
+          status: 'running',
+        }))
         const match = (await resolveCity(candidate))[0]
-        setTraceSteps((current) => current.map((step) => step.id === 'discover' ? {
+        setTraceSteps((current) => updateTraceStep(current, `candidate-${candidate}`, (step) => ({
           ...step,
-          children: step.children?.map((child) => child.id === `candidate-${candidate}` ? {
-            ...child,
-            status: match ? undefined : 'error',
-            description: match ? `${[match.name, match.region, match.country].filter(Boolean).join(', ')}` : 'No match found',
-            detail: `Geocoded ${candidate} with /api/geocode.`,
-          } : child),
-        } : step))
+          status: match ? undefined : 'error',
+          description: match ? `${[match.name, match.region, match.country].filter(Boolean).join(', ')}` : 'No match found',
+          detail: `Geocoded ${candidate} with /api/geocode.`,
+        })))
         if (match && !found.some((entry) => entry.id === match.id)) found.push(match)
       }
       setCities(found)
@@ -456,17 +460,24 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       setAmbiguities([])
       if (found[0]) { setCity(found[0]); setActiveIndex(0) }
       setStatus(`Validated ${found.length} cities. Review the list, then generate your maps.`)
-      setTraceSteps((current) => current.map((step) => step.id === 'discover' ? {
+      setTraceSteps((current) => updateTraceStep(current, 'discover', (step) => ({
         ...step,
         title: `Found ${found.length} cities in ${continent}`,
         status: undefined,
-      } : step))
-    } catch {
-      setTraceSteps((current) => current.map((step) => step.id === 'discover' ? {
+      })))
+    } catch (error) {
+      if (currentCandidate) {
+        setTraceSteps((current) => updateTraceStep(current, `candidate-${currentCandidate}`, (step) => ({
+          ...step,
+          status: 'error',
+          description: error instanceof Error ? error.message : 'Lookup failed',
+        })))
+      }
+      setTraceSteps((current) => updateTraceStep(current, 'discover', (step) => ({
         ...step,
         title: `Failed to validate cities in ${continent}`,
         status: 'error',
-      } : step))
+      })))
       setStatus('City discovery could not reach the geographic data service. Try again.')
     }
     finally { setBusy(false) }
@@ -509,7 +520,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     albumRef.current = body.store?.albums.find((entry) => entry.id === album?.id) ?? album
   }
 
-  async function renderArtwork(selected: City, view: MapView) {
+  async function renderArtwork(selected: City, view: MapView, report?: (name: string, status?: TraceStepStatus, description?: string) => void) {
     const map = mapRef.current
     if (!map) throw new Error('Map renderer is not ready yet.')
     const width = orientation === 'portrait' ? 2880 : 3840
@@ -526,6 +537,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const titleHeight = title ? Math.round(height * 0.16) : Math.round(height * 0.035)
     const mapWidth = width - margin * 2
     const mapHeight = height - margin * 2 - titleHeight
+    report?.('render', 'running')
     const exportMapCanvas = await renderMapAtResolution({
       width: mapWidth,
       height: mapHeight,
@@ -534,6 +546,8 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       styleId: style.id,
       preferences: { streetLabels, showRailways, showTrails, backgroundColor },
     })
+    report?.('render', undefined)
+    report?.('compose', 'running')
     ctx.save()
     ctx.beginPath()
     ctx.rect(margin, margin, width - margin * 2, mapHeight)
@@ -570,6 +584,8 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     ctx.textAlign = 'right'
     ctx.fillText('© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors', width - margin, height - Math.round(margin * 0.35))
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Poster export failed.')), 'image/png'))
+    report?.('compose', undefined)
+    report?.('upload', 'running')
     const form = new FormData()
     form.set('file', new File([blob], `${selected.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-map.png`, { type: 'image/png' }))
     const upload = await fetch('/api/uploads', { method: 'POST', body: form })
@@ -578,6 +594,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       throw new Error(failure.error ?? 'The poster could not be saved to the image library.')
     }
     const saved = await upload.json() as { url: string }
+    report?.('upload', undefined)
     const item: AlbumItem = {
       id: `map-${selected.id}-${Date.now()}`,
       image: saved.url,
@@ -586,8 +603,10 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       subtitle: selected.country ?? '',
       year: '',
     }
+    report?.('album', 'running')
     if (onAddToAlbum) onAddToAlbum(item)
     else await savePosterToCollection(saved.url, selected)
+    report?.('album', undefined)
     return saved.url
   }
 
@@ -599,18 +618,8 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const batch = cities.slice(0, available)
     setBusy(true)
     setBatchProgress(0)
-    // A city selection starts a 700 ms camera move. Exporting before it ends
-    // would pair an in-between center with the newly selected city.
-    await waitForCameraSettled(() => pendingCityMove.current)
-    const previewView: MapView | null = mapRef.current
-      ? {
-          center: [mapRef.current.getCenter().lng, mapRef.current.getCenter().lat],
-          zoom: mapRef.current.getZoom(),
-        }
-      : null
     const activeCityId = cityRef.current.id
-    const output: Artwork[] = []
-    let nextRecent = getRecentLocations(settingsRef.current)
+    let activeStepId: string | null = null
     setTraceSteps([{
       id: 'generate',
       title: `Generating ${batch.length} poster${batch.length === 1 ? '' : 's'}`,
@@ -620,7 +629,7 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
         title: `Preparing ${selected.name}`,
         status: 'pending',
         children: [
-          { id: `camera-${selected.id}`, title: 'Settling preview camera', status: 'pending' },
+          { id: `camera-${selected.id}`, title: 'Settling preview camera', status: selected.id === activeCityId ? 'running' : 'pending' },
           { id: `render-${selected.id}`, title: 'Rendering map tiles', status: 'pending' },
           { id: `compose-${selected.id}`, title: 'Composing poster', status: 'pending' },
           { id: `upload-${selected.id}`, title: 'Uploading PNG', status: 'pending' },
@@ -628,44 +637,79 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
         ],
       })),
     }])
+    // A city selection starts a 700 ms camera move. Exporting before it ends
+    // would pair an in-between center with the newly selected city.
+    await waitForCameraSettled(() => pendingCityMove.current)
+    setTraceSteps((current) => updateTraceStep(current, `camera-${activeCityId}`, (step) => ({
+      ...step,
+      status: undefined,
+      description: 'Preview camera settled',
+    })))
+    const previewView: MapView | null = mapRef.current
+      ? {
+          center: [mapRef.current.getCenter().lng, mapRef.current.getCenter().lat],
+          zoom: mapRef.current.getZoom(),
+        }
+      : null
+    const output: Artwork[] = []
+    const reportStep = (city: City) => (name: string, status?: TraceStepStatus, description?: string) => {
+      const id = `${name}-${city.id}`
+      if (status === 'running') activeStepId = id
+      setTraceSteps((current) => updateTraceStep(current, id, (step) => ({
+        ...step,
+        status,
+        description: description ?? step.description,
+      })))
+    }
+    let currentCity: City | null = null
     try {
       for (let index = 0; index < batch.length; index += 1) {
         const selected = batch[index]
+        currentCity = selected
+        activeStepId = `render-${selected.id}`
         setCity(selected)
         setActiveIndex(index)
         setStatus(`Rendering and saving ${index + 1} of ${batch.length}: ${selected.name}…`)
         const view = resolveExportView(selected, activeCityId, previewView, settingsRef.current.zoom)
-        const url = await renderArtwork(selected, view)
+        const url = await renderArtwork(selected, view, reportStep(selected))
         if (recordRecent) {
-          nextRecent = appendRecentLocation(nextRecent, selected)
-          setRecent(nextRecent)
+          setRecent(appendRecentLocation(getRecentLocations(settingsRef.current), selected))
         }
-        setTraceSteps((current) => current.map((step) => step.id === 'generate' ? {
+        setTraceSteps((current) => updateTraceStep(current, `poster-${selected.id}`, (step) => ({
           ...step,
-          children: step.children?.map((child) => child.id === `poster-${selected.id}` ? {
-            ...child,
-            status: undefined,
-            title: `Generated poster for ${selected.name}`,
-            detail: `Style: ${style.label}. Zoom: ${view.zoom.toFixed(1)}.`,
-            children: child.children?.map((grandchild) => ({ ...grandchild, status: undefined })),
-          } : child),
-        } : step))
+          status: undefined,
+          title: `Generated poster for ${selected.name}`,
+          detail: `Style: ${style.label}. Zoom: ${view.zoom.toFixed(1)}.`,
+        })))
         output.push({ city: selected, url, style: style.label, createdAt: Date.now() })
         setArtworks((current) => [...current, output[output.length - 1]])
         setBatchProgress(index + 1)
       }
-      setTraceSteps((current) => current.map((step) => step.id === 'generate' ? {
+      setTraceSteps((current) => updateTraceStep(current, 'generate', (step) => ({
         ...step,
         title: `Generated ${output.length} poster${output.length === 1 ? '' : 's'}`,
         status: undefined,
-      } : step))
+      })))
       setStatus(`${output.length} map${output.length === 1 ? '' : 's'} ${onAddToAlbum ? 'added to this album' : 'saved to the image library'}.${batch.length < cities.length ? ' Album limit reached; remove maps to generate more.' : ''}`)
     } catch (error) {
-      setTraceSteps((current) => current.map((step) => step.id === 'generate' ? {
-        ...step,
-        title: 'Poster generation failed',
-        status: 'error',
-      } : step))
+      setTraceSteps((current) => {
+        let next = current
+        if (activeStepId) {
+          next = updateTraceStep(next, activeStepId, (step) => ({
+            ...step,
+            status: 'error',
+            description: error instanceof Error ? error.message : 'Step failed',
+          }))
+        }
+        if (currentCity) {
+          next = updateTraceStep(next, `poster-${currentCity.id}`, (step) => ({ ...step, status: 'error' }))
+        }
+        return updateTraceStep(next, 'generate', (step) => ({
+          ...step,
+          title: 'Poster generation failed',
+          status: 'error',
+        }))
+      })
       setStatus(error instanceof Error ? error.message : 'Map generation failed.')
     }
     finally { setBusy(false) }
@@ -744,11 +788,20 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
                 onConfirm={() => setVerifiedCount(results.length)}
                 onEditVerified={() => setVerifiedCount(null)}
                 onUseRecent={(city) => {
-                  setVerifiedCount(null)
-                  setCities((current) => [...current, city])
-                  setResults((current) => [...current, city])
+                  const next = selectOrAppendCity(cities, city)
+                  if (!next) {
+                    setStatus(`This batch already has ${CITY_BATCH_LIMIT} cities. Remove one before adding another.`)
+                    return
+                  }
                   setCity(city)
-                  setActiveIndex(cities.length)
+                  setActiveIndex(next.index)
+                  if (!next.added) {
+                    setStatus(`${city.name} is already in this batch.`)
+                    return
+                  }
+                  setVerifiedCount(null)
+                  setCities(next.cities)
+                  setResults(next.cities)
                 }}
                 onRemoveRecent={(city) => setRecent(recentLocations.filter((entry) => entry.id !== city.id))}
               />

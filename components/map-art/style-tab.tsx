@@ -117,15 +117,14 @@ export function StyleTab({
             onValueChange={(next) => onZoomChange(next as number)}
           />
         </Field>
-        <div role="radiogroup" aria-label="Zoom level" className="map-art-zoom-presets">
+        <div role="group" aria-label="Zoom level presets" className="map-art-zoom-presets">
           {zoomLevels.map((preset) => (
             <Button
               key={preset.label}
               type="button"
-              role="radio"
               size="sm"
               variant={Math.abs(values.zoom - preset.value) < 0.1 ? 'secondary' : 'outline'}
-              aria-checked={Math.abs(values.zoom - preset.value) < 0.1}
+              aria-pressed={Math.abs(values.zoom - preset.value) < 0.1}
               title={preset.description}
               onClick={() => onZoomPreset(preset.value)}
             >
