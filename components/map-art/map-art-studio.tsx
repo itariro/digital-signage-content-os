@@ -53,6 +53,7 @@ function defaultMapArtSettings(): MapArtSettings {
     showRailways: true,
     showTrails: true,
     customText: '',
+    recentLocations: [],
   }
 }
 

@@ -162,3 +162,32 @@ describe('recent map locations', () => {
     expect(getRecentLocations({ recentLocations: [tokyo] })).toEqual([tokyo])
   })
 })
+
+describe('map art settings schema', () => {
+  it('accepts recent locations without requiring them', async () => {
+    const { albumUpdateSchema } = await import('@/lib/schema')
+    const base = {
+      name: 'Map album',
+      theme: 'map-art',
+      items: [],
+      slideshow: {
+        presentation: 'fill', interval: 25, transition: 'fade', order: 'sequence',
+        kenBurns: false, artSize: 100, artPosition: 'center', backdrop: 'blur', backdropColor: '#000000',
+      },
+      mapArt: {
+        mode: 'cities', query: '', continent: 'Europe', count: '5', customCount: 5,
+        cities: [], results: [], ambiguities: [],
+        city: tokyo, activeIndex: 0, styleId: 'classic', title: true, showCoords: true,
+        orientation: 'portrait', zoom: 12, backgroundColor: '#f5f0e3',
+        streetLabels: 'all', showRailways: true, showTrails: true, customText: '',
+      },
+    }
+    expect(albumUpdateSchema.safeParse(base).success).toBe(true)
+    const withRecent = albumUpdateSchema.safeParse({
+      ...base,
+      mapArt: { ...base.mapArt, recentLocations: [tokyo] },
+    })
+    expect(withRecent.success).toBe(true)
+    expect(withRecent.success ? withRecent.data.mapArt?.recentLocations : []).toEqual([tokyo])
+  })
+})

@@ -155,6 +155,7 @@ export type MapArtSettings = {
   showRailways: boolean
   showTrails: boolean
   customText: string
+  recentLocations?: MapArtLocation[]
 }
 
 export type Mosaic = {
