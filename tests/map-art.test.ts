@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { MapArtAmbiguity, MapArtLocation } from '@/lib/types'
-import { removeAmbiguityRow, resolveExportView, waitForCameraSettled } from '@/lib/map-art'
+import {
+  appendRecentLocation,
+  getRecentLocations,
+  normalizeRecentLocations,
+  removeAmbiguityRow,
+  resolveExportView,
+  waitForCameraSettled,
+} from '@/lib/map-art'
 
 const studioSource = readFileSync(
   path.resolve(__dirname, '../components/map-art/map-art-studio.tsx'),
@@ -130,5 +137,28 @@ describe('tabs orientation', () => {
     )
     expect(source).toContain('orientation={orientation}')
     expect(source).toMatch(/(?<!data-)orientation=\{orientation\}/)
+  })
+})
+
+describe('recent map locations', () => {
+  it('drops duplicates and keeps the newest first', () => {
+    const result = normalizeRecentLocations([tokyo, tokyo, { ...tokyo, name: 'Tokyo again' }])
+    expect(result).toEqual([tokyo])
+  })
+
+  it('caps the stored list at ten cities', () => {
+    const many = Array.from({ length: 12 }, (_, index) => ({ ...tokyo, id: index + 1 }))
+    expect(normalizeRecentLocations(many)).toHaveLength(10)
+    expect(normalizeRecentLocations(many)[0].id).toBe(1)
+  })
+
+  it('places a newly generated city at the front', () => {
+    const older = { ...tokyo, id: 9, name: 'Osaka' }
+    expect(appendRecentLocation([older], tokyo).map((city) => city.id)).toEqual([2, 9])
+  })
+
+  it('treats missing settings as an empty list', () => {
+    expect(getRecentLocations({})).toEqual([])
+    expect(getRecentLocations({ recentLocations: [tokyo] })).toEqual([tokyo])
   })
 })

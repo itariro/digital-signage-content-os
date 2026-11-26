@@ -46,3 +46,44 @@ export async function waitForCameraSettled(pending: () => Promise<void> | null):
     move = pending()
   }
 }
+
+export type TraceStepStatus = 'running' | 'error' | 'pending'
+
+export type TraceStep = {
+  id: string
+  title: string
+  description?: string
+  status?: TraceStepStatus
+  detail?: string
+  children?: TraceStep[]
+}
+
+const RECENT_LOCATION_LIMIT = 10
+
+export function normalizeRecentLocations(
+  locations: MapArtLocation[] | undefined,
+  limit = RECENT_LOCATION_LIMIT,
+): MapArtLocation[] {
+  if (!locations?.length) return []
+  const seen = new Set<number>()
+  const result: MapArtLocation[] = []
+  for (const city of locations) {
+    if (seen.has(city.id)) continue
+    seen.add(city.id)
+    result.push(city)
+    if (result.length >= limit) break
+  }
+  return result
+}
+
+export function appendRecentLocation(
+  locations: MapArtLocation[] | undefined,
+  city: MapArtLocation,
+  limit = RECENT_LOCATION_LIMIT,
+): MapArtLocation[] {
+  return normalizeRecentLocations([city, ...(locations ?? [])], limit)
+}
+
+export function getRecentLocations(settings: { recentLocations?: MapArtLocation[] }): MapArtLocation[] {
+  return normalizeRecentLocations(settings.recentLocations)
+}
