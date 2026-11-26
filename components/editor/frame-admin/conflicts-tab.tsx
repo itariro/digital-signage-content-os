@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AdminConflict } from '@/lib/console/admin-types'
 import { EditorButton, Section } from '../controls'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type ConflictState =
   | { status: 'loading' }
@@ -127,31 +131,34 @@ export function ConflictsTab() {
     <section aria-label="Conflicts" className="space-y-3">
       <Section title="Open and rejected conflicts">{null}</Section>
       {state.status === 'loading' && (
-        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">Loading conflicts…</p>
+        <div role="status" className="flex flex-col gap-2">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       )}
       {state.status === 'unauthorized' && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          Your session has expired or you are not authorized to view conflicts.
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>Your session has expired or you are not authorized to view conflicts.</AlertDescription>
+        </Alert>
       )}
       {state.status === 'error' && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {state.message}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
       )}
       {state.status === 'loaded' && state.conflicts.length === 0 && (
-        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          No open or rejected conflicts.
-        </p>
+        <Empty>
+          <EmptyDescription>No open or rejected conflicts.</EmptyDescription>
+        </Empty>
       )}
       {state.status === 'loaded' && state.conflicts.length > 0 && (
         <ul className="space-y-3">
           {state.conflicts.map((conflict) => (
             <li key={conflict.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
               <div>
-                <p className="mb-1 inline-flex rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <Badge variant="secondary" className="mb-1 text-[10px] uppercase tracking-wide">
                   {conflict.status}
-                </p>
+                </Badge>
                 <h4 className="text-sm font-semibold">{conflict.entityType}</h4>
                 <p className="break-all font-mono text-xs">{conflict.entityId}</p>
               </div>
@@ -198,9 +205,9 @@ export function ConflictsTab() {
                     </EditorButton>
                   )}
                   {actionError?.id === conflict.id && (
-                    <p role="alert" className="w-full rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-                      {actionError.message}
-                    </p>
+                    <Alert variant="destructive" className="w-full text-xs">
+                      <AlertDescription>{actionError.message}</AlertDescription>
+                    </Alert>
                   )}
                 </div>
               )}

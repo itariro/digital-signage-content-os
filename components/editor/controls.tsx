@@ -1,15 +1,48 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import type { GradientDef, ImageFillDef, WidgetStyle } from '@/lib/types'
 import { CURATED_FILLS } from '@/lib/curated-fills'
 import { STYLE_THEMES } from '@/lib/widgets'
+import { Button } from '@/components/ui/button'
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+export function Section({
+  title,
+  children,
+  action,
+  className,
+}: {
+  title: string
+  children: ReactNode
+  action?: ReactNode
+  className?: string
+}) {
   return (
-    <section className="editor-panel-section">
-      <div className="flex items-center justify-between gap-2">
+    <section className={cn('editor-panel-section gap-3', className)}>
+      <div className="flex min-h-6 items-center justify-between gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
         {action}
       </div>
@@ -37,128 +70,134 @@ export function SliderField({
   onChange: (value: number) => void
   onCommit?: () => void
 }) {
-  const id = useId()
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-sm font-medium text-foreground">
-          {label}
-        </label>
+    <Field className="gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <FieldTitle>{label}</FieldTitle>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {value}
           {suffix}
         </span>
       </div>
-      <input
-        id={id}
-        type="range"
+      <Slider
+        aria-label={label}
+        value={value}
         min={min}
         max={max}
         step={step}
-        value={value}
         onPointerDown={onCommit}
-        onKeyDown={(e) => {
-          if (e.key.startsWith('Arrow')) onCommit?.()
+        onKeyDown={(event) => {
+          if (event.key.startsWith('Arrow')) onCommit?.()
         }}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="frame-range w-full"
+        onValueChange={(next) => onChange(next as number)}
       />
-    </div>
+    </Field>
   )
 }
 
 const SWATCHES = ['#ffffff', '#0b0c10', '#7cc4ff', '#ffd36e', '#ffb86b', '#ff8fa3', '#9be7c4', '#c7b8ff']
 
 export function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  const id = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        <label htmlFor={id} className="editor-control flex h-9 cursor-pointer items-center gap-2 px-2 font-mono text-xs uppercase text-muted-foreground">
+    <Field className="gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <FieldTitle>{label}</FieldTitle>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => inputRef.current?.click()}
+          className="gap-2 px-2 font-mono text-xs uppercase text-muted-foreground"
+        >
           <span className="size-3.5 rounded-full ring-1 ring-border" style={{ background: value }} />
           {value}
-          <input id={id} type="color" value={value} onChange={(e) => onChange(e.target.value)} className="sr-only" aria-label={`${label} custom color`} />
-        </label>
+        </Button>
+        <Input
+          ref={inputRef}
+          type="color"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="sr-only"
+          aria-label={`${label} custom color`}
+          tabIndex={-1}
+        />
       </div>
-      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={`${label} swatches`}>
+      <ToggleGroup
+        aria-label={`${label} swatches`}
+        value={[value.toLowerCase()]}
+        onValueChange={(next) => next[0] && onChange(next[0])}
+        spacing={6}
+        className="flex-wrap"
+      >
         {SWATCHES.map((swatch) => (
-          <button
+          <ToggleGroupItem
             key={swatch}
-            type="button"
-            role="radio"
-            aria-checked={value.toLowerCase() === swatch}
+            value={swatch}
             aria-label={swatch}
-            onClick={() => onChange(swatch)}
-            className={cn(
-              'size-6 rounded-full ring-1 ring-border transition-transform hover:scale-110',
-              value.toLowerCase() === swatch && 'ring-2 ring-primary ring-offset-2 ring-offset-card',
-            )}
+            title={swatch}
+            className="size-6 min-w-6 rounded-full p-0 ring-1 ring-border aria-pressed:ring-2 aria-pressed:ring-primary aria-pressed:ring-offset-2 aria-pressed:ring-offset-card"
             style={{ background: swatch }}
           />
         ))}
-      </div>
-    </div>
+      </ToggleGroup>
+    </Field>
   )
 }
 
 export function ThemeSwatches({ onApply, label = 'Quick themes' }: { onApply: (style: Partial<WidgetStyle>) => void; label?: string }) {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-foreground">{label}</span>
+    <Field className="gap-2">
+      <FieldTitle>{label}</FieldTitle>
       <div className="grid grid-cols-5 gap-1.5">
         {STYLE_THEMES.map((theme) => (
-          <button
+          <Button
             key={theme.id}
             type="button"
+            variant="outline"
             onClick={() => onApply(theme.style)}
             title={`Apply ${theme.name} theme`}
-            className="flex flex-col items-center gap-1 rounded-lg p-1.5 ring-1 ring-border transition hover:ring-primary"
+            className="h-auto flex-col gap-1 px-1.5 py-1.5"
           >
             <span className="relative flex size-7 items-center justify-center rounded-full" style={{ background: theme.style.bg }}>
               <span className="size-3.5 rounded-full" style={{ background: theme.style.accent }} />
               <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full ring-1 ring-card" style={{ background: theme.style.color }} />
             </span>
-            <span className="text-[10px] text-muted-foreground">{theme.name}</span>
-          </button>
+            <span className="text-[10px] font-normal text-muted-foreground">{theme.name}</span>
+          </Button>
         ))}
       </div>
-    </div>
+    </Field>
   )
 }
 
 export function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const id = useId()
   return (
-    <div className="flex items-center justify-between gap-3">
-      <label htmlFor={id} className="text-sm font-medium text-foreground">
+    <Field orientation="horizontal">
+      <FieldLabel htmlFor={id} className="flex-1">
         {label}
-      </label>
-      <input
+      </FieldLabel>
+      <Input
         id={id}
         type="time"
         value={value}
-        onChange={(e) => e.target.value && onChange(e.target.value)}
-        className="editor-control h-9 px-2 font-mono text-xs"
+        onChange={(event) => event.target.value && onChange(event.target.value)}
+        className="w-auto font-mono text-xs tabular-nums"
       />
-    </div>
+    </Field>
   )
 }
 
 export function ToggleField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+  const id = useId()
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex items-center justify-between gap-2 text-left text-sm font-medium text-foreground"
-    >
-      {label}
-      <span className={cn('relative h-4 w-7 shrink-0 rounded-full transition-colors', checked ? 'bg-primary' : 'bg-secondary')}>
-        <span className={cn('absolute top-0.5 size-3 rounded-full bg-foreground shadow transition-transform', checked ? 'translate-x-3.5' : 'translate-x-0.5')} />
-      </span>
-    </button>
+    <Field orientation="horizontal">
+      <FieldLabel htmlFor={id} className="flex-1 font-normal">
+        {label}
+      </FieldLabel>
+      <Switch id={id} checked={checked} onCheckedChange={(next) => onChange(next)} />
+    </Field>
   )
 }
 
@@ -175,23 +214,29 @@ export function SelectField({
 }) {
   const id = useId()
   return (
-    <div className="flex items-center justify-between gap-3">
-      <label htmlFor={id} className="text-sm font-medium text-foreground">
+    <Field orientation="horizontal">
+      <FieldLabel htmlFor={id} className="flex-1 font-normal">
         {label}
-      </label>
-      <select
-        id={id}
+      </FieldLabel>
+      <Select
+        items={options}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="editor-control h-9 max-w-[60%] px-2"
+        onValueChange={(next) => next !== null && onChange(String(next))}
       >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
+        <SelectTrigger id={id} className="max-w-[62%]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false} side="bottom">
+          <SelectGroup>
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </Field>
   )
 }
 
@@ -209,95 +254,96 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn('editor-control flex h-9 bg-secondary p-0.5', className)}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          title={o.title}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring',
-            value === o.value ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground',
-          )}
+    <ToggleGroup
+      aria-label={label}
+      value={[value]}
+      onValueChange={(next) => next[0] !== undefined && onChange(next[0] as T)}
+      spacing={2}
+      className={cn('w-full rounded-lg bg-muted p-0.5', className)}
+    >
+      {options.map((option) => (
+        <ToggleGroupItem
+          key={option.value}
+          value={option.value}
+          title={option.title}
+          className="h-7 flex-1 rounded-md px-2 text-xs font-medium data-pressed:bg-background data-pressed:text-foreground data-pressed:shadow-sm"
         >
-          {o.label}
-        </button>
+          {option.label}
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   )
 }
 
 export function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   const id = useId()
   return (
-    <div className="editor-control flex h-9 items-center gap-2 px-2">
-      <label htmlFor={id} className="text-sm font-medium text-foreground">
+    <Field orientation="horizontal" className="gap-2 rounded-lg border border-input px-2 py-1">
+      <FieldLabel htmlFor={id} className="flex-1 font-normal">
         {label}
-      </label>
-      <input
+      </FieldLabel>
+      <Input
         id={id}
         type="number"
         value={Math.round(value)}
-        onChange={(e) => {
-          const n = Number(e.target.value)
-          if (Number.isFinite(n)) onChange(n)
+        onChange={(event) => {
+          const next = Number(event.target.value)
+          if (Number.isFinite(next)) onChange(next)
         }}
-        className="h-8 w-full min-w-0 bg-transparent text-right font-mono text-sm tabular-nums text-foreground outline-none"
+        className="h-7 w-20 border-0 bg-transparent px-1 text-right font-mono text-sm tabular-nums shadow-none focus-visible:ring-0"
       />
-    </div>
+    </Field>
   )
 }
 
 export function IconButton({
   label,
-  onClick,
   children,
   active,
-  disabled,
   className,
-}: {
+  type = 'button',
+  ...props
+}: Omit<ComponentProps<typeof Button>, 'aria-label' | 'aria-pressed'> & {
   label: string
-  onClick?: () => void
-  children: ReactNode
   active?: boolean
-  disabled?: boolean
-  className?: string
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={active}
-      className={cn(
-        'editor-icon-button',
-        active && 'bg-primary/10 text-primary',
-        className,
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type={type}
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            aria-pressed={active}
+            className={cn('text-muted-foreground', active && 'bg-primary/10 text-primary', className)}
+            {...props}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
 export type EditorButtonVariant = 'primary' | 'secondary' | 'quiet' | 'destructive'
 
+const EDITOR_BUTTON_VARIANTS: Record<EditorButtonVariant, ComponentProps<typeof Button>['variant']> = {
+  primary: 'default',
+  secondary: 'outline',
+  quiet: 'ghost',
+  destructive: 'destructive',
+}
+
 export function EditorButton({
   variant = 'secondary',
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: EditorButtonVariant }) {
-  return (
-    <button
-      {...props}
-      className={cn('editor-button', `editor-button-${variant}`, className)}
-    />
-  )
+}: Omit<ComponentProps<typeof Button>, 'variant'> & { variant?: EditorButtonVariant }) {
+  return <Button variant={EDITOR_BUTTON_VARIANTS[variant]} className={className} {...props} />
 }
 
 // --- Text-effects primitives (Task 4) ---
@@ -314,7 +360,6 @@ export function AngleDial({
   onCommit?: () => void
 }) {
   const ref = useRef<SVGSVGElement>(null)
-  const id = useId()
   const normalized = ((Math.round(value) % 360) + 360) % 360
   const rad = (normalized * Math.PI) / 180
   const cx = 32
@@ -333,36 +378,34 @@ export function AngleDial({
   }
 
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span id={id} className="text-sm text-foreground">
-        {label}
-      </span>
+    <Field orientation="horizontal">
+      <FieldTitle className="flex-1">{label}</FieldTitle>
       <div className="flex items-center gap-3">
         <span className="font-mono text-xs tabular-nums text-muted-foreground">{normalized}°</span>
         <svg
           ref={ref}
           viewBox="0 0 64 64"
-          className="size-16 cursor-pointer touch-none rounded-full bg-secondary"
+          className="size-14 cursor-pointer touch-none rounded-full bg-muted"
           role="slider"
-          aria-labelledby={id}
+          aria-label={label}
           aria-valuemin={0}
           aria-valuemax={359}
           aria-valuenow={normalized}
           tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
               onCommit?.()
               onChange((normalized + 1) % 360)
             }
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
               onCommit?.()
               onChange((normalized + 359) % 360)
             }
           }}
-          onPointerDown={(e) => {
+          onPointerDown={(event) => {
             onCommit?.()
-            fromPointer(e.clientX, e.clientY)
-            const move = (ev: PointerEvent) => fromPointer(ev.clientX, ev.clientY)
+            fromPointer(event.clientX, event.clientY)
+            const move = (pointerEvent: PointerEvent) => fromPointer(pointerEvent.clientX, pointerEvent.clientY)
             const up = () => {
               window.removeEventListener('pointermove', move)
               window.removeEventListener('pointerup', up)
@@ -377,7 +420,7 @@ export function AngleDial({
           <circle cx={cx} cy={cy} r="3" className="fill-foreground" />
         </svg>
       </div>
-    </div>
+    </Field>
   )
 }
 
@@ -391,59 +434,61 @@ export function GradientStopPicker({
   onCommit?: () => void
 }) {
   const update = (index: number, patch: Partial<GradientDef['stops'][number]>) =>
-    onChange(stops.map((s, i) => (i === index ? { ...s, ...patch } : s)))
+    onChange(stops.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)))
 
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-sm text-foreground">Gradient stops</span>
-      {stops.map((stop, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <input
+    <FieldGroup className="gap-3">
+      <FieldTitle>Gradient stops</FieldTitle>
+      {stops.map((stop, index) => (
+        <Field key={index} orientation="horizontal" className="items-start gap-2">
+          <Input
             type="color"
             value={stop.color}
-            aria-label={`Stop ${i + 1} color`}
+            aria-label={`Stop ${index + 1} color`}
             onFocus={onCommit}
-            onChange={(e) => update(i, { color: e.target.value })}
-            className="editor-control h-8 w-10 shrink-0 cursor-pointer p-1"
+            onChange={(event) => update(index, { color: event.target.value })}
+            className="h-8 w-10 shrink-0 cursor-pointer p-1"
           />
           <div className="min-w-0 flex-1">
             <SliderField
-              label={`Stop ${i + 1} position`}
+              label={`Stop ${index + 1} position`}
               value={stop.position}
               min={0}
               max={100}
               suffix="%"
               onCommit={onCommit}
-              onChange={(v) => update(i, { position: v })}
+              onChange={(position) => update(index, { position })}
             />
           </div>
-          <button
+          <Button
             type="button"
-            aria-label={`Remove stop ${i + 1}`}
+            variant="secondary"
+            size="sm"
+            aria-label={`Remove stop ${index + 1}`}
             disabled={stops.length <= 2}
             onClick={() => {
               onCommit?.()
-              onChange(stops.filter((_, j) => j !== i))
+              onChange(stops.filter((_, i) => i !== index))
             }}
-            className="flex h-8 shrink-0 items-center rounded-md bg-secondary px-2 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
           >
             Remove
-          </button>
-        </div>
+          </Button>
+        </Field>
       ))}
-      {stops.length < 2 && <p className="text-xs text-muted-foreground">A gradient needs at least 2 stops.</p>}
-      <button
+      {stops.length < 2 && <FieldDescription>A gradient needs at least 2 stops.</FieldDescription>}
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         disabled={stops.length >= 8}
         onClick={() => {
           onCommit?.()
           onChange([...stops, { color: '#ffffff', position: Math.min(100, Math.round(100 / (stops.length + 1))) }])
         }}
-        className="h-8 rounded-md bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/70 disabled:pointer-events-none disabled:opacity-40"
       >
         Add stop
-      </button>
-    </div>
+      </Button>
+    </FieldGroup>
   )
 }
 
@@ -505,27 +550,22 @@ export function ImageFillField({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <Segmented<ImageFillTab>
-        label="Image fill source"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'curated', label: 'Curated' },
-          { value: 'url', label: 'URL' },
-          { value: 'upload', label: 'Upload' },
-        ]}
-      />
-      {tab === 'curated' && (
-        <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Curated fills">
+    <Tabs value={tab} onValueChange={(next) => setTab(next as ImageFillTab)} className="gap-3">
+      <TabsList className="w-full">
+        <TabsTrigger value="curated">Curated</TabsTrigger>
+        <TabsTrigger value="url">URL</TabsTrigger>
+        <TabsTrigger value="upload">Upload</TabsTrigger>
+      </TabsList>
+      <TabsContent value="curated">
+        <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Curated fills">
           {CURATED_FILLS.map((fill) => {
             const active = image.url === fill.url
             return (
-              <button
+              <Button
                 key={fill.id}
                 type="button"
-                role="radio"
-                aria-checked={active}
+                variant="ghost"
+                aria-pressed={active}
                 title={fill.label}
                 aria-label={fill.label}
                 onClick={() => {
@@ -533,59 +573,55 @@ export function ImageFillField({
                   onChange({ url: fill.url, fit: 'cover', scale: 100, position: 50 })
                 }}
                 className={cn(
-                  'overflow-hidden rounded-lg ring-1 transition',
-                  active ? 'ring-2 ring-primary' : 'ring-border hover:ring-muted-foreground',
+                  'h-auto overflow-hidden rounded-lg p-0 ring-1 ring-border',
+                  active && 'ring-2 ring-primary',
                 )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={fill.url} alt={fill.label} className="aspect-square w-full object-cover" loading="lazy" />
-              </button>
+              </Button>
             )
           })}
         </div>
-      )}
-      {tab === 'url' && (
-        <div className="flex flex-col gap-1.5">
+      </TabsContent>
+      <TabsContent value="url">
+        <Field className="gap-2" data-invalid={urlError ? 'true' : undefined}>
           <div className="flex gap-2">
-            <input
+            <Input
               type="url"
               value={urlDraft}
-              onChange={(e) => setUrlDraft(e.target.value)}
+              onChange={(event) => setUrlDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  applyUrl()
+                }
+              }}
               placeholder="https://… or /api/uploads/…"
-              className="editor-control h-8 min-w-0 flex-1"
+              aria-label="Image URL"
+              aria-invalid={Boolean(urlError)}
             />
-            <button
-              type="button"
-              onClick={applyUrl}
-              className="flex h-8 shrink-0 items-center rounded-md bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/70"
-            >
+            <Button type="button" variant="secondary" onClick={applyUrl}>
               Apply
-            </button>
+            </Button>
           </div>
-          {urlError && (
-            <p role="alert" className="text-xs text-destructive">
-              {urlError}
-            </p>
-          )}
-        </div>
-      )}
-      {tab === 'upload' && (
-        <div className="flex flex-col gap-1.5">
-          <input
+          {urlError && <FieldError>{urlError}</FieldError>}
+        </Field>
+      </TabsContent>
+      <TabsContent value="upload">
+        <Field className="gap-2" data-invalid={uploadError ? 'true' : undefined}>
+          <Input
             type="file"
             accept="image/*"
             disabled={uploading}
-            onChange={(e) => upload(e.target.files?.[0])}
+            onChange={(event) => upload(event.target.files?.[0])}
+            aria-label="Upload an image"
             className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground"
           />
-          {uploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
-          {uploadError && (
-            <p role="alert" className="text-xs text-destructive">
-              {uploadError}
-            </p>
-          )}
-        </div>
-      )}
+          {uploading && <FieldDescription>Uploading…</FieldDescription>}
+          {uploadError && <FieldError>{uploadError}</FieldError>}
+        </Field>
+      </TabsContent>
       <Segmented<'cover' | 'contain' | 'repeat'>
         label="Image fit"
         value={image.fit}
@@ -601,6 +637,6 @@ export function ImageFillField({
       />
       <SliderField label="Scale" value={image.scale} min={50} max={200} suffix="%" onCommit={onCommit} onChange={(scale) => onChange({ ...image, scale })} />
       <SliderField label="Position" value={image.position} min={0} max={100} suffix="%" onCommit={onCommit} onChange={(position) => onChange({ ...image, position })} />
-    </div>
+    </Tabs>
   )
 }

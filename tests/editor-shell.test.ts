@@ -15,9 +15,9 @@ describe('editor navigation shell', () => {
 
   it('renders the Frames rail entry only for users who can manage frames', () => {
     expect(editorSource).toMatch(
-      /\{canManageFrames && \(\s*<button[\s\S]*?aria-label="Frames"[\s\S]*?aria-expanded=\{activeDrawer === 'frames'\}[\s\S]*?aria-controls="editor-drawer"[\s\S]*?toggleDrawer\('frames', event\.currentTarget\)/,
+      /\{canManageFrames && \(\s*<IconButton[\s\S]*?label="Frames"[\s\S]*?aria-expanded=\{activeDrawer === 'frames'\}[\s\S]*?aria-controls="editor-drawer"[\s\S]*?toggleDrawer\('frames', event\.currentTarget\)/,
     )
-    expect(editorSource).toContain('<Frame className="size-[18px]" aria-hidden />')
+    expect(editorSource).toContain('<Frame aria-hidden />')
     expect(editorSource).toMatch(/activeDrawer === 'frames'\s*\?\s*'Frame administration'/)
   })
 

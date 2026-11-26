@@ -7,6 +7,7 @@ import { NOTIFICATION_DEFAULT_DURATION, createDemoNotifications, formatNotificat
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications/notification-provider'
 import { EditorButton, Section } from './controls'
+import { Switch } from '@/components/ui/switch'
 
 const VARIANT_META: Record<FrameNotification['variant'], { label: string; icon: typeof Info }> = {
   info: { label: 'Informational', icon: Info },
@@ -17,11 +18,7 @@ const VARIANT_META: Record<FrameNotification['variant'], { label: string; icon: 
 }
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
-  return (
-    <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={cn('inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', checked ? 'justify-end bg-primary' : 'justify-start bg-muted')}>
-      <span className="size-4 rounded-full bg-background shadow-sm" />
-    </button>
-  )
+  return <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
 }
 
 export function NotificationsPanel() {

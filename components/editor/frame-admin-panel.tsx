@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { AuditTab } from './frame-admin/audit-tab'
 import { ConflictsTab } from './frame-admin/conflicts-tab'
 import { FramesTab } from './frame-admin/frames-tab'
-import { EditorButton } from './controls'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export type AdminTab = 'frames' | 'conflicts' | 'audit'
 
@@ -18,26 +18,23 @@ export function FrameAdminPanel() {
   const [activeTab, setActiveTab] = useState<AdminTab>('frames')
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div role="group" aria-label="Frame administration sections" className="flex shrink-0 border-b border-border">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => setActiveTab(value as AdminTab)}
+      className="flex min-h-full flex-col gap-0"
+    >
+      <TabsList variant="line" aria-label="Frame administration sections" className="flex w-full shrink-0 rounded-none border-b border-border">
         {TABS.map((tab) => (
-          <EditorButton
-            key={tab.id}
-            type="button"
-            aria-pressed={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            variant="quiet"
-            className="min-h-12 flex-1 shrink rounded-none border-b-2 border-transparent px-2 py-3 aria-pressed:border-primary aria-pressed:text-foreground"
-          >
+          <TabsTrigger key={tab.id} value={tab.id} className="min-h-12 flex-1 rounded-none">
             {tab.label}
-          </EditorButton>
+          </TabsTrigger>
         ))}
-      </div>
+      </TabsList>
       <div className="min-h-0 flex-1 p-3">
-        {activeTab === 'frames' && <FramesTab />}
-        {activeTab === 'conflicts' && <ConflictsTab />}
-        {activeTab === 'audit' && <AuditTab />}
+        <TabsContent value="frames"><FramesTab /></TabsContent>
+        <TabsContent value="conflicts"><ConflictsTab /></TabsContent>
+        <TabsContent value="audit"><AuditTab /></TabsContent>
       </div>
-    </div>
+    </Tabs>
   )
 }

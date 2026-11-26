@@ -2,6 +2,8 @@
 
 import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/nextjs'
 import { Frame } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function Hero() {
   return (
@@ -23,12 +25,10 @@ export function Hero() {
         <div className="flex items-center gap-3">
           <Show when="signed-out">
             <SignInButton mode="modal">
-              <button className="text-sm font-medium text-muted-foreground hover:text-foreground">Sign in</button>
+              <Button variant="ghost" size="lg">Sign in</Button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
-                Get started
-              </button>
+              <Button size="lg">Get started</Button>
             </SignUpButton>
           </Show>
           <Show when="signed-in">
@@ -50,20 +50,14 @@ export function Hero() {
         <div className="flex flex-wrap items-center gap-4">
           <Show when="signed-out">
             <SignUpButton mode="modal">
-              <button className="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90">
-                Start building
-              </button>
+              <Button size="lg">Start building</Button>
             </SignUpButton>
             <SignInButton mode="modal">
-              <button className="rounded-md border border-border px-6 py-3 text-sm font-semibold text-foreground hover:bg-secondary">
-                Sign in
-              </button>
+              <Button variant="outline" size="lg">Sign in</Button>
             </SignInButton>
           </Show>
           <Show when="signed-in">
-            <a href="/" className="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90">
-              Open studio
-            </a>
+            <Button size="lg" render={<a href="/" />}>Open studio</Button>
           </Show>
         </div>
 
@@ -73,10 +67,12 @@ export function Hero() {
             { k: 'Multi-frame', v: 'One console for your whole fleet.' },
             { k: 'Synced', v: 'Durable, idempotent, conflict-aware.' },
           ].map((f) => (
-            <div key={f.k} className="rounded-lg border border-border/60 bg-card/40 p-5 backdrop-blur">
-              <div className="font-mono text-xs uppercase tracking-widest text-primary">{f.k}</div>
-              <div className="mt-2 text-sm text-muted-foreground">{f.v}</div>
-            </div>
+            <Card key={f.k} className="bg-card/40 backdrop-blur">
+              <CardHeader>
+                <CardTitle className="font-mono text-xs uppercase tracking-widest text-primary">{f.k}</CardTitle>
+                <CardDescription>{f.v}</CardDescription>
+              </CardHeader>
+            </Card>
           ))}
         </div>
       </section>

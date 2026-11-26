@@ -35,6 +35,9 @@ import { AngleDial, ColorField, GradientStopPicker, IconButton, ImageFillField, 
 import { LayoutSettingsPanel } from './layout-settings'
 import { WidgetPreview } from './widget-preview'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 
 type InspectorProps = {
   editor: EditorApi
@@ -138,19 +141,20 @@ function TemplateSection({ editor, widget }: { editor: EditorApi; widget: Widget
         {def.templates.map((t) => {
           const active = widget.template === t.id
           return (
-            <button
+            <Button
               key={t.id}
               type="button"
+              variant="ghost"
               aria-pressed={active}
               onClick={() => editor.updateWidgets([widget.id], (w) => ({ ...w, template: t.id }))}
               className={cn(
-                'flex flex-col overflow-hidden rounded-lg text-left ring-1 transition',
+                'flex h-auto flex-col overflow-hidden rounded-lg p-0 text-left ring-1 transition',
                 active ? 'ring-2 ring-primary' : 'ring-border hover:ring-muted-foreground',
               )}
             >
               <WidgetPreview widgets={[{ ...widget, template: t.id, x: 0, y: 0 }]} width={136} height={72} />
               <span className={cn('px-2 py-1.5 text-xs', active ? 'text-foreground' : 'text-muted-foreground')}>{t.label}</span>
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -170,15 +174,16 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
         if (field.showWhen && String(widget.props[field.showWhen.key]) !== field.showWhen.value) return null
         if (field.kind === 'date') {
           return (
-            <label key={field.key} className="flex items-center justify-between gap-3 text-sm font-medium text-foreground">
-              {field.label}
-              <input
+            <Field key={field.key} orientation="horizontal">
+              <FieldLabel htmlFor={`field-${field.key}`} className="flex-1">{field.label}</FieldLabel>
+              <Input
+                id={`field-${field.key}`}
                 type="date"
                 value={String(widget.props[field.key] ?? '')}
                 onChange={(e) => e.target.value && setProp(field.key, e.target.value)}
-                className="editor-control h-8 px-2 font-mono text-xs"
+                className="h-8 w-auto font-mono text-xs"
               />
-            </label>
+            </Field>
           )
         }
         if (field.kind === 'toggle') {
@@ -196,17 +201,17 @@ function ContentSection({ editor, widget }: { editor: EditorApi; widget: Widget 
           )
         }
         return (
-          <label key={field.key} className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-            {field.label}
-            <input
+          <Field key={field.key} className="gap-1.5">
+            <FieldLabel htmlFor={`field-${field.key}`}>{field.label}</FieldLabel>
+            <Input
+              id={`field-${field.key}`}
               type="text"
               maxLength={120}
               value={String(widget.props[field.key] ?? '')}
               onFocus={() => editor.checkpoint()}
               onChange={(e) => setProp(field.key, e.target.value, false)}
-              className="editor-control h-8"
             />
-          </label>
+          </Field>
         )
       })}
     </Section>
@@ -323,14 +328,16 @@ function EffectControls({
           <>
             <div className="grid grid-cols-3 gap-1.5">
               {GRADIENT_PRESETS.map((preset) => (
-                <button
+                <Button
                   key={preset.label}
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setGradient(preset.gradient)}
-                  className="rounded-lg bg-secondary px-2 py-1.5 text-xs font-medium text-foreground hover:bg-secondary/70"
+                  className="text-xs"
                 >
                   {preset.label}
-                </button>
+                </Button>
               ))}
             </div>
             <GradientStopPicker stops={gradient.stops} onCommit={commit} onChange={(stops) => setGradient({ ...gradient, stops }, false)} />
@@ -463,24 +470,25 @@ function ArrangeSection({ editor, selection }: { editor: EditorApi; selection: W
       </div>
       {selection.length > 2 && (
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => distribute('x')} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary text-xs font-medium text-foreground hover:bg-secondary/70">
+          <Button type="button" variant="secondary" size="sm" onClick={() => distribute('x')} className="text-xs">
             <AlignHorizontalDistributeCenter className="size-4" aria-hidden />
             Space horizontally
-          </button>
-          <button type="button" onClick={() => distribute('y')} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-secondary text-xs font-medium text-foreground hover:bg-secondary/70">
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => distribute('y')} className="text-xs">
             <AlignVerticalDistributeCenter className="size-4" aria-hidden />
             Space vertically
-          </button>
+          </Button>
         </div>
       )}
-      <button
+      <Button
         type="button"
+        variant="secondary"
         onClick={() => (grouped ? editor.ungroup(ids) : editor.group(ids))}
-        className="flex h-8 items-center justify-center gap-2 rounded-md bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-secondary/70"
+        className="h-8 gap-2 text-sm font-medium"
       >
         {grouped ? <Ungroup className="size-4" aria-hidden /> : <Group className="size-4" aria-hidden />}
         {grouped ? 'Ungroup widgets' : 'Combine into group (⌘G)'}
-      </button>
+      </Button>
       <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
         Grouped widgets move together on the frame. Style changes below apply to every selected widget.
       </p>
@@ -528,13 +536,14 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
           {fonts.map((f) => {
             const active = s.fontFamily === f.id
             return (
-              <button
+              <Button
                 key={f.id}
                 type="button"
+                variant="ghost"
                 aria-pressed={active}
                 onClick={() => set({ fontFamily: f.id })}
                 className={cn(
-                  'flex flex-col items-center gap-0.5 rounded-lg px-1 py-2 ring-1 transition',
+                  'flex h-auto flex-col items-center gap-0.5 rounded-lg px-1 py-2 ring-1 transition',
                   active ? 'bg-primary/10 ring-2 ring-primary' : 'ring-border hover:ring-muted-foreground',
                 )}
               >
@@ -542,7 +551,7 @@ function StyleSections({ editor, selection, customFonts }: { editor: EditorApi; 
                   12:45
                 </span>
                 <span className="w-full truncate text-center text-[11px] text-muted-foreground">{f.label}</span>
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -621,39 +630,35 @@ function StickerLayersSection({ editor, widget }: { editor: EditorApi; widget: W
       {layers.length === 0 && <p className="text-xs text-muted-foreground">No layers.</p>}
       {layers.map((layer, index) => (
         <div key={layer.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-            Layer {index + 1} text
-            <input
+          <Field className="gap-1.5">
+            <FieldLabel htmlFor={`layer-${layer.id}`}>Layer {index + 1} text</FieldLabel>
+            <Input
+              id={`layer-${layer.id}`}
               type="text"
               maxLength={300}
               value={layer.text}
               onFocus={() => editor.checkpoint()}
               onChange={(e) => updateLayer(layer.id, { text: e.target.value }, false)}
-              className="editor-control h-8"
             />
-          </label>
+          </Field>
           {!layer.style.fill && (
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-foreground">Text color</span>
-              <input
-                type="color"
-                value={layer.style.color}
-                onFocus={() => editor.checkpoint()}
-                onChange={(e) => updateLayerStyle(layer.id, { color: e.target.value }, false)}
-                className="editor-control h-8 w-12 cursor-pointer p-1"
-              />
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-foreground">Accent</span>
-            <input
-              type="color"
-              value={layer.style.accent}
-              onFocus={() => editor.checkpoint()}
-              onChange={(e) => updateLayerStyle(layer.id, { accent: e.target.value }, false)}
-              className="editor-control h-8 w-12 cursor-pointer p-1"
+            <ColorField
+              label="Text color"
+              value={layer.style.color}
+              onChange={(color) => {
+                editor.checkpoint()
+                updateLayerStyle(layer.id, { color }, false)
+              }}
             />
-          </div>
+          )}
+          <ColorField
+            label="Accent"
+            value={layer.style.accent}
+            onChange={(accent) => {
+              editor.checkpoint()
+              updateLayerStyle(layer.id, { accent }, false)
+            }}
+          />
         </div>
       ))}
     </Section>
@@ -666,13 +671,15 @@ function GeometrySection({ editor, widget }: { editor: EditorApi; widget: Widget
     <Section
       title="Position & size"
       action={
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="sm"
           onClick={() => set({ x: Math.round(FRAME_WIDTH / 2 - widget.w / 2) })}
-          className="text-xs font-medium text-primary hover:underline"
+          className="h-auto p-0 text-xs"
         >
           Center horizontally
-        </button>
+        </Button>
       }
     >
       <div className="grid grid-cols-2 gap-2">

@@ -4,8 +4,21 @@ import { useEffect, useRef, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { Plus, Trash2 } from 'lucide-react'
 import type { BobExpression, ExperienceRule, Experiences } from '@/lib/types'
-import { mergeDaysCondition, toggleWeekday } from '@/lib/experience-draft'
-import { EditorButton, Section, ToggleField } from './controls'
+import type { Weekday } from '@/lib/types'
+import { mergeDaysCondition } from '@/lib/experience-draft'
+import { EditorButton, IconButton, Section, ToggleField } from './controls'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 type ExperiencesPanelProps = {
   experiences: Experiences
@@ -123,116 +136,131 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
               <li key={rule.id} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-muted-foreground">#{index + 1}</span>
-                  <label className="sr-only" htmlFor={`exp-name-${rule.id}`}>
-                    Rule name
-                  </label>
-                  <input
+                  <Input
                     id={`exp-name-${rule.id}`}
+                    aria-label="Rule name"
                     value={rule.name}
                     onChange={(e) => updateRule(rule.id, { name: e.target.value }, true)}
-                    className="editor-control h-8 min-w-0 flex-1 px-2"
+                    className="h-8 min-w-0 flex-1"
                   />
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <input
-                      type="checkbox"
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Checkbox
+                      aria-label={`Rule ${index + 1} enabled`}
                       checked={rule.enabled}
-                      onChange={(e) => updateRule(rule.id, { enabled: e.target.checked })}
-                      className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-ring"
+                      onCheckedChange={(checked) => updateRule(rule.id, { enabled: checked === true })}
                     />
                     On
-                  </label>
-                  <button
-                    type="button"
-                    aria-label={`Remove rule ${index + 1}`}
+                  </div>
+                  <IconButton
+                    label={`Remove rule ${index + 1}`}
                     onClick={() => removeRule(rule.id)}
-                    className="editor-icon-button hover:text-destructive"
+                    className="hover:text-destructive"
                   >
                     <Trash2 className="size-4" aria-hidden />
-                  </button>
+                  </IconButton>
                 </div>
 
-                <div className="inline-flex w-full rounded-md border border-border p-0.5" role="group" aria-label="Days">
-                  {WEEKDAY_OPTIONS.map(({ value, label }) => {
-                    const currentDays = 'days' in rule.when ? rule.when.days : []
-                    const on = currentDays.includes(value)
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={label}
-                        onClick={() => updateRule(rule.id, { when: mergeDaysCondition(rule.when, toggleWeekday(currentDays, value, !on)) })}
-                        className={
-                          on
-                            ? 'h-8 flex-1 rounded-sm bg-primary text-[10px] font-medium text-primary-foreground'
-                            : 'h-8 flex-1 rounded-sm text-[10px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground'
-                        }
-                      >
-                        {label[0]}
-                      </button>
-                    )
-                  })}
-                </div>
+                <ToggleGroup
+                  aria-label="Days"
+                  multiple
+                  value={'days' in rule.when ? rule.when.days : []}
+                  onValueChange={(next) => updateRule(rule.id, { when: mergeDaysCondition(rule.when, next as Weekday[]) })}
+                  spacing={2}
+                  className="w-full rounded-md border border-border p-0.5"
+                >
+                  {WEEKDAY_OPTIONS.map(({ value, label }) => (
+                    <ToggleGroupItem
+                      key={value}
+                      value={value}
+                      aria-label={label}
+                      className="h-8 flex-1 rounded-sm text-[10px] font-medium text-muted-foreground data-pressed:bg-primary data-pressed:text-primary-foreground"
+                    >
+                      {label[0]}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm text-foreground">Layout</span>
-                    <select
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`exp-layout-${rule.id}`}>Layout</FieldLabel>
+                    <Select
+                      items={layouts.map((l) => ({ value: l.id, label: l.name }))}
                       value={rule.then.layoutId}
-                      onChange={(e) => updateRule(rule.id, { then: { ...rule.then, layoutId: e.target.value } })}
-                      className="editor-control h-8 px-2"
+                      onValueChange={(next) => next !== null && updateRule(rule.id, { then: { ...rule.then, layoutId: String(next) } })}
                     >
-                      {layouts.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm text-foreground">State</span>
-                    <select
+                      <SelectTrigger id={`exp-layout-${rule.id}`} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {layouts.map((l) => (
+                            <SelectItem key={l.id} value={l.id}>
+                              {l.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`exp-state-${rule.id}`}>State</FieldLabel>
+                    <Select
+                      items={STATE_OPTIONS}
                       value={rule.then.state}
-                      onChange={(e) => updateRule(rule.id, { then: { ...rule.then, state: e.target.value as ExperienceRule['then']['state'] } })}
-                      className="editor-control h-8 px-2"
+                      onValueChange={(next) => next !== null && updateRule(rule.id, { then: { ...rule.then, state: String(next) as ExperienceRule['then']['state'] } })}
                     >
-                      {STATE_OPTIONS.map(({ value, label }) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      <SelectTrigger id={`exp-state-${rule.id}`} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {STATE_OPTIONS.map(({ value, label }) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm text-foreground">Bob expression</span>
-                    <select
-                      value={rule.then.bob?.expression ?? ''}
-                      onChange={(e) =>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`exp-bob-${rule.id}`}>Bob expression</FieldLabel>
+                    <Select
+                      items={[{ value: 'none', label: 'No Bob' }, ...EXPRESSION_OPTIONS]}
+                      value={rule.then.bob?.expression ?? 'none'}
+                      onValueChange={(next) =>
                         updateRule(rule.id, {
                           then: {
                             ...rule.then,
-                            bob: e.target.value
-                              ? { ...rule.then.bob, expression: e.target.value as BobExpression }
+                            bob: next && next !== 'none'
+                              ? { ...rule.then.bob, expression: String(next) as BobExpression }
                               : undefined,
                           },
                         })
                       }
-                      className="editor-control h-8 px-2"
                     >
-                      <option value="">No Bob</option>
-                      {EXPRESSION_OPTIONS.map(({ value, label }) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm text-foreground">Bob speech</span>
-                    <input
+                      <SelectTrigger id={`exp-bob-${rule.id}`} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value="none">No Bob</SelectItem>
+                          {EXPRESSION_OPTIONS.map(({ value, label }) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`exp-speech-${rule.id}`}>Bob speech</FieldLabel>
+                    <Input
+                      id={`exp-speech-${rule.id}`}
                       type="text"
                       maxLength={500}
                       value={rule.then.bob?.speech ?? ''}
@@ -244,45 +272,44 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
                           : undefined
                         updateRule(rule.id, { then: { ...rule.then, bob } }, true)
                       }}
-                      className="editor-control h-8 px-2"
                     />
-                  </label>
+                  </Field>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm text-foreground">Priority</span>
-                    <input
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`exp-priority-${rule.id}`}>Priority</FieldLabel>
+                    <Input
+                      id={`exp-priority-${rule.id}`}
                       type="number"
                       min={0}
                       max={1000}
                       value={rule.priority}
                       onChange={(e) => updateRule(rule.id, { priority: parseInt(e.target.value) || 0 })}
-                      className="editor-control h-8 px-2"
                     />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm text-foreground">Score</span>
-                    <input
+                  </Field>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`exp-score-${rule.id}`}>Score</FieldLabel>
+                    <Input
+                      id={`exp-score-${rule.id}`}
                       type="number"
                       min={-1000}
                       max={1000}
                       value={rule.then.score}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, score: parseInt(e.target.value) || 0 } })}
-                      className="editor-control h-8 px-2"
                     />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm text-foreground">Duration (ms)</span>
-                    <input
+                  </Field>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`exp-duration-${rule.id}`}>Duration (ms)</FieldLabel>
+                    <Input
+                      id={`exp-duration-${rule.id}`}
                       type="number"
                       min={0}
                       max={86400000}
                       value={rule.then.durationMs}
                       onChange={(e) => updateRule(rule.id, { then: { ...rule.then, durationMs: parseInt(e.target.value) || 0 } })}
-                      className="editor-control h-8 px-2"
                     />
-                  </label>
+                  </Field>
                 </div>
               </li>
             ))}
@@ -294,9 +321,10 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
       </Section>
 
       <Section title="Settings">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-foreground">School holidays (comma-separated dates)</span>
-          <input
+        <Field className="gap-1">
+          <FieldLabel htmlFor="exp-school-holidays">School holidays (comma-separated dates)</FieldLabel>
+          <Input
+            id="exp-school-holidays"
             type="text"
             value={draft.settings.schoolHolidays.join(', ')}
             onChange={(e) =>
@@ -312,19 +340,18 @@ export function ExperiencesPanel({ experiences, layouts, onSave }: ExperiencesPa
               )
             }
             placeholder="2026-12-25, 2026-12-26"
-            className="editor-control h-8 px-2"
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-foreground">Timezone</span>
-          <input
+        </Field>
+        <Field className="gap-1">
+          <FieldLabel htmlFor="exp-timezone">Timezone</FieldLabel>
+          <Input
+            id="exp-timezone"
             type="text"
             value={draft.settings.timezone ?? ''}
             onChange={(e) => update({ ...draft, settings: { ...draft.settings, timezone: e.target.value || undefined } }, true)}
             placeholder="Europe/Zurich"
-            className="editor-control h-8 px-2"
           />
-        </label>
+        </Field>
       </Section>
 
       <Section title="Live preview">
@@ -397,18 +424,18 @@ function PreviewSection({ frameId = 'home', experiences }: { frameId?: string; e
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-foreground">Simulated time (frame local)</span>
-        <input
+      <Field className="gap-1">
+        <FieldLabel htmlFor="exp-simulated-time">Simulated time (frame local)</FieldLabel>
+        <Input
+          id="exp-simulated-time"
           type="datetime-local"
           value={dateTime}
           onChange={(e) => {
             timeTouched.current = true
             setDateTime(e.target.value)
           }}
-          className="editor-control h-8 px-2"
         />
-      </label>
+      </Field>
       <EditorButton
         type="button"
         onClick={runPreview}

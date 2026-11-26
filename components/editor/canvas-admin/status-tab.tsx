@@ -6,6 +6,14 @@ import {
   canvasProblems,
   type CanvasStatusRow,
 } from '@/lib/canvas/problems'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 type StatusResponse = {
   rows: CanvasStatusRow[]
@@ -72,7 +80,7 @@ export function StatusTab({ layoutId }: { layoutId?: string }) {
   )
 
   if (error instanceof Error) return <p className="text-sm text-destructive">{error.message}</p>
-  if (isLoading || !data) return <p className="text-sm text-muted-foreground">Loading canvas status.</p>
+  if (isLoading || !data) return <p className="text-sm text-muted-foreground">Loading canvas status…</p>
 
   const now = data.serverNow
   const groups = groupRows(data.rows)
@@ -85,46 +93,44 @@ export function StatusTab({ layoutId }: { layoutId?: string }) {
     <div className="flex flex-col gap-4" aria-live="polite">
       {groups.map((group) => (
         <section key={group.canvasId} className="flex flex-col gap-2">
-          <h4 className="text-sm font-semibold text-foreground">{group.canvasName}</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th scope="col" className="px-2 py-1">Marker</th>
-                  <th scope="col" className="px-2 py-1">Frame</th>
-                  <th scope="col" className="px-2 py-1">Last seen</th>
-                  <th scope="col" className="px-2 py-1">Delivered</th>
-                  <th scope="col" className="px-2 py-1">Rendering</th>
-                  <th scope="col" className="px-2 py-1">Clock</th>
-                  <th scope="col" className="px-2 py-1">Viewport</th>
-                  <th scope="col" className="px-2 py-1">FPS</th>
-                  <th scope="col" className="px-2 py-1">Problems</th>
-                </tr>
-              </thead>
-              <tbody>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">{group.canvasName}</h3>
+          <div className="rounded-lg border border-border">
+            <Table className="text-xs">
+              <TableHeader>
+                <TableRow className="bg-muted/30 text-muted-foreground hover:bg-muted/30">
+                  <TableHead className="px-3 py-2 font-medium">Marker</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">Frame</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">Last seen</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">Delivered</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">Rendering</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">Clock</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">Viewport</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">FPS</TableHead>
+                  <TableHead className="px-3 py-2 font-medium">Problems</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {group.rows.map((row) => {
                   const problems = canvasProblems(row, now, STATUS_POLL_MS)
                   return (
-                    <tr key={`${row.canvasId}:${row.slotId}`} className="border-b border-border/60 align-top">
-                      <td className="px-2 py-2 font-semibold">{row.marker || 'Unassigned'}</td>
-                      <td className="px-2 py-2">
-                        <span className="block">{(row.frameName ?? row.frameId) || 'Unassigned'}</span>
-                        {row.frameId ? <span className="block font-mono text-muted-foreground">{row.frameId}</span> : null}
-                      </td>
-                      <td className="px-2 py-2">{formatSeen(row.reportedAtMs, now)}</td>
-                      <td className="px-2 py-2">{formatNumber(row.revision)}</td>
-                      <td className="px-2 py-2">{formatNumber(row.reportedRevision)}</td>
-                      <td className="px-2 py-2">{formatClock(row)}</td>
-                      <td className="px-2 py-2">
-                        {row.viewportW === null || row.viewportH === null ? 'None' : `${row.viewportW}x${row.viewportH}`}
-                      </td>
-                      <td className="px-2 py-2">{formatFps(row.fpsAvg)}</td>
-                      <td className="px-2 py-2">{problems.length === 0 ? 'OK' : problems.join(', ')}</td>
-                    </tr>
+                    <TableRow key={`${row.canvasId}:${row.slotId}`} className="align-top">
+                      <TableCell className="px-3 py-2 font-medium text-foreground">{row.marker || 'Unassigned'}</TableCell>
+                      <TableCell className="px-3 py-2">
+                        <span className="block text-foreground">{(row.frameName ?? row.frameId) || 'Unassigned'}</span>
+                        {row.frameId ? <span className="block font-mono text-[11px] text-muted-foreground">{row.frameId}</span> : null}
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-muted-foreground">{formatSeen(row.reportedAtMs, now)}</TableCell>
+                      <TableCell className="px-3 py-2">{formatNumber(row.revision)}</TableCell>
+                      <TableCell className="px-3 py-2">{formatNumber(row.reportedRevision)}</TableCell>
+                      <TableCell className="px-3 py-2">{formatClock(row)}</TableCell>
+                      <TableCell className="px-3 py-2">{row.viewportW === null || row.viewportH === null ? '—' : `${row.viewportW}×${row.viewportH}`}</TableCell>
+                      <TableCell className="px-3 py-2">{formatFps(row.fpsAvg)}</TableCell>
+                      <TableCell className="px-3 py-2">{problems.length === 0 ? <span className="text-emerald-600 dark:text-emerald-400">OK</span> : <span className="text-destructive">{problems.join(', ')}</span>}</TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </section>
       ))}

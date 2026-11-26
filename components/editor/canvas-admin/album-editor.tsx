@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
-import { EditorButton, SelectField, SliderField } from '@/components/editor/controls'
+import { EditorButton, IconButton, SelectField, SliderField } from '@/components/editor/controls'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { canvasSceneSchema } from '@/lib/canvas/schema'
 import { syncCanvasAlbumLayers } from '@/lib/canvas/composition'
 import { SCENE_FIELDS } from '@/lib/canvas/scenes/fields'
@@ -92,16 +95,16 @@ export function AlbumEditor({
   return (
     <div className="flex flex-col gap-4 p-3">
       <div className="flex items-center justify-between gap-2">
-        <input
+        <Input
           aria-label="Album name"
           value={album.name}
           maxLength={80}
           onChange={(e) => changeAlbum({ ...album, name: e.target.value })}
-          className="editor-control h-9 min-w-0 flex-1 px-2"
+          className="h-9 min-w-0 flex-1 font-semibold"
         />
-        <EditorButton type="button" variant="destructive" aria-label="Delete album" onClick={onDelete}>
+        <IconButton label="Delete album" onClick={onDelete} className="hover:text-destructive">
           <Trash2 className="size-4" aria-hidden />
-        </EditorButton>
+        </IconButton>
       </div>
 
       <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2 text-xs">
@@ -157,38 +160,37 @@ export function AlbumEditor({
           return (
             <div key={scene.id} className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-2 p-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   aria-label={`Enable ${scene.name}`}
                   checked={scene.enabled}
-                  onChange={(e) => updateScene(scene.id, (s) => ({ ...s, enabled: e.target.checked }))}
+                  onCheckedChange={(checked) => updateScene(scene.id, (s) => ({ ...s, enabled: checked === true }))}
                 />
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setExpanded(open ? null : scene.id)}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  className="h-auto min-w-0 flex-1 justify-start gap-2 px-1 py-1 text-left font-normal"
                 >
                   <meta.icon className="size-4 text-primary" aria-hidden />
                   <span className="truncate text-sm">{scene.name}</span>
                   {open ? <ChevronUp className="size-4" aria-hidden /> : <ChevronDown className="size-4" aria-hidden />}
-                </button>
-                <EditorButton
-                  type="button"
-                  variant="destructive"
-                  aria-label={`Delete ${scene.name}`}
+                </Button>
+                <IconButton
+                  label={`Delete ${scene.name}`}
                   onClick={() => changeAlbum({ ...album, scenes: scenes.filter((s) => s.id !== scene.id) })}
+                  className="hover:text-destructive"
                 >
                   <Trash2 className="size-4" aria-hidden />
-                </EditorButton>
+                </IconButton>
               </div>
               {open && (
                 <div className="flex flex-col gap-3 border-t border-border p-2">
-                  <input
+                  <Input
                     aria-label="Scene name"
                     value={scene.name}
                     maxLength={60}
                     onChange={(e) => updateScene(scene.id, (s) => ({ ...s, name: e.target.value }))}
-                    className="editor-control h-9 w-full px-2"
+                    className="h-9"
                   />
                   <SliderField
                     label="Duration"

@@ -13,13 +13,13 @@ describe('frame administration panel', () => {
   it('provides three keyboard-operable buttons and mounts only the selected tab', () => {
     expect(panelSource).toContain("export type AdminTab = 'frames' | 'conflicts' | 'audit'")
     expect(panelSource).toMatch(/id: 'frames'[\s\S]*id: 'conflicts'[\s\S]*id: 'audit'/)
-    expect(panelSource).toContain('role="group"')
-    expect(panelSource).toContain('aria-pressed={activeTab === tab.id}')
-    expect(panelSource).toContain('type="button"')
-    expect(panelSource).toContain('onClick={() => setActiveTab(tab.id)}')
-    expect(panelSource).toContain("{activeTab === 'frames' && <FramesTab />}")
-    expect(panelSource).toContain("{activeTab === 'conflicts' && <ConflictsTab />}")
-    expect(panelSource).toContain("{activeTab === 'audit' && <AuditTab />}")
+    expect(panelSource).toContain('<Tabs')
+    expect(panelSource).toContain('<TabsList')
+    expect(panelSource).toContain('<TabsTrigger key={tab.id} value={tab.id}')
+    expect(panelSource).toContain('onValueChange={(value) => setActiveTab(value as AdminTab)}')
+    expect(panelSource).toContain('<TabsContent value="frames"><FramesTab /></TabsContent>')
+    expect(panelSource).toContain('<TabsContent value="conflicts"><ConflictsTab /></TabsContent>')
+    expect(panelSource).toContain('<TabsContent value="audit"><AuditTab /></TabsContent>')
   })
 
   it('mounts the panel only while the authorized drawer is active', () => {
@@ -53,7 +53,7 @@ describe('frame administration panel', () => {
 
   it('gives each tab explicit loading, empty, request-error, and unauthorized states', () => {
     for (const source of [framesSource, conflictsSource, auditSource]) {
-      expect(source).toContain('Loading')
+      expect(source).toContain('<Skeleton')
       expect(source).toMatch(/empty|No .*?(frames|conflicts|audit)/i)
       expect(source).toMatch(/request error|Unable to load|Could not load/i)
       expect(source).toMatch(/unauthorized|session has expired|not authorized/i)

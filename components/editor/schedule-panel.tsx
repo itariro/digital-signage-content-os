@@ -5,11 +5,22 @@ import { nanoid } from 'nanoid'
 import { CalendarClock, ExternalLink, MoonStar, Plus, Trash2 } from 'lucide-react'
 import type { FrameSchedule, Layout, ScheduleRule } from '@/lib/types'
 import { DAY_LABELS, clockParts, describeDays, resolveDisplay } from '@/lib/schedule'
-import { EditorButton, Section, SliderField, TimeField, ToggleField } from './controls'
+import { EditorButton, IconButton, Section, SliderField, TimeField, ToggleField } from './controls'
 import { FRAME_WIDTH } from '@/lib/types'
 import { FrameScene } from '@/components/frame/frame-scene'
 import { useLiveData } from './widget-preview'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 type SchedulePanelProps = {
   schedule: FrameSchedule
@@ -74,15 +85,14 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
         ) : (
           <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">No layout available</p>
         )}
-        <a
-          href="/frame"
-          target="_blank"
-          rel="noreferrer"
-          className="editor-button editor-button-secondary w-full"
+        <Button
+          variant="outline"
+          className="w-full"
+          render={<a href="/frame" target="_blank" rel="noreferrer" />}
         >
           <ExternalLink className="size-4" aria-hidden />
           Open frame display
-        </a>
+        </Button>
         <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
           Point the frame&apos;s kiosk browser at <code className="rounded bg-secondary px-1 font-mono text-foreground">/frame</code>. It
           follows this schedule and picks up saved edits within 30 seconds.
@@ -112,50 +122,55 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
               <li key={rule.id} className={cn('flex flex-col gap-2 rounded-lg border bg-card p-3', resolved?.rule?.id === rule.id ? 'border-primary' : 'border-border')}>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-muted-foreground">#{index + 1}</span>
-                  <label className="sr-only" htmlFor={`rule-${rule.id}`}>
-                    Layout for slot {index + 1}
-                  </label>
-                  <select
-                    id={`rule-${rule.id}`}
+                  <Select
+                    items={layouts.map((l) => ({ value: l.id, label: l.name }))}
                     value={rule.layoutId}
-                    onChange={(e) => updateRule(rule.id, { layoutId: e.target.value })}
-                    className="editor-control h-8 min-w-0 flex-1 px-2"
+                    onValueChange={(next) => next !== null && updateRule(rule.id, { layoutId: String(next) })}
                   >
-                    {layouts.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    aria-label={`Remove slot ${index + 1}`}
+                    <SelectTrigger
+                      id={`rule-${rule.id}`}
+                      aria-label={`Layout for slot ${index + 1}`}
+                      className="h-8 min-w-0 flex-1"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {layouts.map((l) => (
+                          <SelectItem key={l.id} value={l.id}>
+                            {l.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <IconButton
+                    label={`Remove slot ${index + 1}`}
                     onClick={() => update({ ...draft, rules: draft.rules.filter((r) => r.id !== rule.id) })}
-                    className="editor-icon-button hover:text-destructive"
+                    className="hover:text-destructive"
                   >
                     <Trash2 className="size-4" aria-hidden />
-                  </button>
+                  </IconButton>
                 </div>
-                <div className="editor-control flex h-auto w-full gap-1 p-1" role="group" aria-label={`Days for slot ${index + 1}`}>
-                  {DAY_LABELS.map((label, day) => {
-                    const on = rule.days.includes(day)
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={label}
-                        onClick={() => updateRule(rule.id, { days: on ? rule.days.filter((d) => d !== day) : [...rule.days, day] })}
-                        className={cn(
-                          'h-8 rounded-md text-[11px] font-medium transition-colors',
-                          on ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground',
-                        )}
-                      >
-                        {label[0]}
-                      </button>
-                    )
-                  })}
-                </div>
+                <ToggleGroup
+                  aria-label={`Days for slot ${index + 1}`}
+                  multiple
+                  value={rule.days.map(String)}
+                  onValueChange={(next) => updateRule(rule.id, { days: next.map(Number).sort((a, b) => a - b) })}
+                  spacing={2}
+                  className="w-full rounded-lg border border-border bg-card p-1"
+                >
+                  {DAY_LABELS.map((label, day) => (
+                    <ToggleGroupItem
+                      key={label}
+                      value={String(day)}
+                      aria-label={label}
+                      className="h-8 flex-1 rounded-md text-[11px] font-medium text-muted-foreground data-pressed:bg-primary data-pressed:text-primary-foreground"
+                    >
+                      {label[0]}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
                 <div className="flex items-center gap-2">
                   <TimeInput label="From" value={rule.start} onChange={(start) => updateRule(rule.id, { start })} />
                   <span className="text-xs text-muted-foreground">to</span>
@@ -213,14 +228,12 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
 
 function TimeInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="flex flex-1 flex-col gap-1">
-      <span className="sr-only">{label}</span>
-      <input
-        type="time"
-        value={value}
-        onChange={(e) => e.target.value && onChange(e.target.value)}
-        className="editor-control h-8 w-full px-2 font-mono text-xs"
-      />
-    </label>
+    <Input
+      type="time"
+      aria-label={label}
+      value={value}
+      onChange={(e) => e.target.value && onChange(e.target.value)}
+      className="h-8 flex-1 font-mono text-xs"
+    />
   )
 }

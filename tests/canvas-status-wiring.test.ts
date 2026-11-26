@@ -31,7 +31,7 @@ describe('canvas status tab wiring', () => {
 
   it('renders every required column', () => {
     for (const heading of ['Marker', 'Frame', 'Last seen', 'Delivered', 'Rendering', 'Clock', 'Viewport', 'FPS', 'Problems']) {
-      expect(statusSource).toContain(`>${heading}</th>`)
+      expect(statusSource).toContain(`>${heading}</TableHead>`)
     }
   })
 

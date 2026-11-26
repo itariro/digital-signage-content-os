@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { mutate as revalidateAll } from 'swr'
 import { toast } from 'sonner'
-import { EditorButton } from '@/components/editor/controls'
+import { Button } from '@/components/ui/button'
 import { useCanvasLibrary } from '@/hooks/use-canvas-library'
 import { resolveGeometry } from '@/lib/canvas/geometry'
 import { emptyCanvasConfig } from '@/lib/canvas/defaults'
@@ -100,29 +100,43 @@ export function AlbumsTab() {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Canvas albums</h2>
-        <button type="button" className="button-secondary" onClick={() => setTemplateOpen(true)}>
-          New from template
-        </button>
-        <EditorButton type="button" variant="secondary" onClick={() => void create()} disabled={busy}>New album</EditorButton>
+    <div className="flex flex-col gap-4 p-1">
+      <div className="flex flex-col gap-2">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">Canvas albums</h2>
+          <p className="text-xs text-muted-foreground">Create scenes and shows for canvas layouts.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={() => setTemplateOpen(true)}>
+            New from template
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void create()} disabled={busy}>
+            New album
+          </Button>
+        </div>
       </div>
       {templateOpen && (
         <TemplatePicker disabled={templateBusy} onPick={(id) => void pickTemplate(id)} onClose={() => setTemplateOpen(false)} />
       )}
-      {templateError && <p className="mt-2 text-sm text-red-500">{templateError}</p>}
+      {templateError && <p className="text-xs text-destructive">{templateError}</p>}
       <ul className="flex flex-col gap-2">
         {visibleAlbums.map((album) => (
-          <li key={album.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-2">
-            <button type="button" onClick={() => setOpenId(album.id)} className="min-w-0 flex-1 truncate text-left text-sm">
+          <li key={album.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-3">
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => setOpenId(album.id)}
+              className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-sm font-medium"
+            >
               {album.name}
-            </button>
-            <EditorButton type="button" variant="destructive" aria-label={`Delete ${album.name}`} onClick={() => void remove(album)}>Delete</EditorButton>
+            </Button>
+            <Button type="button" variant="destructive" size="sm" aria-label={`Delete ${album.name}`} onClick={() => void remove(album)}>
+              Delete
+            </Button>
           </li>
         ))}
         {visibleAlbums.length === 0 && (
-          <li className="rounded border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No canvas albums yet.</li>
+          <li className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No canvas albums yet.</li>
         )}
       </ul>
       {draft && (
@@ -134,8 +148,8 @@ export function AlbumsTab() {
             onChange={setDraft}
             onDelete={() => void remove(draft)}
           />
-          <div className="border-t border-border p-2">
-            <EditorButton type="button" variant="secondary" onClick={() => void save()} disabled={!dirty || busy}>Save album</EditorButton>
+          <div className="border-t border-border p-3">
+            <Button type="button" variant="secondary" size="sm" onClick={() => void save()} disabled={!dirty || busy}>Save album</Button>
           </div>
         </div>
       )}

@@ -31,7 +31,7 @@ describe('canvas admin shell', () => {
     const source = read('components/editor/editor.tsx')
     expect(source).toContain("DrawerId = PanelId | 'canvas' | 'properties'")
     expect(source).toContain("canManageFrames && !singleFrame")
-    expect(source).toContain("aria-label=\"Canvas\"")
+    expect(source).toContain('label="Canvas"')
     expect(source).toContain("activeDrawer === 'canvas'")
     expect(source).toContain('<CanvasAdminPanel />')
     expect(source).toContain("'canvas' ? 'Canvas'")

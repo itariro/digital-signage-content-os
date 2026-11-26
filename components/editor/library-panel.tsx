@@ -12,8 +12,10 @@ import {
   type WidgetLibraryCategory,
 } from '@/lib/editor-library'
 import { DRAG_MIME, type DropPayload } from './canvas'
-import { EditorButton } from './controls'
+import { EditorButton, IconButton } from './controls'
 import { WidgetPreview } from './widget-preview'
+import { Button } from '@/components/ui/button'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 
 function dragProps(payload: DropPayload, onClose: () => void) {
   return {
@@ -68,27 +70,23 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
       </p>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="library-search" className="sr-only">Search library</label>
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2">
-          <input
+        <InputGroup className="h-9">
+          <InputGroupInput
             id="library-search"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search widgets, combinations, stickers…"
-            className="editor-control h-9 min-h-0 min-w-0 flex-1 border-0 bg-transparent px-0 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0"
+            aria-label="Search library"
           />
           {query && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => setQuery('')}
-              className="editor-icon-button size-7 focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <X className="size-4" aria-hidden />
-            </button>
+            <InputGroupAddon align="inline-end">
+              <IconButton label="Clear search" onClick={() => setQuery('')} className="size-7">
+                <X className="size-4" aria-hidden />
+              </IconButton>
+            </InputGroupAddon>
           )}
-        </div>
+        </InputGroup>
         <div
           role="group"
           aria-label="Filter widgets by category"
@@ -122,12 +120,13 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
               ) : (
                 <div className="flex flex-col gap-2">
                   {widgets.map((def) => (
-                    <button
+                    <Button
                       key={def.type}
                       type="button"
+                      variant="ghost"
                       {...dragProps({ kind: 'widget', type: def.type }, onClose)}
                       onClick={() => onAdd({ kind: 'widget', type: def.type })}
-                      className="group flex min-w-0 cursor-grab items-center gap-2 overflow-hidden rounded-lg bg-secondary p-2 text-left ring-1 ring-border transition hover:ring-primary active:cursor-grabbing"
+                      className="group flex h-auto min-w-0 cursor-grab items-center justify-start gap-2 overflow-hidden rounded-lg bg-secondary p-2 text-left ring-1 ring-border transition hover:bg-secondary hover:ring-primary active:cursor-grabbing"
                     >
                       <WidgetPreview widgets={[samples[def.type]]} width={72} height={48} className="shrink-0 rounded-md" />
                       <span className="flex min-w-0 flex-col gap-0.5">
@@ -137,7 +136,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
                         </span>
                         <span className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">{def.description}</span>
                       </span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
@@ -155,19 +154,20 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
         ) : (
           <div className="flex flex-col gap-2">
             {visibleCombos.map((combo) => (
-              <button
+              <Button
                 key={combo.id}
                 type="button"
+                variant="ghost"
                 {...dragProps({ kind: 'combo', id: combo.id }, onClose)}
                 onClick={() => onAdd({ kind: 'combo', id: combo.id })}
-                className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
+                className="flex h-auto cursor-grab items-center justify-start gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:bg-secondary hover:ring-primary"
               >
                 <WidgetPreview widgets={combo.widgets} width={96} height={72} className="shrink-0" />
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-sm font-medium text-foreground">{combo.name}</span>
                   <span className="truncate text-xs text-muted-foreground">{combo.description}</span>
                 </span>
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -184,19 +184,20 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
             {visibleStickers.map((sticker) => {
               const widgets = [createStickerWidget(sticker)]
               return (
-                <button
+                <Button
                   key={sticker.id}
                   type="button"
+                  variant="ghost"
                   {...dragProps({ kind: 'sticker', id: sticker.id }, onClose)}
                   onClick={() => onAdd({ kind: 'sticker', id: sticker.id })}
-                  className="flex cursor-grab items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:ring-primary"
+                  className="flex h-auto cursor-grab items-center justify-start gap-3 overflow-hidden rounded-xl bg-secondary pr-3 text-left ring-1 ring-border transition hover:bg-secondary hover:ring-primary"
                 >
                   <WidgetPreview widgets={widgets} width={96} height={72} className="shrink-0" />
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-sm font-medium text-foreground">{sticker.name}</span>
                     <span className="truncate text-xs text-muted-foreground">{sticker.description}</span>
                   </span>
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -217,11 +218,12 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
           <div className="flex flex-col gap-2">
             {visiblePresets.map((preset) => (
               <div key={preset.id} className="flex items-center gap-3 overflow-hidden rounded-xl bg-secondary pr-1 ring-1 ring-border transition hover:ring-primary">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   {...dragProps({ kind: 'preset', id: preset.id }, onClose)}
                   onClick={() => onAdd({ kind: 'preset', id: preset.id })}
-                  className="flex min-w-0 flex-1 cursor-grab items-center gap-3 text-left"
+                  className="flex h-auto min-w-0 flex-1 cursor-grab items-center justify-start gap-3 p-0 text-left hover:bg-transparent"
                 >
                   <WidgetPreview widgets={preset.widgets} width={96} height={72} className="shrink-0" />
                   <span className="flex min-w-0 flex-col">
@@ -230,7 +232,7 @@ export function LibraryPanel({ presets, onAdd, onDeletePreset, onClose }: Librar
                       {preset.widgets.length} widget{preset.widgets.length === 1 ? '' : 's'}
                     </span>
                   </span>
-                </button>
+                </Button>
                 <EditorButton
                   type="button"
                   variant="destructive"
