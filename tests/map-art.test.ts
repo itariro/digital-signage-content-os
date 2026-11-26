@@ -121,3 +121,14 @@ describe('map art ambiguity rows', () => {
     expect(studioSource).toContain('onClick={() => removeLocation(item)}')
   })
 })
+
+describe('tabs orientation', () => {
+  it('passes orientation to the Base UI root', () => {
+    const source = readFileSync(
+      path.resolve(__dirname, '../components/ui/tabs.tsx'),
+      'utf8',
+    )
+    expect(source).toContain('orientation={orientation}')
+    expect(source).toMatch(/(?<!data-)orientation=\{orientation\}/)
+  })
+})
