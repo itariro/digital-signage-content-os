@@ -35,6 +35,7 @@ describe('themeMeta', () => {
       showRailways: true,
       showTrails: true,
       customText: '',
+      recentLocations: [],
     }
     const parsed = albumUpdateSchema.safeParse({
       name: 'Map Art',

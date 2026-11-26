@@ -46,3 +46,86 @@ export async function waitForCameraSettled(pending: () => Promise<void> | null):
     move = pending()
   }
 }
+
+export type TraceStepStatus = 'running' | 'error' | 'pending'
+
+export type TraceStep = {
+  id: string
+  title: string
+  description?: string
+  status?: TraceStepStatus
+  detail?: string
+  children?: TraceStep[]
+}
+
+export const CITY_BATCH_LIMIT = 100
+
+/**
+ * Use a recent city without growing a batch past the schema limit. A city that
+ * is already selected is only focused, so it cannot be generated twice.
+ */
+export function selectOrAppendCity(
+  cities: MapArtLocation[],
+  city: MapArtLocation,
+  limit = CITY_BATCH_LIMIT,
+): { cities: MapArtLocation[]; index: number; added: boolean } | null {
+  const index = cities.findIndex((entry) => entry.id === city.id)
+  if (index !== -1) return { cities, index, added: false }
+  if (cities.length >= limit) return null
+  return { cities: [...cities, city], index: cities.length, added: true }
+}
+
+const RECENT_LOCATION_LIMIT = 10
+
+export function normalizeRecentLocations(
+  locations: MapArtLocation[] | undefined,
+  limit = RECENT_LOCATION_LIMIT,
+): MapArtLocation[] {
+  if (!locations?.length) return []
+  const seen = new Set<number>()
+  const result: MapArtLocation[] = []
+  for (const city of locations) {
+    if (seen.has(city.id)) continue
+    seen.add(city.id)
+    result.push(city)
+    if (result.length >= limit) break
+  }
+  return result
+}
+
+export function appendRecentLocation(
+  locations: MapArtLocation[] | undefined,
+  city: MapArtLocation,
+  limit = RECENT_LOCATION_LIMIT,
+): MapArtLocation[] {
+  return normalizeRecentLocations([city, ...(locations ?? [])], limit)
+}
+
+export function getRecentLocations(settings: { recentLocations?: MapArtLocation[] }): MapArtLocation[] {
+  return normalizeRecentLocations(settings.recentLocations)
+}
+
+/** Update one trace step wherever it sits in the tree, leaving other steps as they were. */
+export function updateTraceStep(
+  steps: TraceStep[],
+  id: string,
+  update: (step: TraceStep) => TraceStep,
+): TraceStep[] {
+  return steps.map((step) => {
+    if (step.id === id) return update(step)
+    if (!step.children) return step
+    return { ...step, children: updateTraceStep(step.children, id, update) }
+  })
+}
+
+/** Add a step when an operation starts, so attempted work is never missing from the trace. */
+export function appendTraceChild(
+  steps: TraceStep[],
+  parentId: string,
+  child: TraceStep,
+): TraceStep[] {
+  return updateTraceStep(steps, parentId, (step) => {
+    if (step.children?.some((entry) => entry.id === child.id)) return step
+    return { ...step, children: [...(step.children ?? []), child] }
+  })
+}

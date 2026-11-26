@@ -144,6 +144,7 @@ const mapArtSettingsSchema = z.object({
   showRailways: z.boolean().default(true),
   showTrails: z.boolean().default(true),
   customText: z.string().max(60),
+  recentLocations: z.array(mapArtLocationSchema).max(10).default([]),
 })
 
 export const albumCreateSchema = z.object({
