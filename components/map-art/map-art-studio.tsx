@@ -6,25 +6,22 @@ import JSZip from 'jszip'
 import * as maplibregl from 'maplibre-gl'
 import type { FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
 import type { Album, AlbumItem, FrameStore, MapArtAmbiguity, MapArtLocation, MapArtSettings } from '@/lib/types'
-import { removeAmbiguityRow, resolveExportView, waitForCameraSettled, type MapView } from '@/lib/map-art'
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Search, Upload, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Field, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import { Progress } from '@/components/ui/progress'
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Slider } from '@/components/ui/slider'
-import { Switch } from '@/components/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Textarea } from '@/components/ui/textarea'
+  appendRecentLocation,
+  getRecentLocations,
+  removeAmbiguityRow,
+  resolveExportView,
+  waitForCameraSettled,
+  type MapView,
+  type TraceStep,
+} from '@/lib/map-art'
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Upload } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { GenerationTrace } from './generation-trace'
+import { LocationsTab } from './locations-tab'
+import { StyleTab, type StyleOption } from './style-tab'
 
 type City = MapArtLocation
 type Artwork = { city: City; url: string; style: string; createdAt: number }
@@ -215,6 +212,11 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const [showRailways, setShowRailwaysState] = useState(initialSettings.showRailways ?? true)
   const [showTrails, setShowTrailsState] = useState(initialSettings.showTrails ?? true)
   const [customText, setCustomText] = useState(initialSettings.customText)
+  const [tab, setTab] = useState<'locations' | 'style'>('locations')
+  const [recentLocations, setRecentLocations] = useState(() => getRecentLocations(initialSettings))
+  const recentRef = useRef(recentLocations)
+  const [verifiedCount, setVerifiedCount] = useState<number | null>(null)
+  const [traceSteps, setTraceSteps] = useState<TraceStep[]>([])
 
   function persistField<K extends keyof MapArtSettings>(
     key: K,
@@ -251,9 +253,12 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const setStreetLabels = (value: MapArtSettings['streetLabels']) => setStreetLabelsState(persistField('streetLabels', value))
   const setShowRailways = (value: boolean) => setShowRailwaysState(persistField('showRailways', value))
   const setShowTrails = (value: boolean) => setShowTrailsState(persistField('showTrails', value))
+  const setRecent = (value: MapArtLocation[]) => setRecentLocations(persistField('recentLocations', value) ?? [])
+  const setCustomTextValue = (value: string) => setCustomText(persistField('customText', value))
 
   preferencesRef.current = { streetLabels, showRailways, showTrails, backgroundColor }
   cityRef.current = city
+  recentRef.current = recentLocations
 
   useEffect(() => {
     if (!mapNode.current || mapRef.current) return
@@ -333,6 +338,12 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const unique = [...new Set(normalized)]
     if (!unique.length) return setStatus('Add at least one city, one per line.')
     if (unique.length > 100) return setStatus('Choose 100 cities or fewer per batch.')
+    setTraceSteps([{
+      id: 'validate',
+      title: 'Validating locations',
+      status: 'running',
+      children: unique.map((line) => ({ id: `geocode-${line}`, title: `Resolving ${line}`, status: 'pending' })),
+    }])
     setBusy(true)
     setStatus(`Checking ${unique.length} locations…`)
     const found: City[] = []
@@ -340,10 +351,20 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     try {
       for (const line of unique) {
         const matches = await resolveCity(line)
-        if (matches[0]) {
+        const chosen = matches[0]
+        setTraceSteps((current) => current.map((step) => step.id === 'validate' ? {
+          ...step,
+          children: step.children?.map((child) => child.id === `geocode-${line}` ? {
+            ...child,
+            status: chosen ? undefined : 'error',
+            description: chosen ? `${[chosen.name, chosen.region, chosen.country].filter(Boolean).join(', ')}` : 'No match found',
+            detail: `Geocoded ${line} with /api/geocode.`,
+          } : child),
+        } : step))
+        if (chosen) {
           const rowId = found.length
-          found.push(matches[0])
-          if (matches.length > 1) needsReview.push({ query: line, rowId, chosenId: matches[0].id, matches })
+          found.push(chosen)
+          if (matches.length > 1) needsReview.push({ query: line, rowId, chosenId: chosen.id, matches })
         }
       }
       setAmbiguities(needsReview)
@@ -351,8 +372,18 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       setCities(found)
       if (found[0]) { setCity(found[0]); setActiveIndex(0) }
       setStatus(`${found.length} of ${unique.length} locations validated. Review results before generating.`)
+      setTraceSteps((current) => current.map((step) => step.id === 'validate' ? {
+        ...step,
+        title: `Validated ${found.length} of ${unique.length} locations`,
+        status: undefined,
+      } : step))
       if (!found.length) setStatus('No matching locations. Try adding a country name.')
     } catch (error) {
+      setTraceSteps((current) => current.map((step) => step.id === 'validate' ? {
+        ...step,
+        title: 'Failed to validate locations',
+        status: 'error',
+      } : step))
       setStatus(error instanceof Error ? error.message : 'Location lookup failed. Try again.')
     } finally { setBusy(false) }
   }
@@ -391,12 +422,31 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     const candidates = continentCities[continent] ?? []
     const target = count === 'custom' ? customCount : Number(count)
     const found: City[] = []
+    setTraceSteps([{
+      id: 'discover',
+      title: `Validating city candidates across ${continent}`,
+      status: 'running',
+      children: candidates.slice(0, target).map((candidate) => ({
+        id: `candidate-${candidate}`,
+        title: `Checking ${candidate}`,
+        status: 'pending',
+      })),
+    }])
     setBusy(true)
     setStatus(`Validating city candidates across ${continent}…`)
     try {
       for (const candidate of candidates) {
         if (found.length >= target) break
         const match = (await resolveCity(candidate))[0]
+        setTraceSteps((current) => current.map((step) => step.id === 'discover' ? {
+          ...step,
+          children: step.children?.map((child) => child.id === `candidate-${candidate}` ? {
+            ...child,
+            status: match ? undefined : 'error',
+            description: match ? `${[match.name, match.region, match.country].filter(Boolean).join(', ')}` : 'No match found',
+            detail: `Geocoded ${candidate} with /api/geocode.`,
+          } : child),
+        } : step))
         if (match && !found.some((entry) => entry.id === match.id)) found.push(match)
       }
       setCities(found)
@@ -404,7 +454,19 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       setAmbiguities([])
       if (found[0]) { setCity(found[0]); setActiveIndex(0) }
       setStatus(`Validated ${found.length} cities. Review the list, then generate your maps.`)
-    } catch { setStatus('City discovery could not reach the geographic data service. Try again.') }
+      setTraceSteps((current) => current.map((step) => step.id === 'discover' ? {
+        ...step,
+        title: `Found ${found.length} cities in ${continent}`,
+        status: undefined,
+      } : step))
+    } catch {
+      setTraceSteps((current) => current.map((step) => step.id === 'discover' ? {
+        ...step,
+        title: `Failed to validate cities in ${continent}`,
+        status: 'error',
+      } : step))
+      setStatus('City discovery could not reach the geographic data service. Try again.')
+    }
     finally { setBusy(false) }
   }
 
@@ -545,6 +607,23 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       : null
     const activeCityId = cityRef.current.id
     const output: Artwork[] = []
+    setTraceSteps([{
+      id: 'generate',
+      title: `Generating ${batch.length} poster${batch.length === 1 ? '' : 's'}`,
+      status: 'running',
+      children: batch.map((selected) => ({
+        id: `poster-${selected.id}`,
+        title: `Preparing ${selected.name}`,
+        status: 'pending',
+        children: [
+          { id: `camera-${selected.id}`, title: 'Settling preview camera', status: 'pending' },
+          { id: `render-${selected.id}`, title: 'Rendering map tiles', status: 'pending' },
+          { id: `compose-${selected.id}`, title: 'Composing poster', status: 'pending' },
+          { id: `upload-${selected.id}`, title: 'Uploading PNG', status: 'pending' },
+          { id: `album-${selected.id}`, title: onAddToAlbum ? 'Adding to this album' : 'Saving to image library', status: 'pending' },
+        ],
+      })),
+    }])
     try {
       for (let index = 0; index < batch.length; index += 1) {
         const selected = batch[index]
@@ -553,12 +632,35 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
         setStatus(`Rendering and saving ${index + 1} of ${batch.length}: ${selected.name}…`)
         const view = resolveExportView(selected, activeCityId, previewView, settingsRef.current.zoom)
         const url = await renderArtwork(selected, view)
+        setRecent(appendRecentLocation(recentRef.current, selected))
+        setTraceSteps((current) => current.map((step) => step.id === 'generate' ? {
+          ...step,
+          children: step.children?.map((child) => child.id === `poster-${selected.id}` ? {
+            ...child,
+            status: undefined,
+            title: `Generated poster for ${selected.name}`,
+            detail: `Style: ${style.label}. Zoom: ${view.zoom.toFixed(1)}.`,
+            children: child.children?.map((grandchild) => ({ ...grandchild, status: undefined })),
+          } : child),
+        } : step))
         output.push({ city: selected, url, style: style.label, createdAt: Date.now() })
         setArtworks((current) => [...current, output[output.length - 1]])
         setBatchProgress(index + 1)
       }
+      setTraceSteps((current) => current.map((step) => step.id === 'generate' ? {
+        ...step,
+        title: `Generated ${output.length} poster${output.length === 1 ? '' : 's'}`,
+        status: undefined,
+      } : step))
       setStatus(`${output.length} map${output.length === 1 ? '' : 's'} ${onAddToAlbum ? 'added to this album' : 'saved to the image library'}.${batch.length < cities.length ? ' Album limit reached; remove maps to generate more.' : ''}`)
-    } catch (error) { setStatus(error instanceof Error ? error.message : 'Map generation failed.') }
+    } catch (error) {
+      setTraceSteps((current) => current.map((step) => step.id === 'generate' ? {
+        ...step,
+        title: 'Poster generation failed',
+        status: 'error',
+      } : step))
+      setStatus(error instanceof Error ? error.message : 'Map generation failed.')
+    }
     finally { setBusy(false) }
   }
 
@@ -605,172 +707,84 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       </header>
       <div className="map-art-body">
         <aside className="map-art-left">
-          <ToggleGroup
-            className="map-art-mode m-4 grid w-auto grid-cols-2 rounded-none border p-0"
-            aria-label="City selection mode"
-            value={[mode]}
-            onValueChange={(next) => next[0] && setMode(next[0] as 'cities' | 'continent')}
-          >
-            <ToggleGroupItem value="cities" variant="outline" className="map-art-mode-item h-9 rounded-none">Enter cities</ToggleGroupItem>
-            <ToggleGroupItem value="continent" variant="outline" className="map-art-mode-item h-9 rounded-none">Choose continent</ToggleGroupItem>
-          </ToggleGroup>
-          {mode === 'cities' ? <section className="map-art-block">
-            <Field className="gap-1">
-              <div className="flex items-center justify-between">
-                <FieldLabel className="map-art-label" htmlFor="city-list">Your cities</FieldLabel>
-                <span className="map-art-label-count">{query.split(/\n|;/).filter((line) => line.trim()).length}</span>
-              </div>
-              <Textarea id="city-list" className="map-art-input" value={query} onChange={(event) => setQuery(event.target.value)} onBlur={() => persistField('query', query)} placeholder={'Melbourne, Australia\nTokyo, Japan\nParis, France'} rows={7} />
-            </Field>
-            <p className="map-art-hint">One location per line. Add a country to resolve ambiguous names.</p>
-            <Button variant="outline" size="sm" className="w-full" onClick={() => void validateCities()} disabled={busy}><Search size={15} data-icon="inline-start" /> Validate locations</Button>
-          </section> : <section className="map-art-block flex flex-col gap-3">
-            <Field className="gap-1">
-              <FieldLabel className="map-art-label" htmlFor="continent">Continent</FieldLabel>
-              <Select
-                items={Object.keys(continentCities).map((name) => ({ value: name, label: name }))}
-                value={continent}
-                onValueChange={(next) => next !== null && setContinent(String(next))}
-              >
-                <SelectTrigger id="continent" className="map-art-input w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {Object.keys(continentCities).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field className="gap-1">
-              <FieldLabel className="map-art-label" htmlFor="city-count">Number of cities</FieldLabel>
-              <Select
-                items={['5', '10', '20', 'custom'].map((value) => ({
-                  value,
-                  label: value === 'custom' ? 'Custom number' : `${value} cities`,
-                }))}
-                value={count}
-                onValueChange={(next) => next !== null && setCount(String(next))}
-              >
-                <SelectTrigger id="city-count" className="map-art-input w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {['5', '10', '20', 'custom'].map((value) => <SelectItem key={value} value={value}>{value === 'custom' ? 'Custom number' : `${value} cities`}</SelectItem>)}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            {count === 'custom' && <Input className="map-art-input" aria-label="Custom number of cities" type="number" min={1} max={20} value={customCount} onChange={(event) => setCustomCount(Math.min(20, Math.max(1, Number(event.target.value))))} />}
-            <Button variant="outline" size="sm" className="w-full" onClick={() => void discoverCities()} disabled={busy}><MapPin size={15} data-icon="inline-start" /> Find cities</Button>
-            <p className="map-art-hint">Up to 20 curated candidates are geocoded and checked before generation.</p>
-          </section>}
-          {results.length > 0 && <section className="map-art-block">
-            <div className="map-art-label">Review locations <span>{results.length}</span></div>
-            <div className="map-art-city-list">{results.map((item) => <div key={item.id} className={city.id === item.id ? 'selected' : ''}><Button type="button" variant="ghost" size="sm" className="justify-start h-auto py-1 px-2 text-left" onClick={() => { setCity(item); setActiveIndex(results.indexOf(item)) }}>{item.name}</Button><small>{[item.region, item.country].filter(Boolean).join(', ')}</small><Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove ${item.name}`} onClick={() => removeLocation(item)}><X size={13} /></Button></div>)}</div>
-          </section>}
-          {ambiguities.map((entry, index) => (
-            <section className="map-art-block" key={entry.query}>
-              <Field className="gap-1">
-                <FieldLabel className="map-art-label" htmlFor={`ambiguous-city-${index}`}>Choose match for “{entry.query}”</FieldLabel>
-                <Select
-                  items={entry.matches.map((match) => ({
-                    value: String(match.id),
-                    label: [match.name, match.region, match.country].filter(Boolean).join(', '),
-                  }))}
-                  value={String(entry.chosenId)}
-                  onValueChange={(next) => next !== null && chooseCityMatch(entry.query, Number(next))}
-                >
-                  <SelectTrigger id={`ambiguous-city-${index}`} className="map-art-input w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {entry.matches.map((match) => <SelectItem key={match.id} value={String(match.id)}>{[match.name, match.region, match.country].filter(Boolean).join(', ')}</SelectItem>)}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </section>
-          ))}
-          <section className="map-art-block">
-            <div className="map-art-label">Map style</div>
-            <div className="map-art-presets">{presets.map((preset, index) => <Button key={preset} type="button" size="sm" variant={style.id === styles[index % styles.length].id ? 'secondary' : 'outline'} className={`h-auto flex-col items-stretch whitespace-normal ${style.id === styles[index % styles.length].id ? 'active' : ''}`} onClick={() => setStyle(styles[index % styles.length])} aria-pressed={style.id === styles[index % styles.length].id}><span className={`map-art-swatch swatch-${styles[index % styles.length].id}`}><i /><i /><i /></span><span>{preset}</span></Button>)}</div>
-          </section>
-          <section className="map-art-block">
-            <div className="map-art-label">Poster format</div>
-            <div className="map-art-segment"><Button type="button" size="sm" variant={orientation === 'portrait' ? 'secondary' : 'ghost'} aria-pressed={orientation === 'portrait'} onClick={() => setOrientation('portrait')}>Portrait</Button><Button type="button" size="sm" variant={orientation === 'landscape' ? 'secondary' : 'ghost'} aria-pressed={orientation === 'landscape'} onClick={() => setOrientation('landscape')}>Landscape</Button></div>
-            <div className="map-art-resolution">{orientation === 'portrait' ? '11 MP · 2880 × 3840' : '8 MP · 3840 × 2160'} <span>PNG</span></div>
-          </section>
-          <section className="map-art-block flex flex-col gap-3">
-            <Field className="gap-1">
-              <FieldLabel className="map-art-label" htmlFor="poster-background">Poster background</FieldLabel>
-              <div className="map-art-color-picker">
-                <Input id="poster-background" type="color" className="map-art-color-input" value={backgroundColor} onChange={(event) => setBackgroundColor(event.target.value)} />
-                <Input className="map-art-input" aria-label="Background hex color" value={backgroundColor} onChange={(event) => /^#[0-9a-fA-F]{6}$/.test(event.target.value) && setBackgroundColor(event.target.value)} />
-              </div>
-            </Field>
-            <Field className="gap-1">
-              <div className="flex items-center justify-between">
-                <FieldLabel className="map-art-label" htmlFor="map-zoom">Map zoom</FieldLabel>
-                <span className="map-art-label-count">{zoom.toFixed(1)}</span>
-              </div>
-              <Slider
-                id="map-zoom"
-                aria-label="Map zoom"
-                value={zoom}
-                min={8}
-                max={16}
-                step={0.1}
-                onValueChange={(next) => {
-                  const value = next as number
-                  setZoom(value)
-                  mapRef.current?.setZoom(value)
+          <Tabs value={tab} onValueChange={(next) => setTab(next as 'locations' | 'style')}>
+            <TabsList className="m-4 w-auto">
+              <TabsTrigger value="locations">Locations</TabsTrigger>
+              <TabsTrigger value="style">Style</TabsTrigger>
+            </TabsList>
+            <TabsContent value="locations">
+              <LocationsTab
+                mode={mode}
+                query={query}
+                continent={continent}
+                count={count}
+                customCount={customCount}
+                continentOptions={Object.keys(continentCities)}
+                results={results}
+                ambiguities={ambiguities}
+                verifiedCount={verifiedCount}
+                recentLocations={recentLocations}
+                busy={busy}
+                onModeChange={setMode}
+                onQueryChange={(value) => { setQuery(value); persistField('query', value) }}
+                onContinentChange={setContinent}
+                onCountChange={setCount}
+                onCustomCountChange={setCustomCount}
+                onValidate={() => void validateCities()}
+                onDiscover={() => void discoverCities()}
+                onChooseMatch={chooseCityMatch}
+                onRemoveLocation={removeLocation}
+                onConfirm={() => setVerifiedCount(results.length)}
+                onEditVerified={() => setVerifiedCount(null)}
+                onUseRecent={(city) => {
+                  setCities((current) => [...current, city])
+                  setResults((current) => [...current, city])
+                  setCity(city)
+                  setActiveIndex(cities.length)
                 }}
+                onRemoveRecent={(city) => setRecent(recentLocations.filter((entry) => entry.id !== city.id))}
               />
-            </Field>
-            <div className="map-art-zoom-presets">{[{ label: 'City', value: 10 }, { label: 'District', value: 12 }, { label: 'Neighborhood', value: 14 }, { label: 'Detail', value: 16 }].map((preset) => <Button key={preset.label} type="button" size="sm" variant={Math.abs(zoom - preset.value) < 0.1 ? 'secondary' : 'outline'} aria-pressed={Math.abs(zoom - preset.value) < 0.1} onClick={() => { setZoom(preset.value); mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: preset.value, duration: 300 }) }}>{preset.label}</Button>)}</div>
-            <Field className="gap-1">
-              <FieldLabel className="map-art-label" htmlFor="street-label-density">Street names</FieldLabel>
-              <Select
-                items={[
-                  { value: 'major', label: 'Major streets' },
-                  { value: 'all', label: 'All street names' },
-                  { value: 'none', label: 'Hide street names' },
-                ]}
-                value={streetLabels}
-                onValueChange={(next) => next !== null && setStreetLabels(String(next) as MapArtSettings['streetLabels'])}
-              >
-                <SelectTrigger id="street-label-density" className="map-art-input w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    <SelectItem value="major">Major streets</SelectItem>
-                    <SelectItem value="all">All street names</SelectItem>
-                    <SelectItem value="none">Hide street names</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="map-art-layer-toggle"><Switch id="map-layer-railways" checked={showRailways} onCheckedChange={setShowRailways} /><FieldLabel htmlFor="map-layer-railways" className="font-normal">Railway lines</FieldLabel></div>
-            <div className="map-art-layer-toggle"><Switch id="map-layer-trails" checked={showTrails} onCheckedChange={setShowTrails} /><FieldLabel htmlFor="map-layer-trails" className="font-normal">Trails &amp; paths</FieldLabel></div>
-          </section>
-          <section className="map-art-block map-art-checks flex flex-col gap-3">
-            <div><Checkbox id="poster-title" checked={title} onCheckedChange={(checked) => setTitle(checked === true)} /><FieldLabel htmlFor="poster-title" className="font-normal">City title</FieldLabel></div>
-            <div><Checkbox id="poster-coordinates" checked={showCoords} onCheckedChange={(checked) => setShowCoords(checked === true)} /><FieldLabel htmlFor="poster-coordinates" className="font-normal">Coordinates</FieldLabel></div>
-            <Field className="gap-1">
-              <FieldLabel className="map-art-label" htmlFor="poster-note">Custom subtitle</FieldLabel>
-              <Input id="poster-note" className="map-art-input" maxLength={60} value={customText} onChange={(event) => setCustomText(event.target.value)} onBlur={() => persistField('customText', customText)} placeholder="Optional text" />
-            </Field>
-          </section>
+            </TabsContent>
+            <TabsContent value="style">
+              <StyleTab
+                values={{
+                  styleId: style.id as MapArtSettings['styleId'],
+                  orientation,
+                  backgroundColor,
+                  zoom,
+                  streetLabels,
+                  title,
+                  showCoords,
+                  showRailways,
+                  showTrails,
+                  customText,
+                }}
+                styles={styles as readonly StyleOption[]}
+                presets={presets}
+                onStyleChange={setStyle}
+                onOrientationChange={setOrientation}
+                onBackgroundChange={setBackgroundColor}
+                onZoomChange={(value) => { setZoom(value); mapRef.current?.setZoom(value) }}
+                onZoomPreset={(value) => {
+                  setZoom(value)
+                  mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: value, duration: 300 })
+                }}
+                onStreetLabelsChange={setStreetLabels}
+                onTitleChange={setTitle}
+                onCoordsChange={setShowCoords}
+                onRailwaysChange={setShowRailways}
+                onTrailsChange={setShowTrails}
+                onCustomTextChange={setCustomTextValue}
+              />
+            </TabsContent>
+          </Tabs>
         </aside>
         <main className="map-art-stage">
           <div className="map-art-stage-head"><div><span className="eyebrow">MAP PREVIEW</span><h1>{city.name}<span>{city.country}</span></h1></div><div className="map-art-pager"><Button type="button" variant="ghost" size="icon-sm" aria-label="Previous city" onClick={() => changeCity(activeIndex - 1)} disabled={cities.length < 2}><ChevronLeft size={17} /></Button><span>{cities.length ? `${activeIndex + 1} / ${cities.length}` : '0 / 0'}</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Next city" onClick={() => changeCity(activeIndex + 1)} disabled={cities.length < 2}><ChevronRight size={17} /></Button></div></div>
           <div className="map-art-canvas-wrap"><div className={`map-art-poster ${orientation}`} data-style={style.id} style={{ backgroundColor }}><div className="map-art-map-area"><div className="map-art-map" ref={mapNode} /><span className="map-art-map-credit">© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors</span></div>{title && <div className="map-art-title"><h2>{city.name}</h2><p>{city.country}</p>{showCoords && <small>{Math.abs(city.lat).toFixed(4)}° {city.lat < 0 ? 'S' : 'N'} · {Math.abs(city.lon).toFixed(4)}° {city.lon < 0 ? 'W' : 'E'}</small>}{customText && <small>{customText}</small>}</div>}</div></div>
           <div className="map-art-stage-foot"><div className="map-art-zoom"><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={() => { const next = Math.max(8, zoom - 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Minus size={15} /></Button><span>{zoom.toFixed(1)}×</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => { const next = Math.min(16, zoom + 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Plus size={15} /></Button><Button type="button" variant="ghost" size="sm" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}>Fit</Button><Button type="button" variant="ghost" size="icon-sm" aria-label="Reset map position" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}><RotateCcw size={14} /></Button></div><span>{style.label} · {orientation === 'portrait' ? '11 MP portrait' : '8 MP landscape'}</span><Button variant="outline" size="sm" onClick={() => void generateBatch()} disabled={busy}><Upload size={14} data-icon="inline-start" /> {busy ? 'Generating…' : embedded ? 'Generate maps' : 'Save poster'}</Button></div>
           {status && <div className="map-art-status" role="status"><span>{status}</span>{busy && <Progress aria-label="Map generation progress" max={Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)} value={batchProgress} />}</div>}
+          <GenerationTrace steps={traceSteps} />
           {artworks.length > 0 && <section className="map-art-gallery"><div className="map-art-gallery-head"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2></div><Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download size={14} data-icon="inline-start" /> Download ZIP</Button></div><div className="map-art-gallery-grid">{artworks.map((artwork, index) => <article key={`${artwork.city.id}-${artwork.createdAt}`}><Button className="map-art-thumb h-auto" variant="ghost" onClick={() => { setCity(artwork.city); setActiveIndex(index) }}><img src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} /></Button><div><strong>{artwork.city.name}</strong><small>{artwork.city.country}</small><a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`}><Download size={14} /></a></div></article>)}</div></section>}
         </main>
         <aside className="map-art-right">

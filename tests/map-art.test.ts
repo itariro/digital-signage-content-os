@@ -125,7 +125,12 @@ describe('map art ambiguity rows', () => {
 
   it('uses the shared removal helper in the studio', () => {
     expect(studioSource).toContain('removeAmbiguityRow(current, index)')
-    expect(studioSource).toContain('onClick={() => removeLocation(item)}')
+    expect(studioSource).toContain('onRemoveLocation={removeLocation}')
+    const locationsSource = readFileSync(
+      path.resolve(__dirname, '../components/map-art/locations-tab.tsx'),
+      'utf8',
+    )
+    expect(locationsSource).toContain('onClick={() => onRemoveLocation(item)}')
   })
 })
 
@@ -189,5 +194,21 @@ describe('map art settings schema', () => {
     })
     expect(withRecent.success).toBe(true)
     expect(withRecent.success ? withRecent.data.mapArt?.recentLocations : []).toEqual([tokyo])
+  })
+})
+
+describe('map art tab and trace wiring', () => {
+  it('renders both tabs and the trace under the preview', () => {
+    expect(studioSource).toContain('<Tabs value={tab}')
+    expect(studioSource).toContain('<TabsTrigger value="locations">Locations</TabsTrigger>')
+    expect(studioSource).toContain('<TabsTrigger value="style">Style</TabsTrigger>')
+    expect(studioSource).toContain('<GenerationTrace steps={traceSteps} />')
+  })
+
+  it('appends a recent location only after generation succeeds', () => {
+    const appendIndex = studioSource.indexOf('appendRecentLocation(')
+    const savedIndex = studioSource.indexOf('const url = await renderArtwork(selected, view)')
+    expect(appendIndex).toBeGreaterThan(savedIndex)
+    expect(studioSource).toContain("persistField('recentLocations'")
   })
 })
