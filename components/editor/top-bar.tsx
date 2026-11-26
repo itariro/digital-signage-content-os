@@ -4,6 +4,8 @@ import { Download, Frame, Loader2, Moon, MoonStar, Play, Redo2, Sun, Undo2 } fro
 import { useEffect, useRef, useState } from 'react'
 import type { EditorApi } from '@/hooks/use-editor'
 import { EditorButton, IconButton } from './controls'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
 import { resolveEditorTheme, saveEditorThemePreference } from '@/lib/editor-theme'
@@ -59,10 +61,11 @@ export function ThemeToggle() {
     if (!result.ok) toast.error('Could not save theme preference')
   }
 
+  const label = isDark ? 'Switch to light mode' : 'Switch to dark mode'
   return (
-    <button type="button" onClick={toggleTheme} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="editor-icon-button">
+    <IconButton label={label} onClick={toggleTheme}>
       {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-    </button>
+    </IconButton>
   )
 }
 
@@ -83,19 +86,17 @@ export function TopBar({ editor, isActive, saving, nightPreview, onSave, onPrevi
       </div>
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <label htmlFor="layout-name" className="sr-only">
-          Layout name
-        </label>
-        <input
+        <Input
           id="layout-name"
+          aria-label="Layout name"
           value={state.name}
           maxLength={80}
           onFocus={() => editor.checkpoint()}
           onChange={(e) => editor.rename(e.target.value, false)}
-          className="h-8 w-full min-w-0 max-w-64 rounded-md bg-transparent px-2 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:bg-secondary"
+          className="h-8 w-full min-w-0 max-w-64 border-transparent bg-transparent font-medium shadow-none hover:bg-secondary focus-visible:bg-secondary dark:bg-transparent"
         />
         {isActive && (
-          <span className="hidden shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary md:inline">On frame</span>
+          <Badge variant="secondary" className="hidden shrink-0 bg-primary/15 text-primary md:inline-flex">On frame</Badge>
         )}
       </div>
 

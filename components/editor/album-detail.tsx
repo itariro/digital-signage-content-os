@@ -13,8 +13,12 @@ import { useArtworkSearch, usePortraitSearch, type ArtworkResult, type PortraitR
 import { useNow } from '@/hooks/use-now'
 import { AlbumSlideshow } from '@/components/frame/album-slideshow'
 import { MapArtStudio } from '@/components/map-art/map-art-studio'
-import { ColorField, EditorButton, Section, Segmented, SelectField, SliderField, ToggleField } from './controls'
+import { ColorField, EditorButton, IconButton, Section, Segmented, SelectField, SliderField, ToggleField } from './controls'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Textarea } from '@/components/ui/textarea'
 
 export type AlbumUpdater = (id: string, fn: (album: Album) => Album, persist?: boolean) => void
 
@@ -51,14 +55,9 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
   return (
     <div className="editor-panel flex flex-col">
       <div className="flex items-center gap-2 border-b border-border px-3 py-3">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to albums"
-          className="editor-icon-button"
-        >
+        <IconButton label="Back to albums" onClick={onBack}>
           <ArrowLeft className="size-4" aria-hidden />
-        </button>
+        </IconButton>
         <NameField key={album.id} value={album.name} onCommit={(name) => update((a) => ({ ...a, name }))} />
         <meta.icon className="size-4 shrink-0 text-muted-foreground" aria-label={meta.label} />
       </div>
@@ -364,7 +363,7 @@ function NameField({ value, onCommit }: { value: string; onCommit: (name: string
     else if (name !== value) onCommit(name)
   }
   return (
-    <input
+    <Input
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
@@ -372,7 +371,7 @@ function NameField({ value, onCommit }: { value: string; onCommit: (name: string
         if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) e.currentTarget.blur()
       }}
       aria-label="Album name"
-      className="editor-control min-w-0 flex-1 border-transparent bg-transparent px-2 text-sm font-semibold text-foreground"
+      className="min-w-0 flex-1 border-transparent bg-transparent font-semibold shadow-none dark:bg-transparent"
     />
   )
 }
@@ -410,27 +409,15 @@ function PreviewStage({ album }: { album: Album }) {
         )}
       </div>
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-label="Previous slide"
-          disabled={!slide}
-          onClick={() => setOffset((o) => o - 1)}
-          className="editor-icon-button disabled:opacity-40"
-        >
+        <IconButton label="Previous slide" disabled={!slide} onClick={() => setOffset((o) => o - 1)}>
           <ChevronLeft className="size-4" aria-hidden />
-        </button>
+        </IconButton>
         <span className="min-w-12 text-center font-mono text-[11px] tabular-nums text-muted-foreground" aria-live="polite">
           {slide ? `${index}/${album.items.length}` : revealStatus ?? '0/0'}
         </span>
-        <button
-          type="button"
-          aria-label="Next slide"
-          disabled={!slide}
-          onClick={() => setOffset((o) => o + 1)}
-          className="editor-icon-button disabled:opacity-40"
-        >
+        <IconButton label="Next slide" disabled={!slide} onClick={() => setOffset((o) => o + 1)}>
           <ChevronRight className="size-4" aria-hidden />
-        </button>
+        </IconButton>
       </div>
     </div>
   )
@@ -488,15 +475,34 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
           Advanced search
         </EditorButton>
       </div>
-      <div className="relative">
-        {!advanced && <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />}
-        {advanced ? (
-          <textarea value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder='[{"artist":"50 Cent","album":"Get Rich or Die Trying"}]' aria-label="Advanced search JSON" rows={4} className="editor-control w-full resize-y py-2 font-mono text-xs" />
-        ) : (
-          <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder={meta.placeholder} aria-label={meta.placeholder} className="editor-control h-8 w-full pl-9 pr-9" />
-        )}
-        {isLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
-      </div>
+      {advanced ? (
+        <Textarea
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+          placeholder='[{"artist":"50 Cent","album":"Get Rich or Die Trying"}]'
+          aria-label="Advanced search JSON"
+          rows={4}
+          className="resize-y font-mono text-xs"
+        />
+      ) : (
+        <InputGroup>
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+            placeholder={meta.placeholder}
+            aria-label={meta.placeholder}
+          />
+          {isLoading && (
+            <InputGroupAddon align="inline-end">
+              <Loader2 className="animate-spin" aria-hidden />
+            </InputGroupAddon>
+          )}
+        </InputGroup>
+      )}
       {advanced && <p className="text-[11px] leading-relaxed text-muted-foreground">Use an array of strings or objects. Objects can contain title, artist, album, actor, director, or author.</p>}
       <div className="flex flex-wrap gap-1.5">
         {meta.suggestions.map((s) => (
@@ -527,14 +533,15 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
             const busy = pending.has(r.id)
             return (
               <li key={r.id}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => toggle(r)}
                   disabled={busy}
                   aria-pressed={added}
                   title={`${r.title}${r.year ? ` (${r.year})` : ''}`}
                   className={cn(
-                    'group relative block w-full overflow-hidden rounded-md bg-secondary ring-1 transition',
+                    'group relative block h-auto w-full overflow-hidden rounded-md bg-secondary p-0 ring-1 transition hover:bg-secondary',
                     aspect,
                     added ? 'ring-2 ring-primary' : 'ring-border hover:ring-muted-foreground',
                   )}
@@ -550,7 +557,7 @@ function ArtworkSearch({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: A
                       {busy ? <Loader2 className="size-3 animate-spin" aria-hidden /> : <Check className="size-3" aria-hidden />}
                     </span>
                   )}
-                </button>
+                </Button>
               </li>
             )
           })}
@@ -630,7 +637,7 @@ function PhotoUpload({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: Alb
         {busy > 0 ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
         {busy > 0 ? `Uploading ${busy}…` : 'Choose photos'}
       </EditorButton>
-      <input ref={fileRef} type="file" accept="image/*" multiple className="sr-only" onChange={(e) => onFiles(e.target.files)} />
+      <Input ref={fileRef} type="file" accept="image/*" multiple className="sr-only" onChange={(e) => onFiles(e.target.files)} />
     </Section>
   )
 }
@@ -688,18 +695,17 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
             : 'The portrait revealed behind the covers. Search for a person or upload a photo.'}
         </p>
         {subject && (
-          <button
-            type="button"
+          <IconButton
+            label="Remove portrait"
             onClick={() => {
               setQuery('')
               putSubject(null)
               onCommit()
             }}
-            aria-label="Remove portrait"
-            className="editor-icon-button shrink-0 hover:text-destructive"
+            className="shrink-0 hover:text-destructive"
           >
             <Trash2 className="size-4" aria-hidden />
-          </button>
+          </IconButton>
         )}
       </div>
       <Segmented
@@ -717,18 +723,23 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
       />
       {!subject && (
         <>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <input
+          <InputGroup>
+            <InputGroupAddon>
+              <Search aria-hidden />
+            </InputGroupAddon>
+            <InputGroupInput
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search portraits"
               aria-label="Search portraits"
-              className="editor-control h-8 w-full pl-9 pr-9"
             />
-            {(isLoading || busy) && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
-          </div>
+            {(isLoading || busy) && (
+              <InputGroupAddon align="inline-end">
+                <Loader2 className="animate-spin" aria-hidden />
+              </InputGroupAddon>
+            )}
+          </InputGroup>
           {error && <p className="text-xs text-destructive">Search is unavailable right now. Try again in a moment.</p>}
           {query.trim().length >= 2 && !isLoading && !error && results.length === 0 && (
             <p className="text-xs text-muted-foreground">No portraits found for that search.</p>
@@ -737,13 +748,14 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
             <ul className="grid grid-cols-4 gap-1.5" aria-label="Portrait results">
               {results.slice(0, 12).map((r) => (
                 <li key={r.id}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => pickSearch(r)}
                     disabled={Boolean(busy)}
                     title={r.name}
                     aria-label={`Use portrait of ${r.name}`}
-                    className="group relative block aspect-square w-full overflow-hidden rounded bg-secondary ring-1 ring-border transition hover:ring-muted-foreground"
+                    className="group relative block aspect-square h-auto w-full overflow-hidden rounded bg-secondary p-0 ring-1 ring-border transition hover:bg-secondary hover:ring-muted-foreground"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={r.thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -752,7 +764,7 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
                         <Loader2 className="size-3 animate-spin" aria-hidden />
                       </span>
                     )}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -772,7 +784,7 @@ function PortraitSection({ album, onUpdate, onCommit }: { album: Album; onUpdate
           {busy === 'upload' ? 'Uploading…' : 'Choose a photo'}
         </EditorButton>
       )}
-      <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files)} />
+      <Input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files)} />
     </Section>
   )
 }
@@ -817,14 +829,13 @@ function ItemsGrid({ album, onUpdate }: { album: Album; onUpdate: (fn: (a: Album
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.image} alt={item.title} loading="lazy" className="h-full w-full object-cover" draggable={false} />
-                <button
-                  type="button"
+                <IconButton
+                  label={`Remove ${item.title}`}
                   onClick={() => onUpdate((a) => ({ ...a, items: a.items.filter((i) => i.id !== item.id) }))}
-                  aria-label={`Remove ${item.title}`}
-                  className="editor-icon-button absolute right-0.5 top-0.5 rounded-md bg-background/80 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 hover:text-destructive"
+                  className="absolute right-0.5 top-0.5 rounded-md bg-background/80 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 hover:text-destructive"
                 >
                   <X className="size-4" aria-hidden />
-                </button>
+                </IconButton>
               </li>
             ))}
           </ul>

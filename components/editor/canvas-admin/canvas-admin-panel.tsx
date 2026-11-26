@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlbumsTab } from './albums-tab'
 import { LayoutsTab } from './layouts-tab'
 import { StatusTab } from './status-tab'
@@ -18,27 +18,23 @@ export function CanvasAdminPanel() {
   const [activeTab, setActiveTab] = useState<CanvasAdminTab>('layouts')
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div role="group" aria-label="Canvas administration sections" className="flex shrink-0 border-b border-border">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => setActiveTab(value as CanvasAdminTab)}
+      className="flex min-h-full flex-col gap-0"
+    >
+      <TabsList variant="line" aria-label="Canvas administration sections" className="flex w-full shrink-0 rounded-none border-b border-border">
         {TABS.map((tab) => (
-          <Button
-            key={tab.id}
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-pressed={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className="flex-1 shrink rounded-none border-b-2 border-transparent px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground aria-pressed:border-primary aria-pressed:text-foreground"
-          >
+          <TabsTrigger key={tab.id} value={tab.id} className="min-h-12 flex-1 rounded-none">
             {tab.label}
-          </Button>
+          </TabsTrigger>
         ))}
+      </TabsList>
+      <div className="min-h-0 flex-1 p-3">
+        <TabsContent value="layouts"><LayoutsTab /></TabsContent>
+        <TabsContent value="albums"><AlbumsTab /></TabsContent>
+        <TabsContent value="status"><StatusTab /></TabsContent>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {activeTab === 'layouts' && <LayoutsTab />}
-        {activeTab === 'albums' && <AlbumsTab />}
-        {activeTab === 'status' && <StatusTab />}
-      </div>
-    </div>
+    </Tabs>
   )
 }

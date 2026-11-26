@@ -83,9 +83,10 @@ describe('widget library panel contract', () => {
   })
 
   it('provides an accessible search, clear action, category state, and section empty results', () => {
-    expect(librarySource).toContain('<label htmlFor="library-search"')
+    expect(librarySource).toContain('id="library-search"')
+    expect(librarySource).toContain('aria-label="Search library"')
     expect(librarySource).toContain('value={query}')
-    expect(librarySource).toContain('aria-label="Clear search"')
+    expect(librarySource).toContain('label="Clear search"')
     expect(librarySource).toContain("onClick={() => setQuery('')}")
     expect(librarySource).toContain('aria-pressed={category === option}')
     expect(librarySource).toContain('No {widgetCategory.toLowerCase()} widgets match your search.')

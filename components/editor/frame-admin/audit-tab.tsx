@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import type { AdminAuditEntry } from '@/lib/console/admin-types'
 import { Section } from '../controls'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type AuditState =
   | { status: 'loading' }
@@ -79,22 +82,25 @@ export function AuditTab() {
     <section aria-label="Audit" className="space-y-3">
       <Section title="Recent activity">{null}</Section>
       {state.status === 'loading' && (
-        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">Loading audit records…</p>
+        <div role="status" className="flex flex-col gap-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
       )}
       {state.status === 'unauthorized' && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          Your session has expired or you are not authorized to view audit records.
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>Your session has expired or you are not authorized to view audit records.</AlertDescription>
+        </Alert>
       )}
       {state.status === 'error' && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {state.message}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
       )}
       {state.status === 'loaded' && state.entries.length === 0 && (
-        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          No audit records yet.
-        </p>
+        <Empty>
+          <EmptyDescription>No audit records yet.</EmptyDescription>
+        </Empty>
       )}
       {state.status === 'loaded' && state.entries.length > 0 && (
         <ol className="space-y-3">

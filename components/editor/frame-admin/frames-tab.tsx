@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { EditorButton, Section } from '../controls'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type FrameSummary = {
   identifier: string
@@ -187,9 +191,9 @@ export function FramesTab() {
         )}
       >
         {actionError && (
-          <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {actionError.message}
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>{actionError.message}</AlertDescription>
+          </Alert>
         )}
         {issued && (
           <div className="space-y-2 rounded-lg border border-border bg-card p-3">
@@ -205,29 +209,32 @@ export function FramesTab() {
           </div>
         )}
         {expired && (
-          <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-            This enrollment code has expired. Issue a new code to continue.
-          </p>
+          <Alert>
+            <AlertDescription>This enrollment code has expired. Issue a new code to continue.</AlertDescription>
+          </Alert>
         )}
       </Section>
 
       {state.status === 'loading' && (
-        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">Loading frames…</p>
+        <div role="status" className="flex flex-col gap-2">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </div>
       )}
       {state.status === 'unauthorized' && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          Your session has expired or you are not authorized to manage frames.
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>Your session has expired or you are not authorized to manage frames.</AlertDescription>
+        </Alert>
       )}
       {state.status === 'error' && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {state.message}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
       )}
       {state.status === 'loaded' && state.instances.length === 0 && (
-        <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          No frames have been registered yet.
-        </p>
+        <Empty>
+          <EmptyDescription>No frames have been registered yet.</EmptyDescription>
+        </Empty>
       )}
       {state.status === 'loaded' && state.instances.length > 0 && (
         <ul className="space-y-3">
@@ -239,7 +246,7 @@ export function FramesTab() {
               </div>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                 <dt className="text-muted-foreground">Revision</dt>
-                <dd>{instance.frame?.revision ?? 'Not available'}</dd>
+                <dd><Badge variant="secondary" className="font-mono">{instance.frame?.revision ?? 'Not available'}</Badge></dd>
                 <dt className="text-muted-foreground">Created</dt>
                 <dd>{formatDate(instance.createdAt)}</dd>
                 <dt className="text-muted-foreground">Updated</dt>

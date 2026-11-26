@@ -7,8 +7,24 @@ import * as maplibregl from 'maplibre-gl'
 import type { FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
 import type { Album, AlbumItem, FrameStore, MapArtAmbiguity, MapArtLocation, MapArtSettings } from '@/lib/types'
 import { removeAmbiguityRow, resolveExportView, waitForCameraSettled, type MapView } from '@/lib/map-art'
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Search, Upload, X } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Search, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Textarea } from '@/components/ui/textarea'
 
 type City = MapArtLocation
 type Artwork = { city: City; url: string; style: string; createdAt: number }
@@ -588,68 +604,173 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       </header>
       <div className="map-art-body">
         <aside className="map-art-left">
-          <div className="map-art-mode" role="tablist" aria-label="City selection mode">
-            <button role="tab" aria-selected={mode === 'cities'} onClick={() => setMode('cities')}>Enter cities</button>
-            <button role="tab" aria-selected={mode === 'continent'} onClick={() => setMode('continent')}>Choose continent</button>
-          </div>
+          <ToggleGroup
+            className="map-art-mode m-4 grid w-auto grid-cols-2 rounded-none border p-0"
+            aria-label="City selection mode"
+            value={[mode]}
+            onValueChange={(next) => next[0] && setMode(next[0] as 'cities' | 'continent')}
+          >
+            <ToggleGroupItem value="cities" variant="outline" className="map-art-mode-item h-9 rounded-none">Enter cities</ToggleGroupItem>
+            <ToggleGroupItem value="continent" variant="outline" className="map-art-mode-item h-9 rounded-none">Choose continent</ToggleGroupItem>
+          </ToggleGroup>
           {mode === 'cities' ? <section className="map-art-block">
-            <label className="map-art-label" htmlFor="city-list">Your cities <span>{query.split(/\n|;/).filter((line) => line.trim()).length}</span></label>
-            <textarea id="city-list" value={query} onChange={(event) => setQuery(event.target.value)} onBlur={() => persistField('query', query)} placeholder={'Melbourne, Australia\nTokyo, Japan\nParis, France'} rows={7} />
+            <Field className="gap-1">
+              <div className="flex items-center justify-between">
+                <FieldLabel className="map-art-label" htmlFor="city-list">Your cities</FieldLabel>
+                <span className="map-art-label-count">{query.split(/\n|;/).filter((line) => line.trim()).length}</span>
+              </div>
+              <Textarea id="city-list" className="map-art-input" value={query} onChange={(event) => setQuery(event.target.value)} onBlur={() => persistField('query', query)} placeholder={'Melbourne, Australia\nTokyo, Japan\nParis, France'} rows={7} />
+            </Field>
             <p className="map-art-hint">One location per line. Add a country to resolve ambiguous names.</p>
             <Button variant="outline" size="sm" className="w-full" onClick={() => void validateCities()} disabled={busy}><Search size={15} data-icon="inline-start" /> Validate locations</Button>
-          </section> : <section className="map-art-block">
-            <label className="map-art-label" htmlFor="continent">Continent</label>
-            <div className="map-art-select"><select id="continent" value={continent} onChange={(event) => setContinent(event.target.value)}>{Object.keys(continentCities).map((name) => <option key={name}>{name}</option>)}</select><ChevronDown size={14} /></div>
-            <label className="map-art-label" htmlFor="city-count">Number of cities</label>
-            <div className="map-art-select"><select id="city-count" value={count} onChange={(event) => setCount(event.target.value)}>{['5', '10', '20', 'custom'].map((value) => <option key={value} value={value}>{value === 'custom' ? 'Custom number' : `${value} cities`}</option>)}</select><ChevronDown size={14} /></div>
-            {count === 'custom' && <input className="map-art-input" aria-label="Custom number of cities" type="number" min="1" max="20" value={customCount} onChange={(event) => setCustomCount(Math.min(20, Math.max(1, Number(event.target.value))))} />}
+          </section> : <section className="map-art-block flex flex-col gap-3">
+            <Field className="gap-1">
+              <FieldLabel className="map-art-label" htmlFor="continent">Continent</FieldLabel>
+              <Select
+                items={Object.keys(continentCities).map((name) => ({ value: name, label: name }))}
+                value={continent}
+                onValueChange={(next) => next !== null && setContinent(String(next))}
+              >
+                <SelectTrigger id="continent" className="map-art-input w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {Object.keys(continentCities).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field className="gap-1">
+              <FieldLabel className="map-art-label" htmlFor="city-count">Number of cities</FieldLabel>
+              <Select
+                items={['5', '10', '20', 'custom'].map((value) => ({
+                  value,
+                  label: value === 'custom' ? 'Custom number' : `${value} cities`,
+                }))}
+                value={count}
+                onValueChange={(next) => next !== null && setCount(String(next))}
+              >
+                <SelectTrigger id="city-count" className="map-art-input w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {['5', '10', '20', 'custom'].map((value) => <SelectItem key={value} value={value}>{value === 'custom' ? 'Custom number' : `${value} cities`}</SelectItem>)}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            {count === 'custom' && <Input className="map-art-input" aria-label="Custom number of cities" type="number" min={1} max={20} value={customCount} onChange={(event) => setCustomCount(Math.min(20, Math.max(1, Number(event.target.value))))} />}
             <Button variant="outline" size="sm" className="w-full" onClick={() => void discoverCities()} disabled={busy}><MapPin size={15} data-icon="inline-start" /> Find cities</Button>
             <p className="map-art-hint">Up to 20 curated candidates are geocoded and checked before generation.</p>
           </section>}
           {results.length > 0 && <section className="map-art-block">
             <div className="map-art-label">Review locations <span>{results.length}</span></div>
-            <div className="map-art-city-list">{results.map((item) => <div key={item.id} className={city.id === item.id ? 'selected' : ''}><button type="button" onClick={() => { setCity(item); setActiveIndex(results.indexOf(item)) }}>{item.name}</button><small>{[item.region, item.country].filter(Boolean).join(', ')}</small><button type="button" aria-label={`Remove ${item.name}`} onClick={() => removeLocation(item)}><X size={13} /></button></div>)}</div>
+            <div className="map-art-city-list">{results.map((item) => <div key={item.id} className={city.id === item.id ? 'selected' : ''}><Button type="button" variant="ghost" size="sm" className="justify-start h-auto py-1 px-2 text-left" onClick={() => { setCity(item); setActiveIndex(results.indexOf(item)) }}>{item.name}</Button><small>{[item.region, item.country].filter(Boolean).join(', ')}</small><Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove ${item.name}`} onClick={() => removeLocation(item)}><X size={13} /></Button></div>)}</div>
           </section>}
           {ambiguities.map((entry, index) => (
             <section className="map-art-block" key={entry.query}>
-              <label className="map-art-label" htmlFor={`ambiguous-city-${index}`}>Choose match for “{entry.query}”</label>
-              <select id={`ambiguous-city-${index}`} className="map-art-input" value={entry.chosenId} onChange={(event) => chooseCityMatch(entry.query, Number(event.target.value))}>
-                {entry.matches.map((match) => <option key={match.id} value={match.id}>{[match.name, match.region, match.country].filter(Boolean).join(', ')}</option>)}
-              </select>
+              <Field className="gap-1">
+                <FieldLabel className="map-art-label" htmlFor={`ambiguous-city-${index}`}>Choose match for “{entry.query}”</FieldLabel>
+                <Select
+                  items={entry.matches.map((match) => ({
+                    value: String(match.id),
+                    label: [match.name, match.region, match.country].filter(Boolean).join(', '),
+                  }))}
+                  value={String(entry.chosenId)}
+                  onValueChange={(next) => next !== null && chooseCityMatch(entry.query, Number(next))}
+                >
+                  <SelectTrigger id={`ambiguous-city-${index}`} className="map-art-input w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {entry.matches.map((match) => <SelectItem key={match.id} value={String(match.id)}>{[match.name, match.region, match.country].filter(Boolean).join(', ')}</SelectItem>)}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
             </section>
           ))}
           <section className="map-art-block">
             <div className="map-art-label">Map style</div>
-            <div className="map-art-presets">{presets.map((preset, index) => <button key={preset} className={style.id === styles[index % styles.length].id ? 'active' : ''} onClick={() => setStyle(styles[index % styles.length])} aria-pressed={style.id === styles[index % styles.length].id}><span className={`map-art-swatch swatch-${styles[index % styles.length].id}`}><i /><i /><i /></span><span>{preset}</span></button>)}</div>
+            <div className="map-art-presets">{presets.map((preset, index) => <Button key={preset} type="button" size="sm" variant={style.id === styles[index % styles.length].id ? 'secondary' : 'outline'} className={style.id === styles[index % styles.length].id ? 'active' : ''} onClick={() => setStyle(styles[index % styles.length])} aria-pressed={style.id === styles[index % styles.length].id}><span className={`map-art-swatch swatch-${styles[index % styles.length].id}`}><i /><i /><i /></span><span>{preset}</span></Button>)}</div>
           </section>
           <section className="map-art-block">
             <div className="map-art-label">Poster format</div>
-            <div className="map-art-segment"><button aria-pressed={orientation === 'portrait'} onClick={() => setOrientation('portrait')}>Portrait</button><button aria-pressed={orientation === 'landscape'} onClick={() => setOrientation('landscape')}>Landscape</button></div>
+            <div className="map-art-segment"><Button type="button" size="sm" variant={orientation === 'portrait' ? 'secondary' : 'ghost'} aria-pressed={orientation === 'portrait'} onClick={() => setOrientation('portrait')}>Portrait</Button><Button type="button" size="sm" variant={orientation === 'landscape' ? 'secondary' : 'ghost'} aria-pressed={orientation === 'landscape'} onClick={() => setOrientation('landscape')}>Landscape</Button></div>
             <div className="map-art-resolution">{orientation === 'portrait' ? '11 MP · 2880 × 3840' : '8 MP · 3840 × 2160'} <span>PNG</span></div>
           </section>
-          <section className="map-art-block">
-            <label className="map-art-label" htmlFor="poster-background">Poster background</label>
-            <div className="map-art-color-picker"><input id="poster-background" type="color" value={backgroundColor} onChange={(event) => setBackgroundColor(event.target.value)} /><input className="map-art-input" aria-label="Background hex color" value={backgroundColor} onChange={(event) => /^#[0-9a-fA-F]{6}$/.test(event.target.value) && setBackgroundColor(event.target.value)} /></div>
-            <label className="map-art-label" htmlFor="map-zoom">Map zoom · {zoom.toFixed(1)}</label>
-            <input id="map-zoom" type="range" min="8" max="16" step="0.1" value={zoom} onChange={(event) => { const next = Number(event.target.value); setZoom(next); mapRef.current?.setZoom(next) }} />
-            <div className="map-art-zoom-presets">{[{ label: 'City', value: 10 }, { label: 'District', value: 12 }, { label: 'Neighborhood', value: 14 }, { label: 'Detail', value: 16 }].map((preset) => <button key={preset.label} type="button" aria-pressed={Math.abs(zoom - preset.value) < 0.1} onClick={() => { setZoom(preset.value); mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: preset.value, duration: 300 }) }}>{preset.label}</button>)}</div>
-            <label className="map-art-label" htmlFor="street-label-density">Street names</label>
-            <select id="street-label-density" className="map-art-input" value={streetLabels} onChange={(event) => setStreetLabels(event.target.value as MapArtSettings['streetLabels'])}><option value="major">Major streets</option><option value="all">All street names</option><option value="none">Hide street names</option></select>
-            <label className="map-art-layer-toggle"><input type="checkbox" checked={showRailways} onChange={(event) => setShowRailways(event.target.checked)} /> Railway lines</label>
-            <label className="map-art-layer-toggle"><input type="checkbox" checked={showTrails} onChange={(event) => setShowTrails(event.target.checked)} /> Trails &amp; paths</label>
+          <section className="map-art-block flex flex-col gap-3">
+            <Field className="gap-1">
+              <FieldLabel className="map-art-label" htmlFor="poster-background">Poster background</FieldLabel>
+              <div className="map-art-color-picker">
+                <Input id="poster-background" type="color" className="map-art-color-input" value={backgroundColor} onChange={(event) => setBackgroundColor(event.target.value)} />
+                <Input className="map-art-input" aria-label="Background hex color" value={backgroundColor} onChange={(event) => /^#[0-9a-fA-F]{6}$/.test(event.target.value) && setBackgroundColor(event.target.value)} />
+              </div>
+            </Field>
+            <Field className="gap-1">
+              <div className="flex items-center justify-between">
+                <FieldLabel className="map-art-label" htmlFor="map-zoom">Map zoom</FieldLabel>
+                <span className="map-art-label-count">{zoom.toFixed(1)}</span>
+              </div>
+              <Slider
+                id="map-zoom"
+                aria-label="Map zoom"
+                value={zoom}
+                min={8}
+                max={16}
+                step={0.1}
+                onValueChange={(next) => {
+                  const value = next as number
+                  setZoom(value)
+                  mapRef.current?.setZoom(value)
+                }}
+              />
+            </Field>
+            <div className="map-art-zoom-presets">{[{ label: 'City', value: 10 }, { label: 'District', value: 12 }, { label: 'Neighborhood', value: 14 }, { label: 'Detail', value: 16 }].map((preset) => <Button key={preset.label} type="button" size="sm" variant={Math.abs(zoom - preset.value) < 0.1 ? 'secondary' : 'outline'} aria-pressed={Math.abs(zoom - preset.value) < 0.1} onClick={() => { setZoom(preset.value); mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: preset.value, duration: 300 }) }}>{preset.label}</Button>)}</div>
+            <Field className="gap-1">
+              <FieldLabel className="map-art-label" htmlFor="street-label-density">Street names</FieldLabel>
+              <Select
+                items={[
+                  { value: 'major', label: 'Major streets' },
+                  { value: 'all', label: 'All street names' },
+                  { value: 'none', label: 'Hide street names' },
+                ]}
+                value={streetLabels}
+                onValueChange={(next) => next !== null && setStreetLabels(String(next) as MapArtSettings['streetLabels'])}
+              >
+                <SelectTrigger id="street-label-density" className="map-art-input w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value="major">Major streets</SelectItem>
+                    <SelectItem value="all">All street names</SelectItem>
+                    <SelectItem value="none">Hide street names</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="map-art-layer-toggle"><Switch checked={showRailways} onCheckedChange={setShowRailways} aria-label="Railway lines" /> Railway lines</div>
+            <div className="map-art-layer-toggle"><Switch checked={showTrails} onCheckedChange={setShowTrails} aria-label="Trails and paths" /> Trails &amp; paths</div>
           </section>
-          <section className="map-art-block map-art-checks">
-            <label><input type="checkbox" checked={title} onChange={(event) => setTitle(event.target.checked)} /> City title</label>
-            <label><input type="checkbox" checked={showCoords} onChange={(event) => setShowCoords(event.target.checked)} /> Coordinates</label>
-            <label className="map-art-label" htmlFor="poster-note">Custom subtitle</label><input id="poster-note" className="map-art-input" maxLength={60} value={customText} onChange={(event) => setCustomText(event.target.value)} onBlur={() => persistField('customText', customText)} placeholder="Optional text" />
+          <section className="map-art-block map-art-checks flex flex-col gap-3">
+            <div><Checkbox checked={title} onCheckedChange={(checked) => setTitle(checked === true)} aria-label="City title" /> City title</div>
+            <div><Checkbox checked={showCoords} onCheckedChange={(checked) => setShowCoords(checked === true)} aria-label="Coordinates" /> Coordinates</div>
+            <Field className="gap-1">
+              <FieldLabel className="map-art-label" htmlFor="poster-note">Custom subtitle</FieldLabel>
+              <Input id="poster-note" className="map-art-input" maxLength={60} value={customText} onChange={(event) => setCustomText(event.target.value)} onBlur={() => persistField('customText', customText)} placeholder="Optional text" />
+            </Field>
           </section>
         </aside>
         <main className="map-art-stage">
-          <div className="map-art-stage-head"><div><span className="eyebrow">MAP PREVIEW</span><h1>{city.name}<span>{city.country}</span></h1></div><div className="map-art-pager"><button aria-label="Previous city" onClick={() => changeCity(activeIndex - 1)} disabled={cities.length < 2}><ChevronLeft size={17} /></button><span>{cities.length ? `${activeIndex + 1} / ${cities.length}` : '0 / 0'}</span><button aria-label="Next city" onClick={() => changeCity(activeIndex + 1)} disabled={cities.length < 2}><ChevronRight size={17} /></button></div></div>
+          <div className="map-art-stage-head"><div><span className="eyebrow">MAP PREVIEW</span><h1>{city.name}<span>{city.country}</span></h1></div><div className="map-art-pager"><Button type="button" variant="ghost" size="icon-sm" aria-label="Previous city" onClick={() => changeCity(activeIndex - 1)} disabled={cities.length < 2}><ChevronLeft size={17} /></Button><span>{cities.length ? `${activeIndex + 1} / ${cities.length}` : '0 / 0'}</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Next city" onClick={() => changeCity(activeIndex + 1)} disabled={cities.length < 2}><ChevronRight size={17} /></Button></div></div>
           <div className="map-art-canvas-wrap"><div className={`map-art-poster ${orientation}`} data-style={style.id} style={{ backgroundColor }}><div className="map-art-map-area"><div className="map-art-map" ref={mapNode} /><span className="map-art-map-credit">© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors</span></div>{title && <div className="map-art-title"><h2>{city.name}</h2><p>{city.country}</p>{showCoords && <small>{Math.abs(city.lat).toFixed(4)}° {city.lat < 0 ? 'S' : 'N'} · {Math.abs(city.lon).toFixed(4)}° {city.lon < 0 ? 'W' : 'E'}</small>}{customText && <small>{customText}</small>}</div>}</div></div>
-          <div className="map-art-stage-foot"><div className="map-art-zoom"><button aria-label="Zoom out" onClick={() => { const next = Math.max(8, zoom - 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Minus size={15} /></button><span>{zoom.toFixed(1)}×</span><button aria-label="Zoom in" onClick={() => { const next = Math.min(16, zoom + 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Plus size={15} /></button><button onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}>Fit</button><button aria-label="Reset map position" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}><RotateCcw size={14} /></button></div><span>{style.label} · {orientation === 'portrait' ? '11 MP portrait' : '8 MP landscape'}</span><Button variant="outline" size="sm" onClick={() => void generateBatch()} disabled={busy}><Upload size={14} data-icon="inline-start" /> {busy ? 'Generating…' : embedded ? 'Generate maps' : 'Save poster'}</Button></div>
-          {status && <div className="map-art-status" role="status"><span>{status}</span>{busy && <progress aria-label="Map generation progress" max={Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)} value={batchProgress} />}</div>}
-          {artworks.length > 0 && <section className="map-art-gallery"><div className="map-art-gallery-head"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2></div><Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download size={14} data-icon="inline-start" /> Download ZIP</Button></div><div className="map-art-gallery-grid">{artworks.map((artwork, index) => <article key={`${artwork.city.id}-${artwork.createdAt}`}><button className="map-art-thumb" onClick={() => { setCity(artwork.city); setActiveIndex(index) }}><img src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} /></button><div><strong>{artwork.city.name}</strong><small>{artwork.city.country}</small><a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`}><Download size={14} /></a></div></article>)}</div></section>}
+          <div className="map-art-stage-foot"><div className="map-art-zoom"><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={() => { const next = Math.max(8, zoom - 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Minus size={15} /></Button><span>{zoom.toFixed(1)}×</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => { const next = Math.min(16, zoom + 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Plus size={15} /></Button><Button type="button" variant="ghost" size="sm" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}>Fit</Button><Button type="button" variant="ghost" size="icon-sm" aria-label="Reset map position" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}><RotateCcw size={14} /></Button></div><span>{style.label} · {orientation === 'portrait' ? '11 MP portrait' : '8 MP landscape'}</span><Button variant="outline" size="sm" onClick={() => void generateBatch()} disabled={busy}><Upload size={14} data-icon="inline-start" /> {busy ? 'Generating…' : embedded ? 'Generate maps' : 'Save poster'}</Button></div>
+          {status && <div className="map-art-status" role="status"><span>{status}</span>{busy && <Progress aria-label="Map generation progress" max={Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)} value={batchProgress} />}</div>}
+          {artworks.length > 0 && <section className="map-art-gallery"><div className="map-art-gallery-head"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2></div><Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download size={14} data-icon="inline-start" /> Download ZIP</Button></div><div className="map-art-gallery-grid">{artworks.map((artwork, index) => <article key={`${artwork.city.id}-${artwork.createdAt}`}><Button className="map-art-thumb" variant="ghost" onClick={() => { setCity(artwork.city); setActiveIndex(index) }}><img src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} /></Button><div><strong>{artwork.city.name}</strong><small>{artwork.city.country}</small><a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`}><Download size={14} /></a></div></article>)}</div></section>}
         </main>
         <aside className="map-art-right">
           <section className="map-art-block"><div className="map-art-label">Map layers</div><p className="map-art-hint">OpenFreeMap vector tiles keep roads, railway lines, paths, and street labels independently adjustable.</p></section>

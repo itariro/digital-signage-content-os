@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { EditorButton } from '@/components/editor/controls'
+import { FieldError } from '@/components/ui/field'
+import { Textarea } from '@/components/ui/textarea'
 import { withMeasuredStrip } from '@/lib/canvas/measure-client'
 import type { MarqueeConfig, MarqueeStrip } from '@/lib/types'
 
@@ -51,15 +53,15 @@ export function MarqueeLinesEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <textarea
+      <Textarea
         aria-label={colorMode ? 'Colours' : 'Marquee lines'}
         rows={Math.min(12, Math.max(3, value.length + 1))}
         maxLength={maxLength * maxLines}
         value={draft}
         onChange={(e) => commit(e.target.value)}
-        className="editor-control min-h-20 w-full p-2 font-mono text-xs"
+        className="min-h-20 font-mono text-xs"
       />
-      {error && <p role="alert" className="text-[11px] text-destructive">{error}</p>}
+      {error && <FieldError className="text-[11px]">{error}</FieldError>}
       <p className="text-[11px] text-muted-foreground">
         {value.length}/{maxLines} entries. Strip measurements are written to config on save.
       </p>

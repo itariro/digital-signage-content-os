@@ -2,13 +2,23 @@
 
 import { useMemo } from 'react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
-import { ColorField, EditorButton, SelectField, SliderField } from '@/components/editor/controls'
+import { ColorField, EditorButton, IconButton, SelectField, SliderField } from '@/components/editor/controls'
 import { resolveGeometry, validateGeometry, type FrameScreenSize } from '@/lib/canvas/geometry'
 import { nanoid } from 'nanoid'
 import type { Album, CanvasConfig, CanvasSlot, FrameStore, Layout } from '@/lib/types'
 import type { CanvasFrame } from '@/hooks/use-canvas-library'
 import { WallPreview } from './wall-preview'
 import { CanvasExtrasPanel } from './canvas-extras-panel'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const ALIGN_OPTIONS = [
   { value: 'start', label: 'Start' },
@@ -72,16 +82,15 @@ export function ArrangementEditor({
         </span>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <label htmlFor="canvas-layout-name" className="text-xs font-medium">Layout name</label>
-        <input
+      <Field className="gap-1">
+        <FieldLabel htmlFor="canvas-layout-name">Layout name</FieldLabel>
+        <Input
           id="canvas-layout-name"
           value={layout.name}
           maxLength={80}
           onChange={(e) => onChange({ ...layout, name: e.target.value })}
-          className="editor-control h-9 w-full px-2"
         />
-      </div>
+      </Field>
 
       <SelectField
         label="Arrangement"
@@ -115,43 +124,56 @@ export function ArrangementEditor({
               <li key={slot.id} className="rounded-lg border border-border bg-card p-2">
                 <div className="flex items-center gap-2">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded bg-primary/10 text-xs text-primary">{index + 1}</span>
-                  <select
-                    aria-label={`Frame for slot ${index + 1}`}
-                    value={slot.frameId ?? ''}
-                    onChange={(e) => updateSlot(slot.id, (s) => ({ ...s, frameId: e.target.value || null }))}
-                    className="editor-control h-9 min-w-0 flex-1 px-2"
+                  <Select
+                    items={[{ value: 'none', label: 'Empty slot' }, ...frames.map((entry) => ({
+                      value: entry.id,
+                      label: `${entry.name}${entry.inCanvas ? ` (${entry.inCanvas.state} on ${entry.inCanvas.name})` : ''}`,
+                    }))]}
+                    value={slot.frameId ?? 'none'}
+                    onValueChange={(next) => next !== null && updateSlot(slot.id, (s) => ({ ...s, frameId: next === 'none' ? null : String(next) }))}
                   >
-                    <option value="">Empty slot</option>
-                    {frames.map((entry) => (
-                      <option key={entry.id} value={entry.id} disabled={Boolean(entry.inCanvas && entry.inCanvas.canvasId !== layout.id)}>
-                        {entry.name}{entry.inCanvas ? ` (${entry.inCanvas.state} on ${entry.inCanvas.name})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <EditorButton type="button" variant="quiet" aria-label={`Move slot ${index + 1} earlier`} disabled={index === 0} onClick={() => moveSlot(slot.id, -1)}>
+                    <SelectTrigger aria-label={`Frame for slot ${index + 1}`} className="h-9 min-w-0 flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value="none">Empty slot</SelectItem>
+                        {frames.map((entry) => (
+                          <SelectItem
+                            key={entry.id}
+                            value={entry.id}
+                            disabled={Boolean(entry.inCanvas && entry.inCanvas.canvasId !== layout.id)}
+                          >
+                            {entry.name}{entry.inCanvas ? ` (${entry.inCanvas.state} on ${entry.inCanvas.name})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <IconButton label={`Move slot ${index + 1} earlier`} disabled={index === 0} onClick={() => moveSlot(slot.id, -1)}>
                     <ArrowUp className="size-4" aria-hidden />
-                  </EditorButton>
-                  <EditorButton type="button" variant="quiet" aria-label={`Move slot ${index + 1} later`} disabled={index === config.slots.length - 1} onClick={() => moveSlot(slot.id, 1)}>
+                  </IconButton>
+                  <IconButton label={`Move slot ${index + 1} later`} disabled={index === config.slots.length - 1} onClick={() => moveSlot(slot.id, 1)}>
                     <ArrowDown className="size-4" aria-hidden />
-                  </EditorButton>
-                  <EditorButton type="button" variant="destructive" aria-label={`Remove slot ${index + 1}`} onClick={() => updateConfig({ ...config, slots: config.slots.filter((s) => s.id !== slot.id) })}>
+                  </IconButton>
+                  <IconButton label={`Remove slot ${index + 1}`} onClick={() => updateConfig({ ...config, slots: config.slots.filter((s) => s.id !== slot.id) })} className="hover:text-destructive">
                     <Trash2 className="size-4" aria-hidden />
-                  </EditorButton>
+                  </IconButton>
                 </div>
                 {busy && <p className="mt-1 text-[11px] text-amber-700">Already used by another canvas.</p>}
                 <div className="mt-2 grid grid-cols-3 gap-2">
-                  <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                    Offset X
-                    <input type="number" aria-label={`Offset X slot ${index + 1}`} value={slot.offset.x} onChange={(e) => updateSlot(slot.id, (s) => ({ ...s, offset: { ...s.offset, x: Number(e.target.value) } }))} className="editor-control h-8 px-1" />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                    Offset Y
-                    <input type="number" aria-label={`Offset Y slot ${index + 1}`} value={slot.offset.y} onChange={(e) => updateSlot(slot.id, (s) => ({ ...s, offset: { ...s.offset, y: Number(e.target.value) } }))} className="editor-control h-8 px-1" />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                    Scale
-                    <input type="number" aria-label={`Scale slot ${index + 1}`} min={0.25} max={2} step={0.05} value={slot.scale} onChange={(e) => updateSlot(slot.id, (s) => ({ ...s, scale: Math.max(0.25, Math.min(2, Number(e.target.value))) }))} className="editor-control h-8 px-1" />
-                  </label>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`slot-x-${slot.id}`} className="text-[11px] text-muted-foreground">Offset X</FieldLabel>
+                    <Input id={`slot-x-${slot.id}`} type="number" aria-label={`Offset X slot ${index + 1}`} value={slot.offset.x} onChange={(e) => updateSlot(slot.id, (s) => ({ ...s, offset: { ...s.offset, x: Number(e.target.value) } }))} />
+                  </Field>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`slot-y-${slot.id}`} className="text-[11px] text-muted-foreground">Offset Y</FieldLabel>
+                    <Input id={`slot-y-${slot.id}`} type="number" aria-label={`Offset Y slot ${index + 1}`} value={slot.offset.y} onChange={(e) => updateSlot(slot.id, (s) => ({ ...s, offset: { ...s.offset, y: Number(e.target.value) } }))} />
+                  </Field>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor={`slot-scale-${slot.id}`} className="text-[11px] text-muted-foreground">Scale</FieldLabel>
+                    <Input id={`slot-scale-${slot.id}`} type="number" aria-label={`Scale slot ${index + 1}`} min={0.25} max={2} step={0.05} value={slot.scale} onChange={(e) => updateSlot(slot.id, (s) => ({ ...s, scale: Math.max(0.25, Math.min(2, Number(e.target.value))) }))} />
+                  </Field>
                 </div>
               </li>
             )

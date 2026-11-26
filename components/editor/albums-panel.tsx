@@ -6,6 +6,8 @@ import type { Album, AlbumTheme } from '@/lib/types'
 import { EDITOR_ALBUM_THEMES, THEME_META } from '@/lib/albums'
 import { AlbumDetail, type AlbumUpdater } from './album-detail'
 import { EditorButton, Section } from './controls'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { cn } from '@/lib/utils'
 
 type AlbumsPanelProps = {
@@ -103,9 +105,11 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
         )}
 
         {albums.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs leading-relaxed text-muted-foreground">
-            No albums yet. Create one to turn the frame into a rotating poster wall, map gallery, bookshelf or record crate.
-          </p>
+          <Empty className="rounded-lg p-4">
+            <EmptyDescription className="text-xs">
+              No albums yet. Create one to turn the frame into a rotating poster wall, map gallery, bookshelf or record crate.
+            </EmptyDescription>
+          </Empty>
         ) : (
           <ul className="flex flex-col gap-2">
             {albums.filter((album) => album.theme !== 'canvas').map((album) => {
@@ -113,11 +117,12 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
               const live = layoutAlbumId === album.id
               return (
                 <li key={album.id}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => onOpen(album.id)}
                     className={cn(
-                      'flex w-full items-center gap-3 rounded-lg border bg-card p-2 text-left transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring',
+                      'flex h-auto w-full items-center justify-start gap-3 rounded-lg border bg-card p-2 text-left transition-colors hover:bg-secondary',
                       live ? 'border-primary/60 bg-primary/5' : 'border-border',
                     )}
                   >
@@ -130,7 +135,7 @@ export function AlbumsPanel({ albums, openId, layoutAlbumId, onOpen, onCreate, o
                       </span>
                       {live && <span className="text-[11px] font-medium text-primary">On this layout</span>}
                     </span>
-                  </button>
+                  </Button>
                 </li>
               )
             })}

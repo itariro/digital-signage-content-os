@@ -45,10 +45,14 @@ describe('editor visual system', () => {
     }
   })
 
-  it('exposes a typed EditorButton that composes the shared action styles', () => {
+  it('exposes a typed EditorButton that maps onto the shared button primitives', () => {
     expect(controls).toContain("export type EditorButtonVariant = 'primary' | 'secondary' | 'quiet' | 'destructive'")
     expect(controls).toContain('export function EditorButton')
-    expect(controls).toContain('editor-button-${variant}')
+    expect(controls).toContain("import { Button } from '@/components/ui/button'")
+    expect(controls).toContain("primary: 'default'")
+    expect(controls).toContain("secondary: 'outline'")
+    expect(controls).toContain("quiet: 'ghost'")
+    expect(controls).toContain("destructive: 'destructive'")
   })
 
   it('uses shared sections and editor controls throughout the inspector and layout settings', () => {
@@ -56,12 +60,16 @@ describe('editor visual system', () => {
 
     for (const source of [inspector, layoutSettings]) {
       expect(source).toContain('<Section title=')
-      expect(source).toContain('className="editor-control')
+      expect(source).toContain("from '@/components/ui/input'")
     }
 
     expect(controls).toContain('editor-panel-section')
-    expect(controls).toContain('className="editor-control')
-    expect(library).toContain('className="editor-control')
+    expect(controls).toContain("from '@/components/ui/field'")
+    expect(controls).toContain("from '@/components/ui/input'")
+    expect(controls).toContain("from '@/components/ui/select'")
+    expect(controls).toContain("from '@/components/ui/switch'")
+    expect(controls).toContain("from '@/components/ui/slider'")
+    expect(library).toContain("from '@/components/ui/input-group'")
   })
 
   it('uses shared action treatments for layer, layout, and library actions', () => {
@@ -80,7 +88,7 @@ describe('editor visual system', () => {
 
     expect(editor).toContain('import { IconButton } from')
     expect(editor).toContain('<IconButton label={`Close ${drawerTitle} panel`} onClick={closeDrawer}>')
-    expect(editor).toContain("'editor-icon-button size-8 rounded-lg'")
+    expect(editor).toMatch(/<IconButton\s+label="Widgets"/)
 
     expect(topBar).toMatch(/<EditorButton\s+type="button"\s+variant="secondary"\s+onClick=\{onPreview\}\s+className=/)
     expect(topBar).toMatch(/<EditorButton\s+type="button"\s+aria-label="Night preview"\s+aria-pressed=\{nightPreview\}\s+variant="quiet"\s+onClick=\{onToggleNight\}\s+className=/)
@@ -90,11 +98,11 @@ describe('editor visual system', () => {
     expect(topBar).toContain('<IconButton label="Redo (⇧⌘Z)"')
 
     expect(frameSwitcher).toMatch(/<EditorButton type="button" variant="primary"[^>]*onClick=\{saveFrame\}>[\s\S]*?Save frame/)
-    expect(frameSwitcher).toMatch(/<EditorButton type="button" variant="quiet"[^>]*onClick=\{\(\) => setEditing\(null\)\}>Cancel/)
+    expect(frameSwitcher).toMatch(/<EditorButton type="button" variant="quiet"[^>]*onClick=\{\(\) => setEditing\(null\)\}>[\s\S]*?Cancel/)
     expect(frameSwitcher.match(/<EditorButton\b/g)).toHaveLength(3)
-    expect(frameSwitcher).toContain('<IconButton label={`Edit ${frame.name}`}')
-    expect(frameSwitcher).toContain('<IconButton label={`Remove ${frame.name}`} onClick={() => removeFrame(frame.id)} className="hover:text-destructive">')
-    expect(frameSwitcher).toContain('className="editor-icon-button"')
+    expect(frameSwitcher).toMatch(/<IconButton\s+label=\{`Edit \$\{frame\.name\}`\}/)
+    expect(frameSwitcher).toMatch(/<IconButton\s+label=\{`Remove \$\{frame\.name\}`\}[\s\S]*?removeFrame\(frame\.id\)[\s\S]*?hover:text-destructive/)
+    expect(frameSwitcher).toContain("from '@/components/ui/popover'")
 
     expect(preview).toMatch(/<EditorButton\s+type="button"\s+variant="secondary"\s+autoFocus\s+onClick=\{onClose\}\s+className=/)
   })
@@ -126,7 +134,7 @@ describe('editor visual system', () => {
     }
 
     for (const source of [albumDetail, fonts, schedule, experiences]) {
-      expect(source).toContain('className="editor-control')
+      expect(source).toContain("from '@/components/ui/input'")
     }
 
     for (const source of [albums, albumDetail, fonts, schedule, experiences, notifications]) {
@@ -137,7 +145,7 @@ describe('editor visual system', () => {
     expect(albums).toContain('variant="secondary"')
     expect(albumDetail).toContain('variant="destructive"')
     expect(fonts).toContain('variant="primary"')
-    expect(schedule).toContain('editor-button editor-button-secondary')
+    expect(schedule).toContain('<Button')
     expect(notifications).toContain('variant="destructive"')
     expect(experiences).toContain('variant="primary"')
   })
@@ -166,23 +174,22 @@ describe('editor visual system', () => {
   it('uses shared editor sections, controls, actions, and semantic feedback in administration tabs', () => {
     const { panel, frames, conflicts, audit } = adminSources
 
-    expect(panel).toContain('<EditorButton')
-    expect(panel).toContain('aria-pressed={activeTab === tab.id}')
-    expect(panel).toContain('aria-pressed:border-primary')
+    expect(panel).toContain('<Tabs')
+    expect(panel).toContain('<TabsTrigger key={tab.id} value={tab.id}')
+    expect(panel).toContain('<TabsList variant="line"')
 
     for (const source of [frames, conflicts, audit]) {
       expect(source).toMatch(/<Section\s+title=/)
       expect(source).toContain('role="status"')
       expect(source).toContain('text-muted-foreground')
-      expect(source).toContain('role="alert"')
-      expect(source).toContain('text-destructive')
+      expect(source).toContain('<Alert')
       expect(source).toContain('border-border bg-card')
     }
 
     expect(frames).toContain('<EditorButton')
     expect(frames).toContain('variant="primary"')
     expect(frames).toContain('variant="secondary"')
-    expect(frames).toContain('className="editor-control')
+    expect(frames).toContain("from '@/components/ui/alert'")
     expect(conflicts).toContain('<EditorButton')
     expect(conflicts).toContain('variant="secondary"')
     expect(conflicts).toContain('variant="destructive"')
@@ -191,10 +198,10 @@ describe('editor visual system', () => {
   it('keeps administration tabs and workflows connected to their existing handlers', () => {
     const { panel, frames, conflicts, audit } = adminSources
 
-    expect(panel).toContain('onClick={() => setActiveTab(tab.id)}')
-    expect(panel).toContain("{activeTab === 'frames' && <FramesTab />}")
-    expect(panel).toContain("{activeTab === 'conflicts' && <ConflictsTab />}")
-    expect(panel).toContain("{activeTab === 'audit' && <AuditTab />}")
+    expect(panel).toContain('onValueChange={(value) => setActiveTab(value as AdminTab)}')
+    expect(panel).toContain('<TabsContent value="frames"><FramesTab /></TabsContent>')
+    expect(panel).toContain('<TabsContent value="conflicts"><ConflictsTab /></TabsContent>')
+    expect(panel).toContain('<TabsContent value="audit"><AuditTab /></TabsContent>')
 
     expect(frames).toContain('onClick={() => void issueCode()}')
     expect(frames).toContain('onClick={() => void issueCode(instance.id)}')

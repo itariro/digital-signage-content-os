@@ -122,13 +122,14 @@ export function AlbumsTab() {
       <ul className="flex flex-col gap-2">
         {visibleAlbums.map((album) => (
           <li key={album.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-3">
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={() => setOpenId(album.id)}
-              className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground hover:underline"
+              className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-sm font-medium"
             >
               {album.name}
-            </button>
+            </Button>
             <Button type="button" variant="destructive" size="sm" aria-label={`Delete ${album.name}`} onClick={() => void remove(album)}>
               Delete
             </Button>

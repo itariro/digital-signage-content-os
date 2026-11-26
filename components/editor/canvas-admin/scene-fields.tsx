@@ -1,8 +1,11 @@
 'use client'
 
-import { ColorField, SelectField, ToggleField } from '@/components/editor/controls'
+import { ColorField, SelectField, SliderField, ToggleField } from '@/components/editor/controls'
 import { BUILTIN_FONTS, fontLabel } from '@/lib/fonts'
 import type { SceneField } from '@/lib/canvas/scenes/types'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { LogoUpload } from './logo-upload'
 import { MarqueeLinesEditor } from './marquee-lines-editor'
 
@@ -27,15 +30,13 @@ export function setPath(root: ConfigObject, key: string, value: unknown): Config
   return next
 }
 
-const NUMBER = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 })
-
 function FieldRow({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5 py-1.5">
-      <span className="text-xs font-medium text-foreground">{label}</span>
+    <Field className="gap-1.5 py-1.5">
+      <FieldLabel className="text-xs">{label}</FieldLabel>
       {children}
-      {help && <p className="text-[11px] leading-relaxed text-muted-foreground">{help}</p>}
-    </div>
+      {help && <FieldDescription className="text-[11px]">{help}</FieldDescription>}
+    </Field>
   )
 }
 
@@ -55,72 +56,70 @@ function FieldControl({
   switch (field.kind) {
     case 'number': {
       const current = Number(value ?? field.min)
-      return (
-        <FieldRow label={`${field.label} (${NUMBER.format(current)})`} help={field.help}>
-          {field.step !== undefined ? (
-            <input
-              type="range"
-              aria-label={field.label}
+      if (field.step !== undefined) {
+        return (
+          <div className="flex flex-col gap-1.5 py-1.5">
+            <SliderField
+              label={field.label}
+              value={current}
               min={field.min}
               max={field.max}
               step={field.step}
-              value={current}
-              onChange={(e) => write(Number(e.target.value))}
-              className="w-full accent-primary"
+              onChange={write}
             />
-          ) : (
-            <input
-              type="number"
-              aria-label={field.label}
-              min={field.min}
-              max={field.max}
-              value={current}
-              onChange={(e) => write(Math.max(field.min, Math.min(field.max, Number(e.target.value))))}
-              className="editor-control h-9 w-full px-2"
-            />
-          )}
+            {field.help && <p className="text-[11px] leading-relaxed text-muted-foreground">{field.help}</p>}
+          </div>
+        )
+      }
+      return (
+        <FieldRow label={field.label} help={field.help}>
+          <Input
+            type="number"
+            aria-label={field.label}
+            min={field.min}
+            max={field.max}
+            value={current}
+            onChange={(e) => write(Math.max(field.min, Math.min(field.max, Number(e.target.value))))}
+          />
         </FieldRow>
       )
     }
     case 'slider':
       return (
-        <FieldRow label={`${field.label} (${NUMBER.format(Number(value ?? field.min))})`} help={field.help}>
-          <input
-            type="range"
-            aria-label={field.label}
+        <div className="flex flex-col gap-1.5 py-1.5">
+          <SliderField
+            label={field.label}
+            value={Number(value ?? field.min)}
             min={field.min}
             max={field.max}
             step={field.step}
-            value={Number(value ?? field.min)}
-            onChange={(e) => write(Number(e.target.value))}
-            className="w-full accent-primary"
+            onChange={write}
           />
-        </FieldRow>
+          {field.help && <p className="text-[11px] leading-relaxed text-muted-foreground">{field.help}</p>}
+        </div>
       )
     case 'text':
       return (
         <FieldRow label={field.label} help={field.help}>
-          <input
+          <Input
             type="text"
             aria-label={field.label}
             maxLength={field.maxLength}
             placeholder={field.placeholder}
             value={String(value ?? '')}
             onChange={(e) => write(e.target.value)}
-            className="editor-control h-9 w-full px-2"
           />
         </FieldRow>
       )
     case 'textarea':
       return (
         <FieldRow label={field.label} help={field.help}>
-          <textarea
+          <Textarea
             aria-label={field.label}
             rows={field.rows ?? 4}
             maxLength={field.maxLength}
             value={String(value ?? '')}
             onChange={(e) => write(e.target.value)}
-            className="editor-control w-full p-2"
           />
         </FieldRow>
       )

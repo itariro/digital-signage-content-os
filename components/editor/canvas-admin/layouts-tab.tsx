@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { emptyCanvasConfig } from '@/lib/canvas/defaults'
 import { useCanvasLibrary } from '@/hooks/use-canvas-library'
 import type { Layout } from '@/lib/types'
@@ -99,13 +100,14 @@ export function LayoutsTab() {
           return (
             <li key={layout.id} className="rounded-lg border border-border bg-card p-3">
               <div className="flex items-center justify-between gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => setOpenId(layout.id)}
-                  className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground hover:underline"
+                  className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-sm font-medium"
                 >
                   {layout.name}
-                </button>
+                </Button>
                 <Button type="button" variant="destructive" size="sm" aria-label={`Delete ${layout.name}`} onClick={() => void remove(layout)}>
                   Delete
                 </Button>
@@ -120,16 +122,16 @@ export function LayoutsTab() {
                   <Button type="button" variant="secondary" size="sm" onClick={() => void run(() => release(layout.id), 'Canvas released')} disabled={dirty || busy}>Release</Button>
                   <Button type="button" variant="ghost" size="sm" onClick={() => void run(() => identify(layout.id, identifySeconds), 'Identification started')} disabled={dirty || busy}>Identify</Button>
                   <Button type="button" variant="ghost" size="sm" onClick={() => void run(() => identify(layout.id, 0), 'Identification cleared')} disabled={dirty || busy}>Clear markers</Button>
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     Lead
-                    <input aria-label="Lead seconds" type="number" min={0} max={600} value={leadSeconds} onChange={(e) => setLeadSeconds(Number(e.target.value))} className="h-8 w-14 rounded-md border border-input bg-background px-2 text-xs" />
+                    <Input aria-label="Lead seconds" type="number" min={0} max={600} value={leadSeconds} onChange={(e) => setLeadSeconds(Number(e.target.value))} className="h-8 w-14 px-2 text-xs" />
                     s
-                  </label>
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     Identify
-                    <input aria-label="Identify seconds" type="number" min={0} max={120} value={identifySeconds} onChange={(e) => setIdentifySeconds(Number(e.target.value))} className="h-8 w-14 rounded-md border border-input bg-background px-2 text-xs" />
+                    <Input aria-label="Identify seconds" type="number" min={0} max={120} value={identifySeconds} onChange={(e) => setIdentifySeconds(Number(e.target.value))} className="h-8 w-14 px-2 text-xs" />
                     s
-                  </label>
+                  </div>
                 </div>
               )}
             </li>

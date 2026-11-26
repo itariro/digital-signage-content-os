@@ -479,67 +479,63 @@ export function Editor({
         />
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <nav aria-label="Editor sections" className="editor-panel flex w-10 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-border py-2">
-            <button
-              type="button"
-              aria-label="Widgets"
+            <IconButton
+              label="Widgets"
+              active={activeDrawer === 'widgets'}
               aria-expanded={activeDrawer === 'widgets'}
               aria-controls="editor-drawer"
               onClick={(event) => toggleDrawer('widgets', event.currentTarget)}
-              className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'widgets' && 'bg-primary/10 text-primary')}
             >
-              <Grid2X2 className="size-[18px]" aria-hidden />
-            </button>
+              <Grid2X2 aria-hidden />
+            </IconButton>
             {canManageFrames && (
-              <button
-                type="button"
-                aria-label="Frames"
+              <IconButton
+                label="Frames"
+                active={activeDrawer === 'frames'}
                 aria-expanded={activeDrawer === 'frames'}
                 aria-controls="editor-drawer"
                 onClick={(event) => toggleDrawer('frames', event.currentTarget)}
-                className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'frames' && 'bg-primary/10 text-primary')}
               >
-                <Frame className="size-[18px]" aria-hidden />
-              </button>
+                <Frame aria-hidden />
+              </IconButton>
             )}
             {canManageFrames && !singleFrame && (
-              <button
-                type="button"
-                aria-label="Canvas"
+              <IconButton
+                label="Canvas"
+                active={activeDrawer === 'canvas'}
                 aria-expanded={activeDrawer === 'canvas'}
                 aria-controls="editor-drawer"
                 onClick={(event) => toggleDrawer('canvas', event.currentTarget)}
-                className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === 'canvas' && 'bg-primary/10 text-primary')}
               >
-                <MonitorPlay className="size-[18px]" aria-hidden />
-              </button>
+                <MonitorPlay aria-hidden />
+              </IconButton>
             )}
             {PANELS.map((panel) => {
               const Icon = panel.icon
               const label = panel.id === 'experiences' ? 'Experiences' : panel.label
               return (
-                <button
+                <IconButton
                   key={panel.id}
-                  type="button"
-                  aria-label={label}
+                  label={label}
+                  active={activeDrawer === panel.id}
                   aria-expanded={activeDrawer === panel.id}
                   aria-controls="editor-drawer"
                   onClick={(event) => toggleDrawer(panel.id, event.currentTarget)}
-                  className={cn('editor-icon-button size-8 rounded-lg', activeDrawer === panel.id && 'bg-primary/10 text-primary')}
                 >
-                  <Icon className="size-[18px]" aria-hidden />
-                </button>
+                  <Icon aria-hidden />
+                </IconButton>
               )
             })}
-            <button
-              type="button"
-              aria-label="Properties"
+            <IconButton
+              label="Properties"
+              active={activeDrawer === 'properties'}
               aria-expanded={activeDrawer === 'properties'}
               aria-controls="editor-drawer"
               onClick={(event) => toggleDrawer('properties', event.currentTarget)}
-              className={cn('editor-icon-button size-8 rounded-lg lg:hidden', activeDrawer === 'properties' && 'bg-primary/10 text-primary')}
+              className="lg:hidden"
             >
-              <SlidersHorizontal className="size-[18px]" aria-hidden />
-            </button>
+              <SlidersHorizontal aria-hidden />
+            </IconButton>
             <div className="mt-auto border-t border-border pt-2"><ThemeToggle /></div>
           </nav>
 

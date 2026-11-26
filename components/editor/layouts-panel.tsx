@@ -5,6 +5,9 @@ import { Copy, FileUp, MonitorCheck, Plus, Trash2 } from 'lucide-react'
 import type { Layout } from '@/lib/types'
 import { FrameScene } from '@/components/frame/frame-scene'
 import { EditorButton, IconButton } from './controls'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useLiveData } from './widget-preview'
 import { cn } from '@/lib/utils'
 
@@ -45,7 +48,7 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
           <FileUp className="size-4" aria-hidden />
           Import
         </EditorButton>
-        <input
+        <Input
           ref={fileRef}
           type="file"
           accept="application/json,.json"
@@ -70,30 +73,36 @@ export function LayoutsPanel({ layouts, activeId, editingId, onOpen, onCreate, o
                 editing ? 'bg-primary/10 ring-primary' : 'bg-secondary ring-border hover:ring-muted-foreground',
               )}
             >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => onOpen(layout.id)}
                 aria-label={`Open ${layout.name}`}
-                className="shrink-0 overflow-hidden rounded-md ring-1 ring-border"
+                className="h-auto shrink-0 overflow-hidden rounded-md p-0 ring-1 ring-border"
               >
                 <FrameScene widgets={layout.widgets} settings={layout.settings} weather={weather} now={now} scale={0.07} />
-              </button>
+              </Button>
               <div className="flex min-w-0 flex-1 flex-col">
-                <button type="button" onClick={() => onOpen(layout.id)} className="text-left">
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => onOpen(layout.id)}
+                  className="h-auto flex-col items-start gap-0 p-0 text-left"
+                >
                   <span className="block truncate text-sm font-medium text-foreground">{layout.name}</span>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="block text-xs font-normal text-muted-foreground">
                     {layout.widgets.length} widgets · {layout.settings.resolution.split('x')[0]}p
                   </span>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="block text-xs font-normal text-muted-foreground">
                     Edited {new Date(layout.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                   </span>
-                </button>
+                </Button>
                 <div className="mt-auto flex items-center gap-0.5 pt-2">
                   {active ? (
-                    <span className="flex h-8 items-center gap-1 rounded-full bg-primary/15 px-2.5 text-xs font-medium text-primary">
-                      <MonitorCheck className="size-4" aria-hidden />
+                    <Badge variant="secondary" className="h-8 gap-1 rounded-full px-2.5 text-xs">
+                      <MonitorCheck aria-hidden />
                       On frame
-                    </span>
+                    </Badge>
                   ) : (
                     <EditorButton
                       type="button"

@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { BUILTIN_FONTS, customFontId, fontStack } from '@/lib/fonts'
-import { EditorButton, Section } from './controls'
+import { EditorButton, IconButton, Section } from './controls'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 
 type FontsPanelProps = {
   customFonts: string[]
@@ -31,23 +33,23 @@ export function FontsPanel({ customFonts, onAdd, onRemove }: FontsPanelProps) {
     <div className="editor-panel flex flex-col">
       <Section title="Add a Google Font">
         <form onSubmit={submit} className="flex flex-col gap-2">
-          <label htmlFor="font-family" className="text-xs font-medium text-muted-foreground">
-            Font family
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="font-family"
-              value={family}
-              onChange={(e) => setFamily(e.target.value)}
-              placeholder="e.g. Fraunces"
-              maxLength={60}
-              className="editor-control min-w-0 flex-1"
-            />
+          <Field className="gap-1">
+            <FieldLabel htmlFor="font-family" className="text-xs text-muted-foreground">Font family</FieldLabel>
+            <div className="flex gap-2">
+              <Input
+                id="font-family"
+                value={family}
+                onChange={(e) => setFamily(e.target.value)}
+                placeholder="e.g. Fraunces"
+                maxLength={60}
+                className="min-w-0 flex-1"
+              />
             <EditorButton type="submit" variant="primary" disabled={pending || !family.trim()}>
               {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Plus className="size-4" aria-hidden />}
               Add
             </EditorButton>
-          </div>
+            </div>
+          </Field>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Type the exact family name from fonts.google.com. It becomes available in every widget&apos;s typeface picker.
           </p>
@@ -65,14 +67,9 @@ export function FontsPanel({ customFonts, onAdd, onRemove }: FontsPanelProps) {
                   </span>
                   <span className="text-xs text-muted-foreground">{f}</span>
                 </span>
-                <button
-                  type="button"
-                  aria-label={`Remove ${f}`}
-                  onClick={() => onRemove(f)}
-                  className="editor-icon-button hover:text-destructive"
-                >
+                <IconButton label={`Remove ${f}`} onClick={() => onRemove(f)} className="hover:text-destructive">
                   <Trash2 className="size-4" aria-hidden />
-                </button>
+                </IconButton>
               </li>
             ))}
           </ul>

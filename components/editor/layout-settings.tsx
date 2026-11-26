@@ -10,6 +10,9 @@ import type { Album } from '@/lib/types'
 import { THEME_META } from '@/lib/albums'
 import { Section, Segmented, SelectField, SliderField, ThemeSwatches, ToggleField } from './controls'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 
 const BACKGROUNDS = [
   { src: '/backgrounds/alpine-lake.png', label: 'Alpine lake' },
@@ -97,9 +100,9 @@ export function LayoutSettingsPanel({
       <Section
         title="Slideshow"
         action={
-          <button type="button" onClick={onOpenAlbums} className="text-xs font-medium text-primary hover:underline">
+          <Button type="button" variant="link" size="sm" onClick={onOpenAlbums} className="h-auto p-0 text-xs">
             Manage albums
-          </button>
+          </Button>
         }
       >
         <SelectField
@@ -134,25 +137,27 @@ export function LayoutSettingsPanel({
       {!activeAlbum && <Section title="Preview photo">
         <div className="grid grid-cols-3 gap-2">
           {BACKGROUNDS.map((bg) => (
-            <button
+            <Button
               key={bg.src}
               type="button"
+              variant="ghost"
               aria-pressed={settings.background === bg.src}
               aria-label={bg.label}
               onClick={() => editor.updateSettings({ background: bg.src })}
               className={cn(
-                'aspect-[9/16] overflow-hidden rounded-md bg-cover bg-center ring-1 transition',
+                'aspect-[9/16] h-auto overflow-hidden rounded-md bg-cover bg-center p-0 ring-1 transition hover:bg-transparent',
                 settings.background === bg.src ? 'ring-2 ring-primary' : 'ring-border hover:ring-muted-foreground',
               )}
               style={{ backgroundImage: `url(${bg.src})` }}
             />
           ))}
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => fileRef.current?.click()}
             aria-pressed={isCustomBg}
             className={cn(
-              'flex aspect-[9/16] flex-col items-center justify-center gap-1 overflow-hidden rounded-md bg-secondary bg-cover bg-center text-xs text-muted-foreground ring-1 transition hover:text-foreground',
+              'flex aspect-[9/16] h-auto flex-col items-center justify-center gap-1 overflow-hidden rounded-md bg-secondary bg-cover bg-center p-0 text-xs text-muted-foreground ring-1 transition hover:bg-secondary hover:text-foreground',
               isCustomBg ? 'ring-2 ring-primary' : 'ring-border',
             )}
             style={isCustomBg ? { backgroundImage: `url(${settings.background})` } : undefined}
@@ -164,21 +169,22 @@ export function LayoutSettingsPanel({
               </>
             )}
             {isCustomBg && <span className="sr-only">Replace uploaded photo</span>}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => editor.updateSettings({ background: '' })}
             aria-pressed={settings.background === ''}
             className={cn(
-              'flex aspect-[9/16] flex-col items-center justify-center gap-1 rounded-md bg-muted text-xs text-muted-foreground ring-1 transition hover:text-foreground',
+              'flex aspect-[9/16] h-auto flex-col items-center justify-center gap-1 rounded-md bg-muted p-0 text-xs text-muted-foreground ring-1 transition hover:bg-muted hover:text-foreground',
               settings.background === '' ? 'ring-2 ring-primary' : 'ring-border',
             )}
           >
             <ImageOff className="size-4" aria-hidden />
             None
-          </button>
+          </Button>
         </div>
-        <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => onUpload(e.target.files?.[0])} />
+        <Input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => onUpload(e.target.files?.[0])} />
         <SliderField
           label="Dim photo"
           value={settings.dim}
@@ -198,32 +204,38 @@ export function LayoutSettingsPanel({
           <MapPin className="size-4 shrink-0 text-primary" aria-hidden />
           <span className="truncate">{settings.locationName}</span>
         </div>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <input
+        <InputGroup>
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+          <InputGroupInput
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search a city"
             aria-label="Search a city"
-            className="editor-control h-8 w-full pl-9 pr-3"
           />
-          {isLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />}
-        </div>
+          {isLoading && (
+            <InputGroupAddon align="inline-end">
+              <Loader2 className="animate-spin" aria-hidden />
+            </InputGroupAddon>
+          )}
+        </InputGroup>
         {query.trim().length >= 2 && results.length > 0 && (
           <ul className="flex flex-col overflow-hidden rounded-md border border-border">
             {results.map((r) => (
               <li key={r.id}>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => {
                     editor.updateSettings({ locationName: r.name, lat: r.lat, lon: r.lon })
                     setQuery('')
                   }}
-                  className="w-full truncate px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
+                  className="w-full justify-start truncate rounded-none px-3 py-2 text-left text-sm font-normal"
                 >
                   {r.name}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

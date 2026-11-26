@@ -4,6 +4,8 @@ import { ChevronDown, ChevronUp, Eye, EyeOff, Link2, Lock, Unlock } from 'lucide
 import type { EditorApi } from '@/hooks/use-editor'
 import { getDefinition } from '@/lib/widgets'
 import { IconButton } from './controls'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { cn } from '@/lib/utils'
 
 export function LayersPanel({ editor }: { editor: EditorApi }) {
@@ -11,7 +13,11 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
   const ordered = [...widgets].reverse()
 
   if (widgets.length === 0) {
-    return <p className="editor-panel p-6 text-center text-sm text-muted-foreground">No widgets yet. Add some from the Widgets tab.</p>
+    return (
+      <Empty className="editor-panel rounded-none border-0 p-6">
+        <EmptyDescription>No widgets yet. Add some from the Widgets tab.</EmptyDescription>
+      </Empty>
+    )
   }
 
   return (
@@ -29,8 +35,9 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
               w.hidden && 'opacity-50',
             )}
           >
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={(e) => {
                 if (e.shiftKey || e.metaKey) {
                   editor.select(isSelected ? selected.filter((id) => id !== w.id) : [...selected, w.id])
@@ -38,7 +45,7 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
                   editor.select([w.id])
                 }
               }}
-              className="flex min-h-8 min-w-0 flex-1 items-center gap-2 py-2 text-left"
+              className="flex h-auto min-h-8 min-w-0 flex-1 items-center justify-start gap-2 p-2 text-left font-normal"
             >
               <def.icon className={cn('size-4 shrink-0', isSelected ? 'text-primary' : 'text-muted-foreground')} aria-hidden />
               <span className="flex min-w-0 flex-col">
@@ -48,7 +55,7 @@ export function LayersPanel({ editor }: { editor: EditorApi }) {
                 <span className="truncate text-xs text-muted-foreground">{template}</span>
               </span>
               {w.groupId && <Link2 className="size-4 shrink-0 text-primary" aria-label="Grouped" />}
-            </button>
+            </Button>
             <IconButton label="Move up" disabled={i === 0} onClick={() => editor.reorder(w.id, 'up')}>
               <ChevronUp className="size-4" />
             </IconButton>

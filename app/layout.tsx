@@ -5,6 +5,7 @@ import type { Metadata, Viewport } from 'next'
 import { Bebas_Neue, Instrument_Serif, Inter, JetBrains_Mono, Outfit, Playfair_Display, Space_Grotesk } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { SwRegister } from '@/components/sw-register'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -41,19 +42,21 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`bg-background ${fontVars}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <Script src="/editor-theme-init.js" strategy="beforeInteractive" />
-        {hasClerk ? (
-          <ClerkProvider appearance={{ theme: shadcn }}>
-            {children}
-            <SwRegister />
-            {process.env.NODE_ENV === 'production' && <Analytics />}
-          </ClerkProvider>
-        ) : (
-          <>
-            {children}
-            <SwRegister />
-            {process.env.NODE_ENV === 'production' && <Analytics />}
-          </>
-        )}
+        <TooltipProvider>
+          {hasClerk ? (
+            <ClerkProvider appearance={{ theme: shadcn }}>
+              {children}
+              <SwRegister />
+              {process.env.NODE_ENV === 'production' && <Analytics />}
+            </ClerkProvider>
+          ) : (
+            <>
+              {children}
+              <SwRegister />
+              {process.env.NODE_ENV === 'production' && <Analytics />}
+            </>
+          )}
+        </TooltipProvider>
       </body>
     </html>
   )

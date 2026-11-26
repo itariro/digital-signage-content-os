@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react'
 import { EditorButton } from '@/components/editor/controls'
+import { FieldError } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { downscaleToDataUri } from '@/lib/frame-utils'
 
 export function LogoUpload({
@@ -45,7 +47,7 @@ export function LogoUpload({
       ) : (
         <p className="rounded border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">No image</p>
       )}
-      <input
+      <Input
         ref={input}
         type="file"
         accept={accept.join(',')}
@@ -59,7 +61,7 @@ export function LogoUpload({
       {value && (
         <EditorButton type="button" variant="quiet" onClick={() => onChange('')}>Remove image</EditorButton>
       )}
-      {error && <p role="alert" className="text-[11px] text-destructive">{error}</p>}
+      {error && <FieldError className="text-[11px]">{error}</FieldError>}
       <p className="text-[11px] text-muted-foreground">Stored in the scene as a data URI. Kiosks never fetch an upload URL.</p>
     </div>
   )
