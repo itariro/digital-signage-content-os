@@ -1,7 +1,7 @@
 'use client'
 
 import './map-art.css'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import JSZip from 'jszip'
 import * as maplibregl from 'maplibre-gl'
 import type { FilterSpecification, Map as MapLibreMap } from 'maplibre-gl'
@@ -20,9 +20,23 @@ import {
   type TraceStep,
   type TraceStepStatus,
 } from '@/lib/map-art'
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, MapPin, Minus, Plus, RotateCcw, Upload } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ArrowLeft, CircleCheck, Download, MapPin, Minus, Pencil, Plus, RotateCcw } from 'lucide-react'
+import { Button, buttonVariants } from '@/components/ui/button'
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from '@/components/ui/carousel'
+import {
+  ButtonGroup,
+  ButtonGroupSeparator,
+  ButtonGroupText,
+} from '@/components/ui/button-group'
 import { Progress } from '@/components/ui/progress'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GenerationTrace } from './generation-trace'
 import { LocationsTab } from './locations-tab'
@@ -185,7 +199,9 @@ async function renderMapAtResolution({
 export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, embedded = false, albumCount = 0 }: { frameId?: string; onAddToAlbum?: (item: AlbumItem) => void; onSettingsChange?: (settings: MapArtSettings) => void; mapArt?: MapArtSettings; embedded?: boolean; albumCount?: number }) {
   const settingsRef = useRef<MapArtSettings>(mapArt ?? defaultMapArtSettings())
   const initialSettings = settingsRef.current
-  const mapNode = useRef<HTMLDivElement>(null)
+  // The live map lives in one persistent DOM node that is moved into whichever carousel slide is active.
+  const mapNode = useRef<HTMLDivElement | null>(null)
+  const slotRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const pendingCityMove = useRef<Promise<void> | null>(null)
   const cityRef = useRef<City>(initialSettings.city)
@@ -221,6 +237,9 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const [recentLocations, setRecentLocations] = useState(() => getRecentLocations(initialSettings))
   const [verifiedCount, setVerifiedCount] = useState<number | null>(null)
   const [traceSteps, setTraceSteps] = useState<TraceStep[]>([])
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>()
+  const busyRef = useRef(busy)
+  busyRef.current = busy
 
   function persistField<K extends keyof MapArtSettings>(
     key: K,
@@ -264,10 +283,14 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   cityRef.current = city
 
   useEffect(() => {
-    if (!mapNode.current || mapRef.current) return
+    if (mapRef.current) return
+    const node = document.createElement('div')
+    node.className = 'map-art-map'
+    mapNode.current = node
+    slotRef.current?.append(node)
     maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs')
     const map = new maplibregl.Map({
-      container: mapNode.current,
+      container: node,
       style: vectorMapStyle(style.id),
       center: [city.lon, city.lat],
       zoom: initialSettings.zoom || 12,
@@ -280,12 +303,23 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
       applyMapPreferences(map, preferencesRef.current)
       map.triggerRepaint()
     })
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
+    // Zoom lives in the pill below the carousel and attribution is in the poster credit line,
+    // so the built-in map controls are left off to keep the poster clean.
     mapRef.current = map
     return () => {
       map.remove()
+      node.remove()
       mapRef.current = null
+      mapNode.current = null
+    }
+  }, [])
+
+  const attachMapSlot = useCallback((slot: HTMLDivElement | null) => {
+    slotRef.current = slot
+    const node = mapNode.current
+    if (slot && node && node.parentElement !== slot) {
+      slot.append(node)
+      requestAnimationFrame(() => mapRef.current?.resize())
     }
   }, [])
 
@@ -324,6 +358,23 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     map.flyTo({ center: [city.lon, city.lat], zoom, duration: 700 })
     return finish
   }, [city, zoom])
+
+  // Carousel → studio: swiping or arrow clicks select that city.
+  useEffect(() => {
+    if (!carouselApi) return
+    const onSelect = () => {
+      const index = carouselApi.selectedScrollSnap()
+      if (index !== settingsRef.current.activeIndex && cities[index]) changeCity(index)
+      requestAnimationFrame(() => mapRef.current?.resize())
+    }
+    carouselApi.on('select', onSelect)
+    return () => { carouselApi.off('select', onSelect) }
+  }, [carouselApi, cities])
+
+  // Studio → carousel: batch generation, gallery clicks and validation move the slide.
+  useEffect(() => {
+    if (carouselApi && carouselApi.selectedScrollSnap() !== activeIndex) carouselApi.scrollTo(activeIndex)
+  }, [carouselApi, activeIndex])
 
   const resolveCity = useCallback(async (line: string) => {
     const response = await fetch(`/api/geocode?q=${encodeURIComponent(line)}`)
@@ -758,19 +809,56 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
     setCity(cities[next])
   }
 
-  const presets = ['Streets', 'Minimal', 'Topographic', 'Vintage atlas', 'Dark cartographic']
+  const presets = ['Streets', 'Minimal', 'Topographic', 'Vintage atlas', 'Dark']
+  const progressMax = Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)
+  const generateLabel = busy ? 'Generating…' : `Generate ${cities.length || ''} map${cities.length === 1 ? '' : 's'}`.replace('  ', ' ')
+  const slides = cities.length ? cities : [city]
+  const carouselOpts = useMemo(() => ({
+    loop: slides.length > 1,
+    // Dragging on the map pans it; dragging on the poster margin swipes. No swiping while generating.
+    watchDrag: (_api: unknown, event: MouseEvent | TouchEvent) =>
+      !busyRef.current && !(event.target as Element | null)?.closest?.('.maplibregl-canvas'),
+  }), [slides.length > 1])
+  // Mirrors the colours used in renderArtwork so the preview matches the exported PNG.
+  const ink = style.id === 'dark'
+    ? { title: '#f1eee5', sub: '#d1cec5', small: '#dedbd1' }
+    : { title: '#262522', sub: '#56534d', small: '#69655d' }
+  const coords = (entry: City) => `${Math.abs(entry.lat).toFixed(4)}° ${entry.lat < 0 ? 'S' : 'N'} · ${Math.abs(entry.lon).toFixed(4)}° ${entry.lon < 0 ? 'W' : 'E'}`
+  const renderPoster = (entry: City, live: boolean) => (
+    <div className={`map-art-poster ${orientation}`} data-style={style.id} style={{ backgroundColor }}>
+      <div className="map-art-map-area">
+        {live
+          ? <div key="live" ref={attachMapSlot} className="absolute inset-0" />
+          : <div className="absolute inset-0 grid place-items-center bg-black/5"><MapPin className="size-6 opacity-40" style={{ color: ink.sub }} /></div>}
+        <span className="map-art-map-credit">© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors</span>
+      </div>
+      {title && (
+        <div className="map-art-title">
+          <h2 style={{ color: ink.title }}>{entry.name}</h2>
+          <p style={{ color: ink.sub }}>{entry.country}</p>
+          {showCoords && <small style={{ color: ink.small }}>{coords(entry)}</small>}
+          {customText && <small style={{ color: ink.small }}>{customText}</small>}
+        </div>
+      )}
+    </div>
+  )
+  const resetView = () => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }
+  const stepZoom = (delta: number) => { const next = Math.min(16, Math.max(8, zoom + delta)); setZoom(next); mapRef.current?.setZoom(next) }
 
   return (
     <div className={embedded ? 'map-art-shell map-art-embedded' : 'map-art-shell'}>
       <header className="map-art-topbar">
         <a className="map-art-wordmark" href="/" aria-label="Return to frame editor">MURAL</a>
-        <div className="map-art-heading"><MapPin size={17} /><span>Map Art Generator</span></div>
-        <div className="map-art-header-actions"><a href="/" className="map-art-back"><ArrowLeft size={15} /> Frame editor</a><Button size="sm" onClick={generateBatch} disabled={busy}><Download size={15} data-icon="inline-start" /> {busy ? 'Generating…' : 'Generate maps'}</Button></div>
+        <Separator orientation="vertical" className="h-5" />
+        <div className="flex items-center gap-2 text-sm font-medium"><MapPin className="size-4 text-muted-foreground" />Map Art Generator</div>
+        <div className="ml-auto flex items-center gap-2">
+          <a href="/" className={buttonVariants({ variant: 'ghost', size: 'sm', className: 'max-sm:hidden' })}><ArrowLeft data-icon="inline-start" /> Frame editor</a>
+        </div>
       </header>
       <div className="map-art-body">
-        <aside className="map-art-left">
+        <aside className="map-art-left [@media(max-width:700px)]:pb-20">
           <Tabs value={tab} onValueChange={(next) => setTab(next as 'locations' | 'style')}>
-            <TabsList className="m-4 w-auto">
+            <TabsList className="mx-4 my-4 grid w-auto grid-cols-2">
               <TabsTrigger value="locations">Locations</TabsTrigger>
               <TabsTrigger value="style">Style</TabsTrigger>
             </TabsList>
@@ -797,7 +885,6 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
                 onChooseMatch={chooseCityMatch}
                 onRemoveLocation={removeLocation}
                 onConfirm={() => setVerifiedCount(results.length)}
-                onEditVerified={() => setVerifiedCount(null)}
                 onUseRecent={(city) => {
                   const next = selectOrAppendCity(cities, city)
                   if (!next) {
@@ -850,21 +937,140 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
               />
             </TabsContent>
           </Tabs>
+          {(verifiedCount !== null || traceSteps.length > 0) && (
+            <section aria-label="Generation status" className="border-t p-4">
+              {verifiedCount !== null && (
+                <div className={`flex items-center gap-2 rounded-md border bg-muted/40 py-1.5 pl-3 pr-1.5${traceSteps.length > 0 ? ' mb-3' : ''}`}>
+                  <CircleCheck className="size-4 text-primary" />
+                  <span className="flex-1 text-sm">{verifiedCount} location{verifiedCount === 1 ? '' : 's'} ready</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setVerifiedCount(null)}>
+                    <Pencil data-icon="inline-start" /> Edit
+                  </Button>
+                </div>
+              )}
+              <GenerationTrace steps={traceSteps} />
+            </section>
+          )}
+          <div className="sticky bottom-0 z-10 border-t bg-inherit p-4 [@media(max-width:700px)]:fixed [@media(max-width:700px)]:inset-x-0 [@media(max-width:700px)]:z-50 [@media(max-width:700px)]:bg-[var(--paper)]">
+            <Button className="w-full" onClick={() => void generateBatch()} disabled={busy || !cities.length}>
+              <Download data-icon="inline-start" /> {generateLabel}
+            </Button>
+          </div>
         </aside>
         <main className="map-art-stage">
-          <div className="map-art-stage-head"><div><span className="eyebrow">MAP PREVIEW</span><h1>{city.name}<span>{city.country}</span></h1></div><div className="map-art-pager"><Button type="button" variant="ghost" size="icon-sm" aria-label="Previous city" onClick={() => changeCity(activeIndex - 1)} disabled={busy || cities.length < 2}><ChevronLeft size={17} /></Button><span>{cities.length ? `${activeIndex + 1} / ${cities.length}` : '0 / 0'}</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Next city" onClick={() => changeCity(activeIndex + 1)} disabled={busy || cities.length < 2}><ChevronRight size={17} /></Button></div></div>
-          <div className="map-art-canvas-wrap"><div className={`map-art-poster ${orientation}`} data-style={style.id} style={{ backgroundColor }}><div className="map-art-map-area"><div className="map-art-map" ref={mapNode} /><span className="map-art-map-credit">© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors</span></div>{title && <div className="map-art-title"><h2>{city.name}</h2><p>{city.country}</p>{showCoords && <small>{Math.abs(city.lat).toFixed(4)}° {city.lat < 0 ? 'S' : 'N'} · {Math.abs(city.lon).toFixed(4)}° {city.lon < 0 ? 'W' : 'E'}</small>}{customText && <small>{customText}</small>}</div>}</div></div>
-          <div className="map-art-stage-foot"><div className="map-art-zoom"><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={() => { const next = Math.max(8, zoom - 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Minus size={15} /></Button><span>{zoom.toFixed(1)}×</span><Button type="button" variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => { const next = Math.min(16, zoom + 0.5); setZoom(next); mapRef.current?.setZoom(next) }}><Plus size={15} /></Button><Button type="button" variant="ghost" size="sm" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}>Fit</Button><Button type="button" variant="ghost" size="icon-sm" aria-label="Reset map position" onClick={() => { mapRef.current?.flyTo({ center: [city.lon, city.lat], zoom: 12 }); setZoom(12) }}><RotateCcw size={14} /></Button></div><span>{style.label} · {orientation === 'portrait' ? '11 MP portrait' : '8 MP landscape'}</span><Button variant="outline" size="sm" onClick={() => void generateBatch()} disabled={busy}><Upload size={14} data-icon="inline-start" /> {busy ? 'Generating…' : embedded ? 'Generate maps' : 'Save poster'}</Button></div>
-          {status && <div className="map-art-status" role="status"><span>{status}</span>{busy && <Progress aria-label="Map generation progress" max={Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)} value={batchProgress} />}</div>}
-          <GenerationTrace steps={traceSteps} />
-          {artworks.length > 0 && <section className="map-art-gallery"><div className="map-art-gallery-head"><div><span className="eyebrow">YOUR COLLECTION</span><h2>{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2></div><Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download size={14} data-icon="inline-start" /> Download ZIP</Button></div><div className="map-art-gallery-grid">{artworks.map((artwork, index) => <article key={`${artwork.city.id}-${artwork.createdAt}`}><Button className="map-art-thumb h-auto" variant="ghost" disabled={busy} onClick={() => { setCity(artwork.city); setActiveIndex(index) }}><img src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} /></Button><div><strong>{artwork.city.name}</strong><small>{artwork.city.country}</small><a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`}><Download size={14} /></a></div></article>)}</div></section>}
+          <section aria-label="Map preview" className="flex w-full max-w-[720px] flex-col items-center gap-4">
+            <p className="self-start text-xs font-medium uppercase tracking-wider text-muted-foreground">Preview</p>
+            <Carousel setApi={setCarouselApi} opts={carouselOpts} className="w-full px-12">
+              <CarouselContent>
+                {slides.map((entry, index) => (
+                  <CarouselItem key={`${entry.id}-${index}`} className="flex justify-center">
+                    {renderPoster(entry, slides.length === 1 || index === activeIndex)}
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="left-0" aria-label="Previous city" disabled={busy || slides.length < 2} />
+              <CarouselNext className="right-0" aria-label="Next city" disabled={busy || slides.length < 2} />
+            </Carousel>
+            <div className="flex flex-col items-center gap-0.5 text-center">
+              <h1 className="text-base font-semibold leading-tight">
+                {city.name}{city.country && <span className="font-normal">, {city.country}</span>}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {style.label} · {orientation === 'portrait' ? '11 MP portrait' : '8 MP landscape'}
+                {cities.length > 1 && <span className="tabular-nums"> · {activeIndex + 1} of {cities.length}</span>}
+              </p>
+            </div>
+            <ButtonGroup aria-label="Map zoom and view controls">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Zoom out"
+                onClick={() => stepZoom(-0.5)}
+                disabled={zoom <= 8}
+              >
+                <Minus />
+              </Button>
+              <ButtonGroupText className="w-10 justify-center bg-background px-0 text-xs font-normal tabular-nums">
+                {zoom.toFixed(1)}
+              </ButtonGroupText>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Zoom in"
+                onClick={() => stepZoom(0.5)}
+                disabled={zoom >= 16}
+              >
+                <Plus />
+              </Button>
+              <ButtonGroupSeparator />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Reset map position"
+                title="Recentre"
+                onClick={resetView}
+              >
+                <RotateCcw />
+              </Button>
+            </ButtonGroup>
+          </section>
+          {status && (
+            <div className="map-art-status flex flex-col gap-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" role="status">
+              <span>{status}</span>
+              {busy && <Progress aria-label="Map generation progress" max={progressMax} value={batchProgress} />}
+            </div>
+          )}
+          {artworks.length > 0 && (
+            <section className="map-art-gallery">
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Collection</p>
+                  <h2 className="text-base font-semibold">{artworks.length} finished map{artworks.length === 1 ? '' : 's'}</h2>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download data-icon="inline-start" /> Download ZIP</Button>
+              </div>
+              <div className="map-art-gallery-grid">
+                {artworks.map((artwork, index) => (
+                  <article key={`${artwork.city.id}-${artwork.createdAt}`} className="group min-w-0">
+                    <button type="button" className="block aspect-[3/4] w-full overflow-hidden rounded-md border bg-muted outline-none transition hover:ring-2 hover:ring-ring/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60" disabled={busy} onClick={() => { setCity(artwork.city); setActiveIndex(index) }}>
+                      <img className="size-full object-cover" src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} />
+                    </button>
+                    <div className="mt-1.5 flex items-center gap-1">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium">{artwork.city.name}</p>
+                        <p className="truncate text-[11px] text-muted-foreground">{artwork.city.country}</p>
+                      </div>
+                      <a href={artwork.url} download={`${artwork.city.name}-map.png`} aria-label={`Download ${artwork.city.name} map`} className={buttonVariants({ variant: 'ghost', size: 'icon-xs' })}><Download /></a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         </main>
         <aside className="map-art-right">
-          <section className="map-art-block"><div className="map-art-label">Map layers</div><p className="map-art-hint">OpenFreeMap vector tiles keep roads, railway lines, paths, and street labels independently adjustable.</p></section>
-          <details className="map-art-details" open><summary>Colours &amp; finish <span>{style.label}</span></summary><div className="map-art-color-row">Paper <span>{style.swatches[0]} <i style={{ background: style.swatches[0] }} /></span></div><div className="map-art-color-row">Roads <span>{style.swatches[1]} <i style={{ background: style.swatches[1] }} /></span></div><div className="map-art-color-row">Contours <span>{style.swatches[2]} <i style={{ background: style.swatches[2] }} /></span></div></details>
-          <details className="map-art-details"><summary>Typography &amp; labels <span>Poster title</span></summary><p>City title, country, and coordinates are composed on the final poster.</p></details>
-          <details className="map-art-details"><summary>Export details <span>PNG</span></summary><p>Exported poster artwork is saved into the existing frame uploads library. Vector tiles by OpenFreeMap · OpenStreetMap data.</p></details>
-          <div className="map-art-right-foot">OpenFreeMap vector tiles · OpenStreetMap data. Batch rendering is sequential to limit tile requests.</div>
+          <section className="flex flex-col gap-3 border-b p-4">
+            <h2 className="text-sm font-medium">Palette</h2>
+            <p className="text-xs text-muted-foreground">{style.label}</p>
+            {(['Paper', 'Roads', 'Accent'] as const).map((label, index) => (
+              <div key={label} className="flex items-center justify-between text-xs">
+                <span>{label}</span>
+                <span className="flex items-center gap-2 font-mono uppercase text-muted-foreground">{style.swatches[index]}<i className="size-3.5 rounded-sm border" style={{ background: style.swatches[index] }} /></span>
+              </div>
+            ))}
+          </section>
+          <section className="flex flex-col gap-1.5 border-b p-4">
+            <h2 className="text-sm font-medium">Labels</h2>
+            <p className="text-xs leading-relaxed text-muted-foreground">City title, country and coordinates are typeset on the final poster at full resolution.</p>
+          </section>
+          <section className="flex flex-col gap-1.5 border-b p-4">
+            <h2 className="text-sm font-medium">Export</h2>
+            <p className="text-xs leading-relaxed text-muted-foreground">PNG posters are saved to the frame image library. Batches render one at a time to limit tile requests.</p>
+          </section>
+          <p className="mt-auto p-4 text-[11px] leading-relaxed text-muted-foreground">Vector tiles by OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors</p>
         </aside>
       </div>
     </div>

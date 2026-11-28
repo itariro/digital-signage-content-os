@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Check, ExternalLink, Monitor, Pencil, Plus, Trash2 } from 'lucide-react'
 import { EditorButton, IconButton } from './controls'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -210,14 +210,15 @@ export function FrameSwitcher({ singleFrame = false }: { singleFrame?: boolean }
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
+                    <a
+                      href={`/frame/${encodeURIComponent(frame.id)}`}
+                      target="_blank"
+                      rel="noreferrer"
                       aria-label={`Open ${frame.name}`}
-                      render={<a href={`/frame/${encodeURIComponent(frame.id)}`} target="_blank" rel="noreferrer" />}
+                      className={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
                     >
                       <ExternalLink className="size-4" />
-                    </Button>
+                    </a>
                     <IconButton
                       label={`Edit ${frame.name}`}
                       onClick={() => setEditing({ id: frame.id, name: frame.name, resolutionWidth: String(frame.resolutionWidth), resolutionHeight: String(frame.resolutionHeight), screenWidthMm: frame.screenWidthMm ? String(frame.screenWidthMm) : '', screenHeightMm: frame.screenHeightMm ? String(frame.screenHeightMm) : '' })}

@@ -2,7 +2,7 @@
 
 import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/nextjs'
 import { Frame } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function Hero() {
@@ -57,7 +57,7 @@ export function Hero() {
             </SignInButton>
           </Show>
           <Show when="signed-in">
-            <Button size="lg" render={<a href="/" />}>Open studio</Button>
+            <a href="/" className={buttonVariants({ size: 'lg' })}>Open studio</a>
           </Show>
         </div>
 

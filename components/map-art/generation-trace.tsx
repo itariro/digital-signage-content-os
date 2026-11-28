@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { CircleAlert, CircleCheck, CircleDashed, LoaderCircle } from 'lucide-react'
 import type { TraceStep, TraceStepStatus } from '@/lib/map-art'
 import {
@@ -14,52 +15,60 @@ import {
 } from '@/components/ui/trace'
 
 function StatusIcon({ status }: { status?: TraceStepStatus }) {
-  if (status === 'error') return <CircleAlert />
-  if (status === 'pending') return <CircleDashed />
+  if (status === 'error') return <CircleAlert className="text-destructive" />
+  if (status === 'pending') return <CircleDashed className="text-muted-foreground" />
   if (status === 'running') return <LoaderCircle className="animate-spin" />
-  return <CircleCheck />
+  return <CircleCheck className="text-primary" />
 }
 
 function StepLine({ step }: { step: TraceStep }) {
+  const total = step.children?.length ?? 0
+  const done = step.children?.filter((child) => !child.status).length ?? 0
   return (
     <TraceLine status={step.status}>
       <TraceIcon><StatusIcon status={step.status} /></TraceIcon>
       <TraceTitle>{step.title}</TraceTitle>
       {step.description && <TraceDescription>{step.description}</TraceDescription>}
-      {step.children?.length ? <TraceDescription>{step.children.length} steps</TraceDescription> : null}
+      {total > 0 && <TraceDescription className="tabular-nums">{done}/{total}</TraceDescription>}
     </TraceLine>
   )
 }
 
-function TraceList({ steps }: { steps: TraceStep[] }) {
+function TraceStepItem({ step }: { step: TraceStep }) {
+  const [initiallyOpen] = useState(() => step.status === 'running')
+  if (!step.detail && !step.children?.length) return <StepLine step={step} />
+
   return (
-    <section aria-label="Generation activity" className="w-full rounded-lg border border-border bg-card p-3">
-      <p className="mb-2 text-xs font-medium text-foreground">Generation activity</p>
-      <Trace className="gap-1">
-        {steps.map((step) => {
-          const hasDetail = Boolean(step.detail || step.children?.length)
-          if (!hasDetail) return <StepLine key={step.id} step={step} />
-          return (
-            <TraceCollapsible key={step.id} defaultOpen={step.status === 'running'}>
-              <TraceCollapsibleTrigger>
-                <StepLine step={step} />
-              </TraceCollapsibleTrigger>
-              <TraceCollapsibleContent>
-                {step.detail && <p className="mb-2 text-xs text-muted-foreground">{step.detail}</p>}
-                {step.children?.length ? <TraceList steps={step.children} /> : null}
-              </TraceCollapsibleContent>
-            </TraceCollapsible>
-          )
-        })}
-      </Trace>
-    </section>
+    <TraceCollapsible defaultOpen={initiallyOpen}>
+      <TraceCollapsibleTrigger>
+        <StepLine step={step} />
+      </TraceCollapsibleTrigger>
+      <TraceCollapsibleContent>
+        {step.detail && <p className="mb-2 text-xs text-muted-foreground">{step.detail}</p>}
+        {step.children?.length ? <TraceSteps steps={step.children} /> : null}
+      </TraceCollapsibleContent>
+    </TraceCollapsible>
+  )
+}
+
+// Nested levels render just the steps — the card chrome appears once at the top.
+function TraceSteps({ steps }: { steps: TraceStep[] }) {
+  return (
+    <Trace className="gap-1">
+      {steps.map((step) => <TraceStepItem key={step.id} step={step} />)}
+    </Trace>
   )
 }
 
 export function GenerationTrace({ steps }: { steps: TraceStep[] }) {
   return (
-    <div aria-live="polite">
-      {steps.length ? <TraceList steps={steps} /> : null}
+    <div aria-live="polite" className="w-full">
+      {steps.length ? (
+        <section aria-label="Activity" className="rounded-lg border bg-card p-3">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Activity</p>
+          <TraceSteps steps={steps} />
+        </section>
+      ) : null}
     </div>
   )
 }

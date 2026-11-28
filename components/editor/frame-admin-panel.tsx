@@ -23,7 +23,7 @@ export function FrameAdminPanel() {
       onValueChange={(value) => setActiveTab(value as AdminTab)}
       className="flex min-h-full flex-col gap-0"
     >
-      <TabsList variant="line" aria-label="Frame administration sections" className="flex w-full shrink-0 rounded-none border-b border-border">
+      <TabsList variant="line" aria-label="Frame administration sections" className="flex group-data-horizontal/tabs:h-auto w-full shrink-0 rounded-none border-b border-border">
         {TABS.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id} className="min-h-12 flex-1 rounded-none">
             {tab.label}

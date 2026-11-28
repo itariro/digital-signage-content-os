@@ -121,4 +121,16 @@ describe('service worker strategy', () => {
     const res = await fire(scope, { request: new Request(url) })
     expect(await res.text()).toBe('v2') // served from cache...
   })
+
+  it('app chunks use the network before cache so stale modules are never served', async () => {
+    const scope = makeScope()
+    runSw(scope)
+    await scope.listeners.install({ waitUntil: () => {} })
+    const url = new URL('/_next/static/chunks/app.js', 'http://frame.test').toString()
+    scope.fetch = async () => new Response('stale')
+    await fire(scope, { request: new Request(url) })
+    scope.fetch = async () => new Response('fresh')
+    const res = await fire(scope, { request: new Request(url) })
+    expect(await res.text()).toBe('fresh')
+  })
 })

@@ -563,7 +563,7 @@ export function Editor({
                 activeDrawer ? 'flex' : 'hidden',
               )}
             >
-              <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
+              <header className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
                 <h2 id="editor-drawer-title" className="text-base font-semibold tracking-tight">
                   {drawerTitle}
                 </h2>

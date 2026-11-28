@@ -145,7 +145,7 @@ describe('editor visual system', () => {
     expect(albums).toContain('variant="secondary"')
     expect(albumDetail).toContain('variant="destructive"')
     expect(fonts).toContain('variant="primary"')
-    expect(schedule).toContain('<Button')
+    expect(schedule).toContain("buttonVariants({ variant: 'outline'")
     expect(notifications).toContain('variant="destructive"')
     expect(experiences).toContain('variant="primary"')
   })
