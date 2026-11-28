@@ -104,7 +104,7 @@ export function StyleTab({
                 className={cn(
                   '!aspect-auto !size-auto flex w-full min-w-0 cursor-pointer flex-col gap-1.5 rounded-md border p-1.5 text-left transition-colors outline-none',
                   'hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                  'data-checked:bg-transparent data-checked:text-foreground',
+                  'data-checked:bg-transparent data-checked:text-foreground dark:data-checked:bg-transparent',
                   active ? 'border-primary ring-1 ring-primary' : 'border-border',
                 )}
               >

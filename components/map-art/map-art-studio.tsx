@@ -1050,6 +1050,13 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
                         setCities(resolved.cities)
                         setCity(resolved.cities[resolved.index])
                         setActiveIndex(resolved.index)
+                        if (resolved.added) {
+                          // Keep the review list in step with the batch, like the
+                          // recent-location handler, so the city can be reviewed
+                          // and removed there.
+                          setVerifiedCount(null)
+                          setResults(resolved.cities)
+                        }
                       } else {
                         // Batch is full and the city is absent; show it on the current slide.
                         setCity(artwork.city)
