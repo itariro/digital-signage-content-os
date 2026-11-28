@@ -814,10 +814,10 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const progressMax = Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)
   const generateLabel = busy ? 'Generating…' : `Generate ${cities.length || ''} map${cities.length === 1 ? '' : 's'}`.replace('  ', ' ')
   const slides = cities.length ? cities : [city]
-  const selectedIndex = findCityIndex(cities, city)
-  const liveIndex = cities.length
-    ? (selectedIndex >= 0 ? selectedIndex : Math.max(0, Math.min(activeIndex, cities.length - 1)))
-    : 0
+  // Keep the live map on the visible slide. Two queries can resolve to the same
+  // city id, so an id lookup here can pin the map to the wrong (hidden) slide;
+  // id lookup is only used when selecting gallery artwork.
+  const liveIndex = cities.length ? Math.max(0, Math.min(activeIndex, cities.length - 1)) : 0
   const carouselOpts = useMemo(() => ({
     loop: slides.length > 1,
     // Dragging on the map pans it; dragging on the poster margin swipes. No swiping while generating.
