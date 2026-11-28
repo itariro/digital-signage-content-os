@@ -31,6 +31,54 @@ own content. Nothing needs restoring.
 Use enrolled instances only. A slot with no frame stays unassigned until you
 pick one. A frame can join one scheduled or live canvas at a time.
 
+## Slots and sizing
+
+Slot geometry can use pixels or physical units. Physical units measure each
+screen so the console can compute the true wall size and the bezel gap. The
+bezel mode controls what the wall preview shows between slots: the real bezel,
+nothing, or a collapsed gap. Each slot can also rotate by 90, 180 or 270 degrees
+for screens mounted sideways.
+
+## Scenes and starter shows
+
+A canvas album is a playlist of scenes. Four core scenes cover most walls:
+
+- Marquee: scrolling text with measured line boxes.
+- Bounce: a logo that moves between walls or corners and leaves a trail.
+- Pong: a two-paddle rally with score.
+- Sync-test: the sweep bar and slot markers used for calibration.
+
+A 28-scene catalog adds the rest: gallery and mosaic walls, panorama, exhibit
+and sprite parades, split-flap and kinetic type, lane marquees, wall clock and
+countdown, gradient, colour field and light sweeps, flow lines, ripples,
+Lissajous curves, moire, metaballs, matrix rain, starfield, fireworks, bouncing
+balls, chase lights, snake, breakout, tile reveal and life. Every scene is a
+pure function of time and seed, so playback stays deterministic and identical
+on every frame.
+
+New albums start with one sync-test scene for calibration. The Albums tab can
+also create one of six starter shows (Hello Wall, Sync Check, Colour Study, Type
+Parade, Arcade Night and Wall Clock). A starter show creates a matching canvas
+album and layout in one step, so a new wall has something to show after its
+first deploy.
+
+## Composition
+
+Scenes in one album can play as layers over a single shared timeline instead of
+one after another. An album keeps up to three layers, each with its own scene
+list, play order and crossfade time, and layers composite over each other, so a
+marquee can run across the top of the wall while a gallery fills the rest.
+
+An album also carries a palette and a transition. The palette (aurora, sunset,
+mono, neon, forest, candy) maps scene colours to shared tokens, so one pick
+recolours the whole wall. The transition (none, wipe, iris or chase) plays
+wall-wide between scene changes, across every bezel at once, with a direction
+and duration.
+
+The Status tab hashes composition fields along with the rest of the album, so
+editing a palette or transition marks the wall as having unpublished changes
+until the next deploy.
+
 ## Clock setup
 
 Every frame measures its offset to the console on each sync pull. Playback uses
