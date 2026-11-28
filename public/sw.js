@@ -68,7 +68,11 @@ self.addEventListener('fetch', (event) => {
   if (isAppAsset(req.url)) {
     event.respondWith(
       fetch(req)
-        .then((res) => {
+        .then(async (res) => {
+          if (!res.ok) {
+            const cached = await caches.open(STATIC_CACHE).then((c) => c.match(req))
+            return cached ?? res
+          }
           const copy = res.clone()
           caches.open(STATIC_CACHE).then((c) => c.put(req, copy))
           return res

@@ -30,7 +30,10 @@ function makeScope(): MockScope {
         const store = cachesMap.get(name)!
         return {
           put: async (req: any, res: any) => { store.set(abs(String(req.url ?? req)), res) },
-          match: async (req: any) => store.get(abs(String(req.url ?? req))),
+          match: async (req: any) => {
+            const hit = store.get(abs(String(req.url ?? req)))
+            return hit ? hit.clone() : undefined
+          },
           addAll: async (urls: string[]) => { for (const u of urls) store.set(abs(u), new Response('shell')) },
           keys: async () => [...store.entries()].map(([url]) => new Request(url)),
           delete: async (req: any) => store.delete(abs(String(req.url ?? req))),
@@ -132,5 +135,23 @@ describe('service worker strategy', () => {
     scope.fetch = async () => new Response('fresh')
     const res = await fire(scope, { request: new Request(url) })
     expect(await res.text()).toBe('fresh')
+  })
+
+  it('app chunks fall back to cache on HTTP errors without caching the error', async () => {
+    const scope = makeScope()
+    runSw(scope)
+    await scope.listeners.install({ waitUntil: () => {} })
+    const url = new URL('/_next/static/chunks/app.js', 'http://frame.test').toString()
+    scope.fetch = async () => new Response('good')
+    await fire(scope, { request: new Request(url) })
+
+    scope.fetch = async () => new Response('gone', { status: 503 })
+    const res = await fire(scope, { request: new Request(url) })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('good')
+
+    scope.fetch = async () => { throw new Error('offline') }
+    const offline = await fire(scope, { request: new Request(url) })
+    expect(await offline.text()).toBe('good')
   })
 })

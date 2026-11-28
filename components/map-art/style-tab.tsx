@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import type { MapArtSettings } from '@/lib/types'
 import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -76,25 +77,32 @@ export function StyleTab({
   onCustomTextChange: (value: string) => void
 }) {
   const isPortrait = values.orientation === 'portrait'
+  const [backgroundDraft, setBackgroundDraft] = useState(values.backgroundColor)
+  useEffect(() => setBackgroundDraft(values.backgroundColor), [values.backgroundColor])
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-6">
       {/* Style — iterate styles (not presets) so every card maps 1:1 to a real style */}
       <FieldSet className="gap-3">
         <FieldLegend variant="label">Map style</FieldLegend>
-        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Map style">
+        <RadioGroup
+          aria-label="Map style"
+          value={values.styleId}
+          onValueChange={(next: string) => onStyleChange(styles.find((option) => option.id === next) ?? styles[0])}
+          className="grid grid-cols-3 gap-2"
+        >
           {styles.map((option, index) => {
             const active = values.styleId === option.id
             const [paper, ink, accent] = option.swatches
+            const labelId = `map-style-${option.id}-label`
             return (
-              <button
+              <RadioGroupItem
                 key={option.id}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => onStyleChange(option)}
+                value={option.id}
+                aria-labelledby={labelId}
+                render={<div />}
                 className={cn(
-                  'group flex min-w-0 flex-col gap-1.5 rounded-md border p-1.5 text-left transition-colors outline-none',
+                  '!aspect-auto !size-auto flex w-full min-w-0 cursor-pointer flex-col gap-1.5 rounded-md border p-1.5 text-left transition-colors outline-none',
                   'hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50',
                   active ? 'border-primary ring-1 ring-primary' : 'border-border',
                 )}
@@ -104,11 +112,11 @@ export function StyleTab({
                   <span className="absolute left-[25%] top-[55%] h-px w-[55%] rotate-[30deg]" style={{ background: accent }} />
                   <span className="absolute left-[12%] top-[68%] h-px w-[70%] rotate-6" style={{ background: ink, opacity: 0.5 }} />
                 </span>
-                <span className="truncate px-0.5 text-[11px] font-medium leading-tight">{presets[index] ?? option.label}</span>
-              </button>
+                <span id={labelId} className="truncate px-0.5 text-[11px] font-medium leading-tight">{presets[index] ?? option.label}</span>
+              </RadioGroupItem>
             )
           })}
-        </div>
+        </RadioGroup>
       </FieldSet>
 
       <Separator />
@@ -159,12 +167,14 @@ export function StyleTab({
             </label>
             <Input
               id="poster-background"
-              key={values.backgroundColor}
               className="font-mono uppercase"
-              defaultValue={values.backgroundColor}
+              value={backgroundDraft}
               onChange={(event) => {
-                if (/^#[0-9a-fA-F]{6}$/.test(event.target.value)) onBackgroundChange(event.target.value)
+                const next = event.target.value
+                setBackgroundDraft(next)
+                if (/^#[0-9a-fA-F]{6}$/.test(next)) onBackgroundChange(next)
               }}
+              onBlur={() => setBackgroundDraft(values.backgroundColor)}
             />
           </div>
         </Field>

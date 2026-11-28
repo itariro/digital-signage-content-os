@@ -75,6 +75,14 @@ export function selectOrAppendCity(
   return { cities: [...cities, city], index: cities.length, added: true }
 }
 
+/**
+ * Find a city in the current batch by id. Gallery artwork keeps the city object
+ * from the batch that produced it, so object identity cannot be used here.
+ */
+export function findCityIndex(cities: readonly MapArtLocation[], city: MapArtLocation): number {
+  return cities.findIndex((entry) => entry.id === city.id)
+}
+
 const RECENT_LOCATION_LIMIT = 10
 
 export function normalizeRecentLocations(

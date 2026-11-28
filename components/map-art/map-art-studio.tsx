@@ -10,6 +10,7 @@ import {
   CITY_BATCH_LIMIT,
   appendRecentLocation,
   appendTraceChild,
+  findCityIndex,
   getRecentLocations,
   removeAmbiguityRow,
   resolveExportView,
@@ -813,6 +814,10 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
   const progressMax = Math.max(1, onAddToAlbum ? Math.min(cities.length, 200 - albumCount) : cities.length)
   const generateLabel = busy ? 'Generating…' : `Generate ${cities.length || ''} map${cities.length === 1 ? '' : 's'}`.replace('  ', ' ')
   const slides = cities.length ? cities : [city]
+  const selectedIndex = findCityIndex(cities, city)
+  const liveIndex = cities.length
+    ? (selectedIndex >= 0 ? selectedIndex : Math.max(0, Math.min(activeIndex, cities.length - 1)))
+    : 0
   const carouselOpts = useMemo(() => ({
     loop: slides.length > 1,
     // Dragging on the map pans it; dragging on the poster margin swipes. No swiping while generating.
@@ -962,11 +967,14 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
             <p className="self-start text-xs font-medium uppercase tracking-wider text-muted-foreground">Preview</p>
             <Carousel setApi={setCarouselApi} opts={carouselOpts} className="w-full px-12">
               <CarouselContent>
-                {slides.map((entry, index) => (
-                  <CarouselItem key={`${entry.id}-${index}`} className="flex justify-center">
-                    {renderPoster(entry, slides.length === 1 || index === activeIndex)}
-                  </CarouselItem>
-                ))}
+                {slides.map((entry, index) => {
+                  const live = slides.length === 1 || index === liveIndex
+                  return (
+                    <CarouselItem key={`${entry.id}-${index}`} className="flex justify-center">
+                      {renderPoster(live ? city : entry, live)}
+                    </CarouselItem>
+                  )
+                })}
               </CarouselContent>
               <CarouselPrevious className="left-0" aria-label="Previous city" disabled={busy || slides.length < 2} />
               <CarouselNext className="right-0" aria-label="Next city" disabled={busy || slides.length < 2} />
@@ -1033,9 +1041,13 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
                 <Button variant="outline" size="sm" onClick={() => void downloadAll()} disabled={busy}><Download data-icon="inline-start" /> Download ZIP</Button>
               </div>
               <div className="map-art-gallery-grid">
-                {artworks.map((artwork, index) => (
+                {artworks.map((artwork) => (
                   <article key={`${artwork.city.id}-${artwork.createdAt}`} className="group min-w-0">
-                    <button type="button" className="block aspect-[3/4] w-full overflow-hidden rounded-md border bg-muted outline-none transition hover:ring-2 hover:ring-ring/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60" disabled={busy} onClick={() => { setCity(artwork.city); setActiveIndex(index) }}>
+                    <button type="button" className="block aspect-[3/4] w-full overflow-hidden rounded-md border bg-muted outline-none transition hover:ring-2 hover:ring-ring/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60" disabled={busy} onClick={() => {
+                      setCity(artwork.city)
+                      const cityIndex = findCityIndex(cities, artwork.city)
+                      setActiveIndex(cityIndex >= 0 ? cityIndex : Math.max(0, Math.min(activeIndex, cities.length - 1)))
+                    }}>
                       <img className="size-full object-cover" src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} />
                     </button>
                     <div className="mt-1.5 flex items-center gap-1">

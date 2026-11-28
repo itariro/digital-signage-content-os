@@ -5,6 +5,7 @@ import type { MapArtAmbiguity, MapArtLocation } from '@/lib/types'
 import {
   appendRecentLocation,
   appendTraceChild,
+  findCityIndex,
   getRecentLocations,
   normalizeRecentLocations,
   removeAmbiguityRow,
@@ -284,6 +285,23 @@ describe('map art zoom preset controls', () => {
     expect(styleSource).toContain('Tall 11 MP poster for walls and portrait displays')
     expect(styleSource).toContain('Wide 8 MP poster for screens and landscape frames')
   })
+
+  it('uses real radio controls for map style cards', () => {
+    expect(styleSource).toContain('<RadioGroup')
+    expect(styleSource).toContain('value={values.styleId}')
+    expect(styleSource).toContain('onValueChange={(next: string) => onStyleChange(')
+    expect(styleSource).not.toContain('role="radio"')
+    expect(styleSource).not.toContain('<button')
+  })
+})
+
+describe('map art background colour editing', () => {
+  it('keeps the hex field mounted while a valid edit updates the colour', () => {
+    expect(styleSource).toContain('const [backgroundDraft, setBackgroundDraft] = useState(values.backgroundColor)')
+    expect(styleSource).not.toContain('key={values.backgroundColor}')
+    expect(styleSource).toContain('value={backgroundDraft}')
+    expect(styleSource).toContain('setBackgroundDraft(values.backgroundColor)')
+  })
 })
 
 describe('map art recent city selection', () => {
@@ -313,6 +331,24 @@ describe('map art recent city selection', () => {
   it('guards use-recent in the studio and explains the full batch', () => {
     expect(studioSource).toContain('selectOrAppendCity(cities, city)')
     expect(studioSource).toContain('Remove one before adding another')
+  })
+})
+
+describe('map art gallery selection', () => {
+  const paris: MapArtLocation = { id: 3, name: 'Paris', country: 'France', lat: 48.85, lon: 2.35 }
+
+  it('finds the clicked city at its position in the current batch', () => {
+    expect(findCityIndex([tokyo, paris], paris)).toBe(1)
+  })
+
+  it('reports a city that is no longer in the current batch', () => {
+    expect(findCityIndex([tokyo], { ...tokyo, id: 99 })).toBe(-1)
+  })
+
+  it('opens gallery cities by city lookup and keeps the live slide on the selected city', () => {
+    expect(studioSource).toContain('findCityIndex(cities, artwork.city)')
+    expect(studioSource).toContain('setActiveIndex(cityIndex >= 0 ? cityIndex :')
+    expect(studioSource).toContain('renderPoster(live ? city : entry, live)')
   })
 })
 
