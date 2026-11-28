@@ -11,6 +11,7 @@ The project is designed around a simple workflow:
 5. Attach albums to layouts and configure slideshow behavior.
 6. Assign a layout to a frame and open the frame display URL on a screen.
 7. Optionally schedule layouts and night-mode behavior.
+8. Optionally treat several frames as one shared canvas, or generate city posters with the Map Art studio.
 
 ## Product capabilities
 
@@ -58,7 +59,21 @@ Layouts are stored as data documents, which makes them portable between the edit
 
 A canvas treats several frames as one wide or tall display. Operators create canvas albums and canvas layouts from the Canvas rail, assign enrolled frames to slots, identify the slots on the wall, and deploy with a shared start time. Frames pull the same snapshot and compute scenes from synced time, so motion stays continuous across bezels and survives a network drop.
 
+Scenes are a pure function of time and seed, so every frame draws the same state. Four core scenes (marquee, bounce, pong and sync-test) come with a 28-scene catalog that covers galleries, typography and clocks, colour and motion fields, particle effects, arcade games and calibration patterns. The Albums tab can create one of six starter shows (Hello Wall, Sync Check, Colour Study, Type Parade, Arcade Night and Wall Clock), which sets up a matching album and layout in one step.
+
+Albums support layered composition: scenes stack over one shared timeline, a shared palette (aurora, sunset, mono, neon, forest, candy) recolours the wall, and a wall-wide transition (none, wipe, iris or chase) moves between scenes across every bezel at once. Layouts measure slots in pixels or physical units, show, hide or collapse bezels, and rotate individual slots.
+
 The Status tab shows the last report, delivered and rendering revisions, clock offset and quality, viewport, frame rate and problem labels for every slot. Library edits are marked as unpublished until the next deploy. Revoking an instance also clears its canvas state row. See `docs/canvas.md` for setup, NTP advice, calibration and troubleshooting.
+
+### Map Art studio
+
+The Map Art studio turns a list of cities into framed map posters. It opens inside the album editor for `map-art` albums.
+
+- Add cities manually or pick a continent to start from a curated city list. Geocoding resolves each entry, and ambiguous matches can be reviewed before generation.
+- The Locations tab keeps a verified summary and a recent-locations list (newest ten) with one-click reuse.
+- The Style tab picks one of five map styles (classic, minimal, topographic, vintage, midnight), the poster format and background, zoom presets, labels and layers, plus title, coordinates and subtitle.
+- A generation trace reports geocoding and poster generation steps, and a preview carousel keeps the live map on the active city.
+- Finished posters can be downloaded individually or as a ZIP, added to the album's slideshow, or stored in the frame uploads library. Map rendering uses OpenFreeMap vector tiles; geocoding goes through the existing `/api/geocode` route.
 
 ### Widget library
 
@@ -253,6 +268,7 @@ The playback layer includes:
 - Weather refreshes through SWR.
 - Scheduled layout switching.
 - Night mode with brightness, warmth, and optional hidden seconds.
+- Frame notifications sized in frame units, so the card keeps its proportions on any resolution instead of following the browser window.
 - Cache-busting and synchronized content refresh behavior to avoid conflicting layout or album transitions.
 
 The display route is intended to be opened on a kiosk, tablet, smart display, or other dedicated screen. It does not create arbitrary frames when a nonexistent identifier is visited; frames are expected to be created and managed through the Frame Directory.
@@ -318,6 +334,14 @@ Presets provide reusable widget compositions for quickly starting a layout. Cust
 | `/api/sources` | Manage content source records. |
 | `/api/media` | List or serve stored media. |
 | `/api/media/[file]` | Serve an individual media file. |
+| `/api/canvas/state` | Canvas state pull for enrolled frames, with clock and display reports. |
+| `/api/canvas/report` | Frame display report (revision applied, viewport, fps). |
+| `/api/canvas/status` | Console-only per-slot canvas health rows. |
+| `/api/canvas/deploy`, `/api/canvas/release`, `/api/canvas/identify` | Console deployment lifecycle actions. |
+| `/api/canvas/library` | Console library of canvas layouts and albums. |
+| `/api/canvas/assets` | Content-addressed canvas asset upload and delivery. |
+| `/api/canvas/demo` | Local demo wall seeding (gated by `CANVAS_DEMO`). |
+| `/api/time` | Server time for clock offset estimation. |
 
 Exact request and response contracts are defined in the corresponding route handlers under `app/api`.
 
@@ -413,6 +437,8 @@ hooks/
   use-now.ts            Current-time updates.
 lib/
   albums.ts             Album helpers and defaults.
+  canvas/               Multi-frame canvas scenes, scheduler, composition and services.
+  map-art.ts            Map Art poster helpers.
   db/                   Drizzle database connection and schema.
   fonts.ts              Font definitions and font utilities.
   frame-utils.ts        Frame/layout utility functions.
