@@ -10,7 +10,6 @@ import {
   CITY_BATCH_LIMIT,
   appendRecentLocation,
   appendTraceChild,
-  findCityIndex,
   getRecentLocations,
   removeAmbiguityRow,
   resolveExportView,
@@ -1044,9 +1043,17 @@ export function MapArtStudio({ frameId, onAddToAlbum, onSettingsChange, mapArt, 
                 {artworks.map((artwork) => (
                   <article key={`${artwork.city.id}-${artwork.createdAt}`} className="group min-w-0">
                     <button type="button" className="block aspect-[3/4] w-full overflow-hidden rounded-md border bg-muted outline-none transition hover:ring-2 hover:ring-ring/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60" disabled={busy} onClick={() => {
-                      setCity(artwork.city)
-                      const cityIndex = findCityIndex(cities, artwork.city)
-                      setActiveIndex(cityIndex >= 0 ? cityIndex : Math.max(0, Math.min(activeIndex, cities.length - 1)))
+                      // Resolve against the current batch: artworks outlive location
+                      // edits, so the artwork's city may no longer be in `cities`.
+                      const resolved = selectOrAppendCity(cities, artwork.city)
+                      if (resolved) {
+                        setCities(resolved.cities)
+                        setCity(resolved.cities[resolved.index])
+                        setActiveIndex(resolved.index)
+                      } else {
+                        // Batch is full and the city is absent; show it on the current slide.
+                        setCity(artwork.city)
+                      }
                     }}>
                       <img className="size-full object-cover" src={artwork.url} alt={`Map poster of ${artwork.city.name}, ${artwork.city.country}`} />
                     </button>

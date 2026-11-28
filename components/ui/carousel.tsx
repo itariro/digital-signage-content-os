@@ -77,6 +77,10 @@ function Carousel({
 
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      // Arrow keys panned a nested map (e.g. MapLibre canvas) must not scroll
+      // the carousel. Target is preserved in the capture phase.
+      const target = event.target as Element | null
+      if (target?.closest?.('.maplibregl-canvas')) return
       if (event.key === "ArrowLeft") {
         event.preventDefault()
         scrollPrev()

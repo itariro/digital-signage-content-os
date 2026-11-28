@@ -345,9 +345,10 @@ describe('map art gallery selection', () => {
     expect(findCityIndex([tokyo], { ...tokyo, id: 99 })).toBe(-1)
   })
 
-  it('opens gallery cities by city lookup and keeps the live slide on the selected city', () => {
-    expect(studioSource).toContain('findCityIndex(cities, artwork.city)')
-    expect(studioSource).toContain('setActiveIndex(cityIndex >= 0 ? cityIndex :')
+  it('opens gallery cities via selectOrAppendCity so camera and slide stay in sync', () => {
+    expect(studioSource).toContain('selectOrAppendCity(cities, artwork.city)')
+    expect(studioSource).toContain('setCity(resolved.cities[resolved.index])')
+    expect(studioSource).toContain('setActiveIndex(resolved.index)')
     expect(studioSource).toContain('renderPoster(live ? city : entry, live)')
   })
 })
