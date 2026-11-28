@@ -81,7 +81,7 @@ export function LayoutsTab() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-1">
+    <div className="flex flex-col gap-4 p-0">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold tracking-tight text-foreground">Canvas layouts</h2>

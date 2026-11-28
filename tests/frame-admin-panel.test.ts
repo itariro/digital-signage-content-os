@@ -22,6 +22,10 @@ describe('frame administration panel', () => {
     expect(panelSource).toContain('<TabsContent value="audit"><AuditTab /></TabsContent>')
   })
 
+  it('lets the tab list grow with its 48px triggers so the indicator stays attached', () => {
+    expect(panelSource).toContain('className="flex group-data-horizontal/tabs:h-auto w-full shrink-0 rounded-none border-b border-border"')
+  })
+
   it('mounts the panel only while the authorized drawer is active', () => {
     expect(editorSource).toContain(
       "{canManageFrames && activeDrawer === 'frames' && <FrameAdminPanel />}",

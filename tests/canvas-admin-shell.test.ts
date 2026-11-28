@@ -16,6 +16,14 @@ describe('canvas admin shell', () => {
     expect(panel).toContain('<StatusTab')
   })
 
+  it('uses the same line tabs as frame administration so Base UI active state applies', () => {
+    const panel = read('components/editor/canvas-admin/canvas-admin-panel.tsx')
+    expect(panel).toContain('<TabsList variant="line"')
+    expect(panel).toContain('className="flex group-data-horizontal/tabs:h-auto w-full shrink-0 rounded-none border-b border-border"')
+    expect(panel).toContain('<TabsTrigger key={tab.id} value={tab.id} className="min-h-12 flex-1 rounded-none">')
+    expect(panel).not.toContain('data-[state=active]')
+  })
+
   it('wires deploy release identify and saving into the layouts tab', () => {
     const source = read('components/editor/canvas-admin/layouts-tab.tsx')
     expect(source).toContain('deploy(')

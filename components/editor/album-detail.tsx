@@ -54,7 +54,7 @@ export function AlbumDetail({ album, onLayout, onBack, onUpdate, onDelete, onUse
 
   return (
     <div className="editor-panel flex flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-3">
+      <div className="flex items-center gap-2 border-b border-border px-1 py-1">
         <IconButton label="Back to albums" onClick={onBack}>
           <ArrowLeft className="size-4" aria-hidden />
         </IconButton>

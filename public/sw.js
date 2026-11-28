@@ -28,6 +28,10 @@ function isApi(url) {
   return new URL(url).pathname.startsWith('/api/')
 }
 
+function isAppAsset(url) {
+  return new URL(url).pathname.startsWith('/_next/')
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
@@ -59,7 +63,26 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Static assets: stale-while-revalidate.
+  // App chunks change on every dev rebuild. Stale code here breaks the
+  // module graph, so go to the network first and use the cache offline.
+  if (isAppAsset(req.url)) {
+    event.respondWith(
+      fetch(req)
+        .then(async (res) => {
+          if (!res.ok) {
+            const cached = await caches.open(STATIC_CACHE).then((c) => c.match(req))
+            return cached ?? res
+          }
+          const copy = res.clone()
+          caches.open(STATIC_CACHE).then((c) => c.put(req, copy))
+          return res
+        })
+        .catch(() => caches.open(STATIC_CACHE).then((c) => c.match(req))),
+    )
+    return
+  }
+
+  // Other static assets: stale-while-revalidate.
   event.respondWith(
     caches.open(STATIC_CACHE).then((cache) =>
       cache.match(req).then((hit) => {

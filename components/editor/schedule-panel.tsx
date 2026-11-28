@@ -10,7 +10,7 @@ import { FRAME_WIDTH } from '@/lib/types'
 import { FrameScene } from '@/components/frame/frame-scene'
 import { useLiveData } from './widget-preview'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -85,14 +85,15 @@ export function SchedulePanel({ schedule, layouts, activeId, now, onSave }: Sche
         ) : (
           <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">No layout available</p>
         )}
-        <Button
-          variant="outline"
-          className="w-full"
-          render={<a href="/frame" target="_blank" rel="noreferrer" />}
+        <a
+          href="/frame"
+          target="_blank"
+          rel="noreferrer"
+          className={buttonVariants({ variant: 'outline', className: 'w-full' })}
         >
           <ExternalLink className="size-4" aria-hidden />
           Open frame display
-        </Button>
+        </a>
         <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
           Point the frame&apos;s kiosk browser at <code className="rounded bg-secondary px-1 font-mono text-foreground">/frame</code>. It
           follows this schedule and picks up saved edits within 30 seconds.

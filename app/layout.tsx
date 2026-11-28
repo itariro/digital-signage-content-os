@@ -3,10 +3,16 @@ import { shadcn } from '@clerk/ui/themes'
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Bebas_Neue, Instrument_Serif, Inter, JetBrains_Mono, Outfit, Playfair_Display, Space_Grotesk } from 'next/font/google'
-import Script from 'next/script'
 import './globals.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { SwRegister } from '@/components/sw-register'
+
+const themeInit = `try {
+  var theme = window.localStorage.getItem('mural-editor-theme')
+  if (theme === 'light' || theme === 'dark') document.documentElement.classList.add(theme)
+} catch (error) {
+  console.warn('Could not read editor theme preference; using system theme:', error)
+}`
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
@@ -41,7 +47,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`bg-background ${fontVars}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <Script src="/editor-theme-init.js" strategy="beforeInteractive" />
+        <script
+          type="text/javascript"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeInit }}
+        />
         <TooltipProvider>
           {hasClerk ? (
             <ClerkProvider appearance={{ theme: shadcn }}>

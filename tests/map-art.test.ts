@@ -5,6 +5,7 @@ import type { MapArtAmbiguity, MapArtLocation } from '@/lib/types'
 import {
   appendRecentLocation,
   appendTraceChild,
+  findCityIndex,
   getRecentLocations,
   normalizeRecentLocations,
   removeAmbiguityRow,
@@ -78,7 +79,7 @@ describe('map art export view', () => {
     expect(idIndex).toBeGreaterThan(waitIndex)
     expect(idIndex).toBeLessThan(viewIndex)
     expect(studioSource).not.toContain('const activeCityId = cityRef.current.id')
-    expect(studioSource).toContain('disabled={busy || cities.length < 2}')
+    expect(studioSource).toContain('disabled={busy || slides.length < 2}')
   })
 })
 
@@ -260,19 +261,46 @@ describe('map art tab and trace wiring', () => {
 })
 
 describe('map art zoom preset controls', () => {
-  it('marks the pressed zoom level with a visible background', () => {
-    const css = readFileSync(
-      path.resolve(__dirname, '../components/map-art/map-art.css'),
-      'utf8',
-    )
-    expect(css).toContain('.map-art-zoom-presets button[aria-pressed=true]')
-    expect(css).toContain('background:var(--ink)')
+  it('uses radio semantics for zoom presets', () => {
+    expect(styleSource).toContain("from '@/components/ui/radio-group'")
+    expect(styleSource).toContain('<RadioGroup')
+    expect(styleSource).toContain('<RadioGroupItem')
+    expect(styleSource).not.toContain('aria-pressed=')
+    expect(styleSource).not.toContain('<ToggleGroup')
   })
 
-  it('uses toggle button semantics instead of an incomplete radio group', () => {
-    expect(styleSource).toContain('aria-pressed=')
+  it('shows a one-line description for each zoom preset', () => {
+    for (const description of [
+      'Whole city context',
+      'Neighbourhood clusters',
+      'Street-level detail',
+      'Closest streets and blocks',
+    ]) {
+      expect(styleSource).toContain(description)
+    }
+  })
+
+  it('uses radio semantics for poster type', () => {
+    expect(styleSource).toContain('aria-label="Poster type"')
+    expect(styleSource).toContain('Tall 11 MP poster for walls and portrait displays')
+    expect(styleSource).toContain('Wide 8 MP poster for screens and landscape frames')
+  })
+
+  it('uses real radio controls for map style cards', () => {
+    expect(styleSource).toContain('<RadioGroup')
+    expect(styleSource).toContain('value={values.styleId}')
+    expect(styleSource).toContain('onValueChange={(next: string) => onStyleChange(')
     expect(styleSource).not.toContain('role="radio"')
-    expect(styleSource).not.toContain('aria-checked=')
+    expect(styleSource).not.toContain('<button')
+  })
+})
+
+describe('map art background colour editing', () => {
+  it('keeps the hex field mounted while a valid edit updates the colour', () => {
+    expect(styleSource).toContain('const [backgroundDraft, setBackgroundDraft] = useState(values.backgroundColor)')
+    expect(styleSource).not.toContain('key={values.backgroundColor}')
+    expect(styleSource).toContain('value={backgroundDraft}')
+    expect(styleSource).toContain('setBackgroundDraft(values.backgroundColor)')
   })
 })
 
@@ -303,6 +331,25 @@ describe('map art recent city selection', () => {
   it('guards use-recent in the studio and explains the full batch', () => {
     expect(studioSource).toContain('selectOrAppendCity(cities, city)')
     expect(studioSource).toContain('Remove one before adding another')
+  })
+})
+
+describe('map art gallery selection', () => {
+  const paris: MapArtLocation = { id: 3, name: 'Paris', country: 'France', lat: 48.85, lon: 2.35 }
+
+  it('finds the clicked city at its position in the current batch', () => {
+    expect(findCityIndex([tokyo, paris], paris)).toBe(1)
+  })
+
+  it('reports a city that is no longer in the current batch', () => {
+    expect(findCityIndex([tokyo], { ...tokyo, id: 99 })).toBe(-1)
+  })
+
+  it('opens gallery cities via selectOrAppendCity so camera and slide stay in sync', () => {
+    expect(studioSource).toContain('selectOrAppendCity(cities, artwork.city)')
+    expect(studioSource).toContain('setCity(resolved.cities[resolved.index])')
+    expect(studioSource).toContain('setActiveIndex(resolved.index)')
+    expect(studioSource).toContain('renderPoster(live ? city : entry, live)')
   })
 })
 
@@ -350,7 +397,49 @@ describe('map art concurrent edits and announcements', () => {
 
   it('keeps a polite live region mounted for the top-level trace', () => {
     expect(traceSource.indexOf('aria-live="polite"')).toBeLessThan(traceSource.indexOf('steps.length'))
-    expect(traceSource).toContain('<TraceList steps={step.children} />')
+    expect(traceSource).toContain('<TraceSteps steps={step.children} />')
     expect(traceSource).not.toContain('if (!steps.length) return null')
+  })
+
+  it('freezes each collapsible default open state at mount', () => {
+    expect(traceSource).toContain("const [initiallyOpen] = useState(() => step.status === 'running')")
+    expect(traceSource).toContain('<TraceCollapsible defaultOpen={initiallyOpen}>')
+    expect(traceSource).not.toContain('defaultOpen={step.status ===')
+  })
+})
+
+describe('map art zoom controls', () => {
+  it('uses a shadcn button group for zoom and recentre controls', () => {
+    expect(studioSource).toContain("from '@/components/ui/button-group'")
+    expect(studioSource).toContain('<ButtonGroup aria-label="Map zoom and view controls">')
+    expect(studioSource).toContain('<ButtonGroupSeparator />')
+    expect(studioSource).toContain('<ButtonGroupText')
+    expect(studioSource).toContain('{zoom.toFixed(1)}')
+    expect(studioSource).toContain('onClick={() => stepZoom(-0.5)}')
+    expect(studioSource).toContain('onClick={() => stepZoom(0.5)}')
+    expect(studioSource).toContain('onClick={resetView}')
+  })
+})
+
+describe('map art status panel placement', () => {
+  it('puts validation, trace and Generate below the tabs', () => {
+    const tabsEnd = studioSource.indexOf('</Tabs>')
+    const panel = studioSource.indexOf('aria-label="Generation status"', tabsEnd)
+    const generate = studioSource.indexOf('{generateLabel}', panel)
+
+    expect(tabsEnd).toBeGreaterThan(-1)
+    expect(panel).toBeGreaterThan(tabsEnd)
+    expect(generate).toBeGreaterThan(panel)
+
+    const sidebarPanel = studioSource.slice(panel, generate)
+    expect(sidebarPanel).toContain('{verifiedCount} location')
+    expect(sidebarPanel).toContain('<GenerationTrace steps={traceSteps} />')
+    expect(studioSource).toContain('<aside className="map-art-left [@media(max-width:700px)]:pb-20">')
+    expect(studioSource).toContain('<div className="sticky bottom-0 z-10 border-t bg-inherit p-4 [@media(max-width:700px)]:fixed [@media(max-width:700px)]:inset-x-0 [@media(max-width:700px)]:z-50 [@media(max-width:700px)]:bg-[var(--paper)]">')
+  })
+
+  it('keeps the validation marker out of the locations tab', () => {
+    expect(locationsSource).not.toContain('{verifiedCount} location')
+    expect(locationsSource).not.toContain('onEditVerified')
   })
 })
